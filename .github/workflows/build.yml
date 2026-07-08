@@ -37,8 +37,11 @@ jobs:
       - name: Install Android NDK + platform (use runner's preinstalled SDK)
         run: |
           set -eu
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager --install "ndk;28.0.13004108" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" --install "ndk;28.0.13004108" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
 
       - name: Build libbox.aar from sing-box (gomobile)
