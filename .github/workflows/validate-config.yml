@@ -1,0 +1,31 @@
+name: Validate sing-box config
+
+on:
+  workflow_dispatch:
+    inputs:
+      singbox_ver:
+        description: "sing-box release version to check against"
+        default: "1.14.0-alpha.40"
+  push:
+    branches: [ dev ]
+    paths:
+      - ".github/workflows/validate-config.yml"
+      - "config-test/**"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download sing-box + validate sample config
+        run: |
+          set -euxo pipefail
+          V="${{ github.event.inputs.singbox_ver || '1.14.0-alpha.40' }}"
+          curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${V}/sing-box-${V}-linux-amd64.tar.gz" -o sb.tgz
+          tar xzf sb.tgz
+          SB="$(find . -name 'sing-box' -type f | head -1)"
+          "$SB" version
+          echo "=== sing-box check (Howl sample config) ==="
+          "$SB" check -c config-test/howl-sample.json
+          echo "CONFIG_SCHEMA_VALID=YES"
