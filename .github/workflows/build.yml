@@ -34,11 +34,12 @@ jobs:
         with:
           go-version: "1.25.11"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK 28.0.13004108
-        run: sdkmanager --install "ndk;28.0.13004108"
+      - name: Install Android NDK + platform (use runner's preinstalled SDK)
+        run: |
+          set -eu
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "ndk;28.0.13004108" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
 
       - name: Build libbox.aar from sing-box (gomobile)
         run: |
