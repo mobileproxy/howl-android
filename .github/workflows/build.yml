@@ -5,7 +5,7 @@ on:
     inputs:
       singbox_ref:
         description: "sing-box git ref to build libbox from"
-        default: "dev-next"
+        default: "v1.14.0-alpha.40"
   push:
     branches: [ dev ]
     paths:
@@ -47,7 +47,7 @@ jobs:
       - name: Build libbox.aar from sing-box (gomobile)
         run: |
           set -euxo pipefail
-          REF="${{ github.event.inputs.singbox_ref || 'dev-next' }}"
+          REF="${{ github.event.inputs.singbox_ref || 'v1.14.0-alpha.40' }}"
           git clone --depth 1 --branch "$REF" https://github.com/SagerNet/sing-box.git /tmp/sing-box
           cd /tmp/sing-box
           go install -v github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
