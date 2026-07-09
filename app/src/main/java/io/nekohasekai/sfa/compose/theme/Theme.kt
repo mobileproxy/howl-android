@@ -18,22 +18,30 @@ import androidx.core.view.WindowCompat
 private val DarkColorScheme =
     darkColorScheme(
         primary = SingBoxPrimary,
+        onPrimary = Ink,
         secondary = SingBoxPrimaryLight,
-        tertiary = LogBlue,
+        tertiary = SingBoxPrimary,
+        background = Ink,
+        onBackground = OffWhite,
+        surface = InkSurface,
+        onSurface = OffWhite,
+        surfaceVariant = InkSurface,
+        onSurfaceVariant = OffWhite,
     )
 
 private val LightColorScheme =
     lightColorScheme(
         primary = SingBoxPrimary,
+        onPrimary = Ink,
         secondary = SingBoxPrimaryDark,
-        tertiary = LogBlue,
+        tertiary = SingBoxPrimary,
     )
 
 @Composable
 fun SFATheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Dynamic color (Material You) OFF by default — keep Howl's mint/ink brand
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme =
