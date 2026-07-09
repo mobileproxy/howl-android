@@ -72,6 +72,9 @@
                 <data
                     android:host="import-remote-profile"
                     android:scheme="sing-box" />
+                <data
+                    android:host="import-remote-profile"
+                    android:scheme="howl" />
 
             </intent-filter>
 
