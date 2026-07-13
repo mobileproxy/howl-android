@@ -64,11 +64,16 @@ jobs:
           cp "$AAR" "$GITHUB_WORKSPACE/app/libs/libbox-legacy.aar"
           ls -la "$GITHUB_WORKSPACE/app/libs/"
 
-      - name: Build APK (other flavor, debug)
+      - name: Decode release keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+
+      - name: Build APK (other flavor, RELEASE — signed + minified)
+        env:
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
           export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.13004108"
           chmod +x ./gradlew
-          ./gradlew :app:assembleOtherDebug --stacktrace --no-daemon
+          ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

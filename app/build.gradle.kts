@@ -78,6 +78,7 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("release.keystore")
+            storeType = "PKCS12"
             storePassword = getProps("KEYSTORE_PASS")
             keyAlias = getProps("ALIAS_NAME")
             keyPassword = getProps("ALIAS_PASS")
