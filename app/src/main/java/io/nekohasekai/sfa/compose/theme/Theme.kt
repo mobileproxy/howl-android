@@ -19,14 +19,29 @@ private val DarkColorScheme =
     darkColorScheme(
         primary = SingBoxPrimary,
         onPrimary = Ink,
+        primaryContainer = MintDeep,
+        onPrimaryContainer = Ink,
         secondary = SingBoxPrimaryLight,
+        onSecondary = Ink,
+        secondaryContainer = InkContainerHigh,
+        onSecondaryContainer = OffWhite,
         tertiary = SingBoxPrimary,
+        onTertiary = Ink,
         background = Ink,
         onBackground = OffWhite,
-        surface = InkSurface,
+        surface = Ink,
         onSurface = OffWhite,
-        surfaceVariant = InkSurface,
-        onSurfaceVariant = OffWhite,
+        surfaceVariant = InkContainerHigh,
+        onSurfaceVariant = InkMuted,
+        surfaceContainerLowest = InkContainerLowest,
+        surfaceContainerLow = InkContainerLow,
+        surfaceContainer = InkContainer,
+        surfaceContainerHigh = InkContainerHigh,
+        surfaceContainerHighest = InkContainerHighest,
+        outline = InkOutline,
+        outlineVariant = InkContainerHigh,
+        inverseSurface = OffWhite,
+        inverseOnSurface = Ink,
     )
 
 private val LightColorScheme =
@@ -39,7 +54,7 @@ private val LightColorScheme =
 
 @Composable
 fun SFATheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true, // Howl — всегда тёмная ink-тема (премиум-бренд)
     // Dynamic color (Material You) OFF by default — keep Howl's mint/ink brand
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
