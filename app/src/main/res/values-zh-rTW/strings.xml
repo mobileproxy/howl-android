@@ -630,4 +630,9 @@
     <string name="howl_server">伺服器</string>
     <string name="howl_no_server">無伺服器</string>
     <string name="howl_hint_add_server">新增訂閱以連線</string>
+
+    <!-- Howl dashboard widgets -->
+    <string name="howl_card_diagnostics">診斷</string>
+    <string name="howl_card_routing">路由模式</string>
+    <string name="howl_home_widgets_hint">主畫面的選用小工具——VPN 開啟時顯示，預設隱藏。拖曳控點可調整順序。</string>
 </resources>

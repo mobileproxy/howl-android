@@ -631,4 +631,9 @@
     <string name="howl_server">سرور</string>
     <string name="howl_no_server">بدون سرور</string>
     <string name="howl_hint_add_server">برای اتصال اشتراک اضافه کنید</string>
+
+    <!-- Howl dashboard widgets -->
+    <string name="howl_card_diagnostics">تشخیص</string>
+    <string name="howl_card_routing">حالت مسیریابی</string>
+    <string name="howl_home_widgets_hint">ویجت‌های اختیاری برای صفحهٔ اصلی — هنگام روشن‌بودن VPN نمایش داده می‌شوند. به‌طور پیش‌فرض پنهان‌اند. برای تغییر ترتیب، دسته را بکشید.</string>
 </resources>

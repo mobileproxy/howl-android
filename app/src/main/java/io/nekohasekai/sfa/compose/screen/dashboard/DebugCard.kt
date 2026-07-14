@@ -45,7 +45,7 @@ fun DebugCard(memory: String, goroutines: String, modifier: Modifier = Modifier)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.title_debug),
+                    text = stringResource(R.string.howl_card_diagnostics),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )

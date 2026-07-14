@@ -671,4 +671,9 @@
     <string name="howl_server">Server</string>
     <string name="howl_no_server">No server</string>
     <string name="howl_hint_add_server">Add a subscription to connect</string>
+
+    <!-- Howl dashboard widgets -->
+    <string name="howl_card_diagnostics">Diagnostics</string>
+    <string name="howl_card_routing">Routing mode</string>
+    <string name="howl_home_widgets_hint">Optional widgets for the home screen — shown while the VPN is on. Hidden by default. Drag the handle to reorder.</string>
 </resources>

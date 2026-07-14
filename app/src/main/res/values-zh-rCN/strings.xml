@@ -627,4 +627,9 @@
     <string name="howl_server">服务器</string>
     <string name="howl_no_server">无服务器</string>
     <string name="howl_hint_add_server">添加订阅以连接</string>
+
+    <!-- Howl dashboard widgets -->
+    <string name="howl_card_diagnostics">诊断</string>
+    <string name="howl_card_routing">路由模式</string>
+    <string name="howl_home_widgets_hint">主屏幕的可选小组件——VPN 开启时显示，默认隐藏。拖动手柄可调整顺序。</string>
 </resources>

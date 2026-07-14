@@ -76,12 +76,16 @@ fun DashboardSettingsBottomSheet(
     onResetOrder: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var reorderedList by remember(cardOrder) { mutableStateOf(cardOrder) }
+    // Profiles is not a home-screen widget anymore (replaced by the server selector),
+    // so it never appears in this list.
+    var reorderedList by remember(cardOrder) {
+        mutableStateOf(cardOrder.filter { it != CardGroup.Profiles })
+    }
     var currentVisibleCards by remember(visibleCards) { mutableStateOf(visibleCards) }
 
     // Update local state when props change (e.g., after reset)
     LaunchedEffect(cardOrder, visibleCards) {
-        reorderedList = cardOrder
+        reorderedList = cardOrder.filter { it != CardGroup.Profiles }
         currentVisibleCards = visibleCards
     }
 
@@ -112,7 +116,7 @@ fun DashboardSettingsBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = {
-            if (reorderedList != cardOrder) {
+            if (reorderedList != cardOrder.filter { it != CardGroup.Profiles }) {
                 onReorderCards(reorderedList)
             }
             onDismiss()
@@ -156,28 +160,18 @@ fun DashboardSettingsBottomSheet(
                 )
                 TextButton(
                     onClick = {
-                        val defaultOrder =
-                            listOfNotNull(
+                        // Reset restores the clean Howl default: default order, no cards shown.
+                        // Matches DashboardViewModel.resetCardOrder().
+                        reorderedList =
+                            listOf(
                                 CardGroup.UploadTraffic,
                                 CardGroup.DownloadTraffic,
                                 CardGroup.Debug,
                                 CardGroup.Connections,
                                 CardGroup.SystemProxy,
                                 CardGroup.ClashMode,
-                                CardGroup.Profiles,
                             )
-                        val allCardsEnabled =
-                            setOfNotNull(
-                                CardGroup.ClashMode,
-                                CardGroup.UploadTraffic,
-                                CardGroup.DownloadTraffic,
-                                CardGroup.Debug,
-                                CardGroup.Connections,
-                                CardGroup.SystemProxy,
-                                CardGroup.Profiles,
-                            )
-                        reorderedList = defaultOrder
-                        currentVisibleCards = allCardsEnabled
+                        currentVisibleCards = emptySet()
                         onResetOrder()
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                     },
@@ -194,7 +188,7 @@ fun DashboardSettingsBottomSheet(
 
             // Instruction text
             Text(
-                text = stringResource(R.string.drag_handle_to_reorder),
+                text = stringResource(R.string.howl_home_widgets_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier =
@@ -266,7 +260,7 @@ fun DashboardSettingsBottomSheet(
                             }
                         },
                         onDragEnd = {
-                            if (reorderedList != cardOrder) {
+                            if (reorderedList != cardOrder.filter { it != CardGroup.Profiles }) {
                                 onReorderCards(reorderedList)
                             }
                             draggedItem = null
@@ -412,11 +406,11 @@ fun DashboardItemCard(
                 Text(
                     text =
                     when (cardGroup) {
-                        CardGroup.Debug -> stringResource(R.string.title_debug)
+                        CardGroup.Debug -> stringResource(R.string.howl_card_diagnostics)
                         CardGroup.Connections -> stringResource(R.string.title_connections)
                         CardGroup.UploadTraffic -> stringResource(R.string.upload)
                         CardGroup.DownloadTraffic -> stringResource(R.string.download)
-                        CardGroup.ClashMode -> stringResource(R.string.clash_mode)
+                        CardGroup.ClashMode -> stringResource(R.string.howl_card_routing)
                         CardGroup.SystemProxy -> stringResource(R.string.system_proxy)
                         CardGroup.Profiles -> stringResource(R.string.title_configuration)
                     },
