@@ -636,4 +636,10 @@
     <string name="howl_card_routing">路由模式</string>
     <string name="howl_home_widgets_hint">主畫面的選用小工具——VPN 開啟時顯示，預設隱藏。拖曳控點可調整順序。</string>
     <string name="howl_server_auto">自動</string>
+
+    <!-- Howl onboarding -->
+    <string name="howl_onboarding_title">歡迎使用 Howl</string>
+    <string name="howl_onboarding_body">開始前，請新增訂閱。在 vpn.how 開啟你的帳戶，找到 Howl 應用程式區塊並掃描其 QR 碼——或在手機上開啟並點按 Howl 連結。</string>
+    <string name="howl_onboarding_scan">掃描 QR 碼</string>
+    <string name="howl_onboarding_manual">手動輸入連結</string>
 </resources>

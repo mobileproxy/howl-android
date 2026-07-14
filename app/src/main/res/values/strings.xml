@@ -677,4 +677,10 @@
     <string name="howl_card_routing">Routing mode</string>
     <string name="howl_home_widgets_hint">Optional widgets for the home screen — shown while the VPN is on. Hidden by default. Drag the handle to reorder.</string>
     <string name="howl_server_auto">Auto</string>
+
+    <!-- Howl onboarding -->
+    <string name="howl_onboarding_title">Welcome to Howl</string>
+    <string name="howl_onboarding_body">To get started, add your subscription. Open your account at vpn.how, find the Howl app section, and scan its QR code — or open it on your phone and tap the Howl link.</string>
+    <string name="howl_onboarding_scan">Scan QR code</string>
+    <string name="howl_onboarding_manual">Enter link manually</string>
 </resources>

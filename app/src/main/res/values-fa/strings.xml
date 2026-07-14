@@ -637,4 +637,10 @@
     <string name="howl_card_routing">حالت مسیریابی</string>
     <string name="howl_home_widgets_hint">ویجت‌های اختیاری برای صفحهٔ اصلی — هنگام روشن‌بودن VPN نمایش داده می‌شوند. به‌طور پیش‌فرض پنهان‌اند. برای تغییر ترتیب، دسته را بکشید.</string>
     <string name="howl_server_auto">خودکار</string>
+
+    <!-- Howl onboarding -->
+    <string name="howl_onboarding_title">به Howl خوش آمدید</string>
+    <string name="howl_onboarding_body">برای شروع، اشتراک خود را اضافه کنید. حساب خود را در vpn.how باز کنید، بخش برنامهٔ Howl را پیدا کرده و کد QR آن را اسکن کنید — یا آن را روی گوشی باز کرده و روی پیوند Howl بزنید.</string>
+    <string name="howl_onboarding_scan">اسکن کد QR</string>
+    <string name="howl_onboarding_manual">وارد کردن دستی پیوند</string>
 </resources>

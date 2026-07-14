@@ -232,6 +232,13 @@ private fun HowlHomeContent(
     onOpenNewProfile: (NewProfileArgs) -> Unit,
     onOpenServers: () -> Unit,
 ) {
+    // First run: no subscription yet — guide the user to add one instead of showing
+    // the connect UI (which can't do anything without a server).
+    if (uiState.profiles.isEmpty()) {
+        HowlOnboarding(onOpenNewProfile = onOpenNewProfile)
+        return
+    }
+
     val hasProfile = uiState.selectedProfileId != -1L
     // When connected, show the actual server/location from the outbound group;
     // otherwise fall back to the subscription (profile) name.

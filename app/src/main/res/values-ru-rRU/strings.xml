@@ -643,4 +643,10 @@
     <string name="howl_card_routing">Режим маршрутизации</string>
     <string name="howl_home_widgets_hint">Дополнительные виджеты для главного экрана — видны, когда VPN включён. По умолчанию скрыты. Перетащите за ручку, чтобы изменить порядок.</string>
     <string name="howl_server_auto">Авто</string>
+
+    <!-- Howl onboarding -->
+    <string name="howl_onboarding_title">Добро пожаловать в Howl</string>
+    <string name="howl_onboarding_body">Чтобы начать, добавьте подписку. Откройте личный кабинет на vpn.how, найдите раздел приложения Howl и отсканируйте QR-код — или откройте его на телефоне и нажмите ссылку Howl.</string>
+    <string name="howl_onboarding_scan">Сканировать QR-код</string>
+    <string name="howl_onboarding_manual">Ввести ссылку вручную</string>
 </resources>
