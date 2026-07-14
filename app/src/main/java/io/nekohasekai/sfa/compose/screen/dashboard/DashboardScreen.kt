@@ -171,7 +171,7 @@ fun DashboardScreen(
         ProfilePickerSheet(
             profiles = uiState.profiles,
             selectedProfileId = uiState.selectedProfileId,
-            onProfileSelected = viewModel::selectProfile,
+            onProfileSelected = { profile -> viewModel.selectProfile(profile.id) },
             onProfileEdit = viewModel::editProfile,
             onProfileDelete = viewModel::deleteProfile,
             onProfileMove = viewModel::moveProfile,
