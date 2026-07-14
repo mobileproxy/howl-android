@@ -50,12 +50,12 @@
     <string name="title_dashboard">Главная</string>
     <string name="title_configuration">Профили</string>
     <string name="title_log">Логи</string>
-    <string name="title_settings">Параметры</string>
+    <string name="title_settings">Настройки</string>
     <string name="title_app_settings">Приложение</string>
     <string name="title_new_profile">Новый профиль</string>
     <string name="title_edit_profile">Редактировать профиль</string>
     <string name="title_edit_configuration">Редактировать конфигурацию</string>
-    <string name="title_groups">Группы</string>
+    <string name="title_groups">Серверы</string>
     <string name="title_debug">Отладка</string>
     <string name="title_connections">Соединения</string>
     <string name="title_others">Другое</string>

@@ -62,6 +62,7 @@ fun DashboardScreen(
     showStartFab: Boolean = false,
     showStatusBar: Boolean = false,
     onOpenNewProfile: (NewProfileArgs) -> Unit = {},
+    onOpenServers: () -> Unit = {},
     viewModel: DashboardViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -215,6 +216,7 @@ fun DashboardScreen(
         serviceStatus = serviceStatus,
         viewModel = viewModel,
         onOpenNewProfile = onOpenNewProfile,
+        onOpenServers = onOpenServers,
     )
 }
 
@@ -228,6 +230,7 @@ private fun HowlHomeContent(
     serviceStatus: Status,
     viewModel: DashboardViewModel,
     onOpenNewProfile: (NewProfileArgs) -> Unit,
+    onOpenServers: () -> Unit,
 ) {
     val hasProfile = uiState.selectedProfileId != -1L
     val serverName = if (hasProfile) uiState.selectedProfileName else null
@@ -316,10 +319,11 @@ private fun HowlHomeContent(
         HowlServerSelector(
             serverName = serverName,
             onClick = {
-                if (uiState.profiles.isEmpty()) {
-                    onOpenNewProfile(NewProfileArgs())
-                } else {
-                    viewModel.showProfilePickerSheet()
+                when {
+                    // Connected with a server group → pick the location within the subscription.
+                    serviceStatus == Status.Started && uiState.hasGroups -> onOpenServers()
+                    uiState.profiles.isEmpty() -> onOpenNewProfile(NewProfileArgs())
+                    else -> viewModel.showProfilePickerSheet()
                 }
             },
             label = stringResource(R.string.howl_server),

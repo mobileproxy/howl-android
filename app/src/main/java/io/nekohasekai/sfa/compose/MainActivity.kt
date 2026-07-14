@@ -794,8 +794,6 @@ class MainActivity :
                 if (showConnectionsInNav) {
                     add(Screen.Connections)
                 }
-                add(Screen.Log)
-                add(Screen.Tools)
                 add(Screen.Settings)
             }
 
@@ -903,6 +901,7 @@ class MainActivity :
                     newProfileArgs = newProfileArgs,
                     onClearNewProfileArgs = { newProfileArgs = NewProfileArgs() },
                     onOpenNewProfile = openNewProfile,
+                    onOpenServers = { showGroupsSheet = true },
                     dashboardViewModel = dashboardViewModel,
                     logViewModel = logViewModel,
                     groupsViewModel = groupsViewModel,

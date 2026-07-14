@@ -88,6 +88,7 @@ fun SFANavHost(
     newProfileArgs: NewProfileArgs = NewProfileArgs(),
     onClearNewProfileArgs: () -> Unit = {},
     onOpenNewProfile: (NewProfileArgs) -> Unit = {},
+    onOpenServers: () -> Unit = {},
     dashboardViewModel: DashboardViewModel? = null,
     logViewModel: LogViewModel? = null,
     groupsViewModel: GroupsViewModel? = null,
@@ -109,6 +110,7 @@ fun SFANavHost(
                     showStartFab = showStartFab,
                     showStatusBar = showStatusBar,
                     onOpenNewProfile = onOpenNewProfile,
+                    onOpenServers = onOpenServers,
                     viewModel = dashboardViewModel,
                 )
             } else {
@@ -117,6 +119,7 @@ fun SFANavHost(
                     showStartFab = showStartFab,
                     showStatusBar = showStatusBar,
                     onOpenNewProfile = onOpenNewProfile,
+                    onOpenServers = onOpenServers,
                 )
             }
         }

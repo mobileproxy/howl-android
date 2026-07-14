@@ -49,10 +49,10 @@ sealed class Screen(val route: String, @StringRes val titleRes: Int, val icon: I
     )
 }
 
+// Howl keeps the bottom bar to just Home and Settings. Server-location switching
+// lives in the home screen's server selector; Logs/Tools are no longer surfaced.
 val bottomNavigationScreens =
     listOf(
         Screen.Dashboard,
-        Screen.Log,
-        Screen.Tools,
         Screen.Settings,
     )
