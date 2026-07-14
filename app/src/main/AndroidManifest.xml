@@ -7,10 +7,6 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
-    <uses-feature
-        android:name="android.hardware.usb.host"
-        android:required="false" />
-
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
@@ -148,14 +144,6 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="proxy" />
-        </service>
-        <service
-            android:name=".bg.USBIPService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="usbip" />
         </service>
 
         <receiver

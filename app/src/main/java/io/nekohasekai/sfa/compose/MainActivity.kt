@@ -89,8 +89,6 @@ import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.bg.BoxService
-import io.nekohasekai.sfa.bg.CrashReportManager
-import io.nekohasekai.sfa.bg.OOMReportManager
 import io.nekohasekai.sfa.bg.ServiceConnection
 import io.nekohasekai.sfa.bg.ServiceNotification
 import io.nekohasekai.sfa.compat.WindowSizeClassCompat
@@ -116,9 +114,6 @@ import io.nekohasekai.sfa.compose.screen.dashboard.DashboardViewModel
 import io.nekohasekai.sfa.compose.screen.dashboard.GroupsCard
 import io.nekohasekai.sfa.compose.screen.dashboard.groups.GroupsViewModel
 import io.nekohasekai.sfa.compose.screen.log.LogViewModel
-import io.nekohasekai.sfa.compose.screen.tools.TailscaleSSHSharedViewModel
-import io.nekohasekai.sfa.compose.screen.tools.TailscaleStatusViewModel
-import io.nekohasekai.sfa.compose.screen.usbip.USBIPStatusViewModel
 import io.nekohasekai.sfa.compose.theme.SFATheme
 import io.nekohasekai.sfa.compose.topbar.LocalTopBarController
 import io.nekohasekai.sfa.compose.topbar.TopBarController
@@ -714,13 +709,11 @@ class MainActivity :
         val dashboardUiState by dashboardViewModel.uiState.collectAsState()
 
         val isSettingsSubScreen = currentRoute?.startsWith("settings/") == true
-        val isToolsSubScreen = currentRoute?.startsWith("tools/") == true
         val isConnectionsDetail = currentRoute?.startsWith("connections/detail") == true
         val isProfileRoute = currentRoute?.startsWith("profile/") == true
         val currentRootRoute =
             when {
                 isSettingsSubScreen -> Screen.Settings.route
-                isToolsSubScreen -> Screen.Tools.route
                 currentRoute?.startsWith(Screen.Connections.route) == true -> Screen.Connections.route
                 currentRoute?.startsWith(Screen.Log.route) == true -> Screen.Log.route
                 isProfileRoute -> Screen.Dashboard.route
@@ -730,7 +723,7 @@ class MainActivity :
         val isGroupsRoute = currentRootRoute == Screen.Groups.route
         val isLogRoute = currentRootRoute == Screen.Log.route
 
-        val isSubScreen = isSettingsSubScreen || isToolsSubScreen || isConnectionsDetail || isProfileRoute
+        val isSubScreen = isSettingsSubScreen || isConnectionsDetail || isProfileRoute
         // Get LogViewModel instance if we're on the Log screen
         val logViewModel: LogViewModel? =
             if (isLogRoute) {
@@ -760,23 +753,6 @@ class MainActivity :
                 null
             }
 
-        val tailscaleSSHSharedViewModel: TailscaleSSHSharedViewModel = viewModel()
-
-        val isToolsRoute = currentRootRoute == Screen.Tools.route
-        val tailscaleStatusViewModel: TailscaleStatusViewModel? =
-            if (isToolsRoute) {
-                viewModel()
-            } else {
-                null
-            }
-
-        val usbIPStatusViewModel: USBIPStatusViewModel? =
-            if (isToolsRoute) {
-                viewModel()
-            } else {
-                null
-            }
-
         val showGroupsInNav = dashboardUiState.hasGroups
         val showConnectionsInNav =
             if (isRemote) {
@@ -801,7 +777,6 @@ class MainActivity :
             buildSet {
                 add(Screen.Dashboard.route)
                 add(Screen.Log.route)
-                add(Screen.Tools.route)
                 add(Screen.Settings.route)
                 if (useNavigationRail && showGroupsInNav) {
                     add(Screen.Groups.route)
@@ -906,9 +881,6 @@ class MainActivity :
                     logViewModel = logViewModel,
                     groupsViewModel = groupsViewModel,
                     connectionsViewModel = connectionsViewModel,
-                    tailscaleStatusViewModel = tailscaleStatusViewModel,
-                    tailscaleSSHSharedViewModel = tailscaleSSHSharedViewModel,
-                    usbIPStatusViewModel = usbIPStatusViewModel,
                     modifier = Modifier.fillMaxSize(),
                 )
                 if (!useNavigationRail) {
@@ -1086,18 +1058,6 @@ class MainActivity :
             }
         }
 
-        val crashReportUnreadCount by CrashReportManager.unreadCount.collectAsState()
-        val oomReportUnreadCount by OOMReportManager.unreadCount.collectAsState()
-        // The crash/OOM report entries are hidden in remote control mode.
-        val toolsUnreadCount = if (isRemote) 0 else crashReportUnreadCount + oomReportUnreadCount
-
-        LaunchedEffect(Unit) {
-            withContext(Dispatchers.IO) {
-                CrashReportManager.refresh()
-                OOMReportManager.refresh()
-            }
-        }
-
         CompositionLocalProvider(LocalTopBarController provides topBarController) {
             if (useNavigationRail) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -1113,10 +1073,6 @@ class MainActivity :
                                     icon = {
                                         if (screen == Screen.Settings && hasUpdate) {
                                             BadgedBox(badge = { Badge(containerColor = MaterialTheme.colorScheme.primary) }) {
-                                                Icon(screen.icon, contentDescription = null)
-                                            }
-                                        } else if (screen == Screen.Tools && toolsUnreadCount > 0) {
-                                            BadgedBox(badge = { Badge(containerColor = MaterialTheme.colorScheme.error) { Text("$toolsUnreadCount") } }) {
                                                 Icon(screen.icon, contentDescription = null)
                                             }
                                         } else {
@@ -1161,10 +1117,6 @@ class MainActivity :
                                         icon = {
                                             if (screen == Screen.Settings && hasUpdate) {
                                                 BadgedBox(badge = { Badge(containerColor = MaterialTheme.colorScheme.primary) }) {
-                                                    Icon(screen.icon, contentDescription = null)
-                                                }
-                                            } else if (screen == Screen.Tools && toolsUnreadCount > 0) {
-                                                BadgedBox(badge = { Badge(containerColor = MaterialTheme.colorScheme.error) { Text("$toolsUnreadCount") } }) {
                                                     Icon(screen.icon, contentDescription = null)
                                                 }
                                             } else {
