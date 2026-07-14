@@ -617,4 +617,14 @@
     <string name="remote_checking">检查中…</string>
     <string name="remote_available">可用</string>
     <string name="remote_unavailable">不可用</string>
+    <!-- Howl home -->
+    <string name="howl_status_disconnected">未连接</string>
+    <string name="howl_status_connecting">连接中…</string>
+    <string name="howl_status_connected">已连接</string>
+    <string name="howl_status_disconnecting">断开中…</string>
+    <string name="howl_hint_tap_connect">点按以连接</string>
+    <string name="howl_hint_tap_disconnect">点按以断开</string>
+    <string name="howl_server">服务器</string>
+    <string name="howl_no_server">无服务器</string>
+    <string name="howl_hint_add_server">添加订阅以连接</string>
 </resources>

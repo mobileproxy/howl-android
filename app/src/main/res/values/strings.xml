@@ -660,4 +660,15 @@
         <item quantity="one">Sharing %1$d USB device</item>
         <item quantity="other">Sharing %1$d USB devices</item>
     </plurals>
+
+    <!-- Howl home -->
+    <string name="howl_status_disconnected">Not connected</string>
+    <string name="howl_status_connecting">Connecting…</string>
+    <string name="howl_status_connected">Connected</string>
+    <string name="howl_status_disconnecting">Disconnecting…</string>
+    <string name="howl_hint_tap_connect">Tap to connect</string>
+    <string name="howl_hint_tap_disconnect">Tap to disconnect</string>
+    <string name="howl_server">Server</string>
+    <string name="howl_no_server">No server</string>
+    <string name="howl_hint_add_server">Add a subscription to connect</string>
 </resources>

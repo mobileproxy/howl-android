@@ -621,4 +621,14 @@
     <string name="remote_checking">در حال بررسی…</string>
     <string name="remote_available">در دسترس</string>
     <string name="remote_unavailable">در دسترس نیست</string>
+    <!-- Howl home -->
+    <string name="howl_status_disconnected">متصل نیست</string>
+    <string name="howl_status_connecting">در حال اتصال…</string>
+    <string name="howl_status_connected">متصل</string>
+    <string name="howl_status_disconnecting">در حال قطع اتصال…</string>
+    <string name="howl_hint_tap_connect">برای اتصال ضربه بزنید</string>
+    <string name="howl_hint_tap_disconnect">برای قطع اتصال ضربه بزنید</string>
+    <string name="howl_server">سرور</string>
+    <string name="howl_no_server">بدون سرور</string>
+    <string name="howl_hint_add_server">برای اتصال اشتراک اضافه کنید</string>
 </resources>

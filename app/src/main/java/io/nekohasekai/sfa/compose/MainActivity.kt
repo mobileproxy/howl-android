@@ -889,6 +889,11 @@ class MainActivity :
                     currentServiceStatus == Status.Started || currentServiceStatus == Status.Starting
                 val showStatusBar = isRemote || serviceRunning || currentServiceStatus == Status.Stopping
                 val showStartFab = !isRemote && !serviceRunning && dashboardUiState.selectedProfileId != -1L
+                // On the local Howl home screen, the big connect button replaces the
+                // status bar and start FAB, so suppress those there (kept on other tabs
+                // and in remote-control mode).
+                val isLocalDashboard =
+                    !isRemote && !isSubScreen && currentRootRoute == Screen.Dashboard.route
 
                 SFANavHost(
                     navController = navController,
@@ -924,7 +929,7 @@ class MainActivity :
                         )
                     } else {
                         ServiceStatusBar(
-                            visible = showStatusBar && !isSubScreen,
+                            visible = showStatusBar && !isSubScreen && !isLocalDashboard,
                             serviceStatus = currentServiceStatus,
                             startTime = dashboardUiState.serviceStartTime,
                             groupsCount = dashboardUiState.groupsCount,
@@ -938,7 +943,8 @@ class MainActivity :
                     }
                 }
 
-                val showPadFab = useNavigationRail && !isSubScreen && (showStartFab || showStatusBar)
+                val showPadFab =
+                    useNavigationRail && !isSubScreen && !isLocalDashboard && (showStartFab || showStatusBar)
                 if (useNavigationRail) {
                     androidx.compose.animation.AnimatedVisibility(
                         visible = showPadFab,
@@ -1058,7 +1064,8 @@ class MainActivity :
                         visible = !isRemote &&
                             currentServiceStatus == Status.Stopped &&
                             dashboardUiState.selectedProfileId != -1L &&
-                            !isSubScreen,
+                            !isSubScreen &&
+                            !isLocalDashboard,
                         enter = scaleIn(),
                         exit = scaleOut(),
                         modifier = Modifier

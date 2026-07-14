@@ -2,10 +2,14 @@ package io.nekohasekai.sfa.compose.screen.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,8 +38,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.nekohasekai.sfa.R
@@ -142,7 +147,6 @@ fun DashboardScreen(
 
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
     // Show dashboard settings bottom sheet
     if (uiState.showCardSettingsDialog) {
@@ -162,6 +166,19 @@ fun DashboardScreen(
         )
     }
 
+    // Server picker (reused by the Howl home server selector)
+    if (uiState.showProfilePickerSheet) {
+        ProfilePickerSheet(
+            profiles = uiState.profiles,
+            selectedProfileId = uiState.selectedProfileId,
+            onProfileSelected = viewModel::selectProfile,
+            onProfileEdit = viewModel::editProfile,
+            onProfileDelete = viewModel::deleteProfile,
+            onProfileMove = viewModel::moveProfile,
+            onDismiss = viewModel::hideProfilePickerSheet,
+        )
+    }
+
     if (isRemote && !remoteConnected) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -172,98 +189,199 @@ fun DashboardScreen(
         return
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-    ) {
+    if (isRemote) {
+        // Remote control keeps the classic card dashboard.
         val bottomPadding = when {
             showStartFab -> 88.dp
             showStatusBar -> 74.dp
             else -> 0.dp
         }
-        LazyColumn(
-            modifier =
-            Modifier
+        DashboardCards(
+            cards = visibleDashboardCards(uiState, isRemote = true, excludeProfiles = false),
+            uiState = uiState,
+            serviceStatus = serviceStatus,
+            viewModel = viewModel,
+            onOpenNewProfile = onOpenNewProfile,
+            contentPadding = PaddingValues(bottom = bottomPadding),
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = bottomPadding),
+        )
+        return
+    }
+
+    HowlHomeContent(
+        uiState = uiState,
+        serviceStatus = serviceStatus,
+        viewModel = viewModel,
+        onOpenNewProfile = onOpenNewProfile,
+    )
+}
+
+/**
+ * Howl home screen: a big connect button, live status, and the current-server selector.
+ * Any cards the user re-enables from the ⋮ menu appear between the button and the selector.
+ */
+@Composable
+private fun HowlHomeContent(
+    uiState: DashboardUiState,
+    serviceStatus: Status,
+    viewModel: DashboardViewModel,
+    onOpenNewProfile: (NewProfileArgs) -> Unit,
+) {
+    val hasProfile = uiState.selectedProfileId != -1L
+    val serverName = if (hasProfile) uiState.selectedProfileName else null
+
+    val statusLabel = when (serviceStatus) {
+        Status.Started -> stringResource(R.string.howl_status_connected)
+        Status.Starting -> stringResource(R.string.howl_status_connecting)
+        Status.Stopping -> stringResource(R.string.howl_status_disconnecting)
+        Status.Stopped -> stringResource(R.string.howl_status_disconnected)
+    }
+    val hintText = when {
+        !hasProfile -> stringResource(R.string.howl_hint_add_server)
+        serviceStatus == Status.Started -> stringResource(R.string.howl_hint_tap_disconnect)
+        serviceStatus == Status.Stopped -> stringResource(R.string.howl_hint_tap_connect)
+        else -> ""
+    }
+
+    val localCards = visibleDashboardCards(uiState, isRemote = false, excludeProfiles = true)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center,
         ) {
-            // Dynamic dashboard cards
-            // Show cards when service is running OR if it's the Profiles card (always available)
-            val serviceRunning = uiState.isStatusVisible
-
-            // Filter cards based on availability
-            val actuallyVisibleCards =
-                uiState.visibleCards.filter { cardGroup ->
-                    when {
-                        // The remote dashboard only renders cards backed by the
-                        // command protocol: profiles and system proxy are
-                        // operations on the local device.
-                        isRemote ->
-                            cardGroup != CardGroup.Profiles &&
-                                cardGroup != CardGroup.SystemProxy &&
-                                serviceRunning &&
-                                isCardAvailableWhenServiceRunning(cardGroup, uiState)
-
-                        cardGroup == CardGroup.Profiles -> true // Profiles card is always available
-                        else -> serviceRunning && isCardAvailableWhenServiceRunning(cardGroup, uiState)
-                    }
-                }.toSet()
-
-            // Process cards to group half-width cards together
-            val cardRenderItems =
-                processCardsForRendering(
-                    cardOrder = uiState.cardOrder,
-                    visibleCards = actuallyVisibleCards,
-                    cardWidths = uiState.cardWidths,
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                HowlConnectButton(
+                    status = serviceStatus,
+                    onClick = {
+                        if (hasProfile) {
+                            viewModel.toggleService()
+                        } else {
+                            onOpenNewProfile(NewProfileArgs())
+                        }
+                    },
                 )
 
-            items(cardRenderItems) { renderItem ->
-                if (renderItem.isRow && renderItem.cards.size >= 2) {
-                    // Render two half-width cards in a row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        renderItem.cards.forEach { cardGroup ->
-                            DashboardCardRenderer(
-                                cardGroup = cardGroup,
-                                cardWidth =
-                                uiState.cardWidths[cardGroup]
-                                    ?: CardWidth.Full,
-                                uiState = uiState,
-                                onClashModeSelected = viewModel::selectClashMode,
-                                onSystemProxyToggle = viewModel::toggleSystemProxy,
-                                // Profile card specific props
-                                profiles = uiState.profiles,
-                                selectedProfileId = uiState.selectedProfileId,
-                                isLoading = uiState.isLoading,
-                                showAddProfileSheet = uiState.showAddProfileSheet,
-                                showProfilePickerSheet = uiState.showProfilePickerSheet,
-                                updatingProfileId = uiState.updatingProfileId,
-                                updatedProfileId = uiState.updatedProfileId,
-                                onProfileSelected = viewModel::selectProfile,
-                                onProfileEdit = viewModel::editProfile,
-                                onProfileDelete = viewModel::deleteProfile,
-                                onProfileShare = viewModel::shareProfile,
-                                onProfileShareURL = viewModel::shareProfileURL,
-                                onProfileUpdate = viewModel::updateProfile,
-                                onProfileMove = viewModel::moveProfile,
-                                onShowAddProfileSheet = viewModel::showAddProfileSheet,
-                                onHideAddProfileSheet = viewModel::hideAddProfileSheet,
-                                onShowProfilePickerSheet = viewModel::showProfilePickerSheet,
-                                onHideProfilePickerSheet = viewModel::hideProfilePickerSheet,
-                                onOpenNewProfile = onOpenNewProfile,
-                                commandClient = viewModel.commandClient,
-                                modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth(),
-                            )
-                        }
-                    }
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Text(
+                    text = statusLabel,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (serviceStatus == Status.Started) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    textAlign = TextAlign.Center,
+                )
+
+                if (hintText.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = hintText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+
+        if (localCards.isNotEmpty()) {
+            DashboardCards(
+                cards = localCards,
+                uiState = uiState,
+                serviceStatus = serviceStatus,
+                viewModel = viewModel,
+                onOpenNewProfile = onOpenNewProfile,
+                contentPadding = PaddingValues(vertical = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        HowlServerSelector(
+            serverName = serverName,
+            onClick = {
+                if (uiState.profiles.isEmpty()) {
+                    onOpenNewProfile(NewProfileArgs())
                 } else {
-                    // Render single card (full-width or single half-width)
+                    viewModel.showProfilePickerSheet()
+                }
+            },
+            label = stringResource(R.string.howl_server),
+            emptyTitle = stringResource(R.string.howl_no_server),
+            emptyHint = stringResource(R.string.howl_hint_add_server),
+            modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
+        )
+    }
+}
+
+/**
+ * Compute the set of cards that should actually render, given availability and service state.
+ */
+fun visibleDashboardCards(uiState: DashboardUiState, isRemote: Boolean, excludeProfiles: Boolean): Set<CardGroup> {
+    val serviceRunning = uiState.isStatusVisible
+    return uiState.visibleCards.filter { cardGroup ->
+        when {
+            isRemote ->
+                cardGroup != CardGroup.Profiles &&
+                    cardGroup != CardGroup.SystemProxy &&
+                    serviceRunning &&
+                    isCardAvailableWhenServiceRunning(cardGroup, uiState)
+
+            cardGroup == CardGroup.Profiles -> !excludeProfiles
+            else -> serviceRunning && isCardAvailableWhenServiceRunning(cardGroup, uiState)
+        }
+    }.toSet()
+}
+
+/**
+ * The classic card list, extracted so both the remote dashboard and the Howl home screen
+ * (when the user re-enables cards) share one renderer.
+ */
+@Composable
+private fun DashboardCards(
+    cards: Set<CardGroup>,
+    uiState: DashboardUiState,
+    serviceStatus: Status,
+    viewModel: DashboardViewModel,
+    onOpenNewProfile: (NewProfileArgs) -> Unit,
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    val cardRenderItems =
+        processCardsForRendering(
+            cardOrder = uiState.cardOrder,
+            visibleCards = cards,
+            cardWidths = uiState.cardWidths,
+        )
+
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = contentPadding,
+    ) {
+        items(cardRenderItems) { renderItem ->
+            if (renderItem.isRow && renderItem.cards.size >= 2) {
+                // Render two half-width cards in a row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
                     renderItem.cards.forEach { cardGroup ->
                         DashboardCardRenderer(
                             cardGroup = cardGroup,
@@ -271,7 +389,6 @@ fun DashboardScreen(
                             uiState.cardWidths[cardGroup]
                                 ?: CardWidth.Full,
                             uiState = uiState,
-                            serviceStatus = serviceStatus,
                             onClashModeSelected = viewModel::selectClashMode,
                             onSystemProxyToggle = viewModel::toggleSystemProxy,
                             // Profile card specific props
@@ -295,8 +412,47 @@ fun DashboardScreen(
                             onHideProfilePickerSheet = viewModel::hideProfilePickerSheet,
                             onOpenNewProfile = onOpenNewProfile,
                             commandClient = viewModel.commandClient,
+                            modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
                         )
                     }
+                }
+            } else {
+                // Render single card (full-width or single half-width)
+                renderItem.cards.forEach { cardGroup ->
+                    DashboardCardRenderer(
+                        cardGroup = cardGroup,
+                        cardWidth =
+                        uiState.cardWidths[cardGroup]
+                            ?: CardWidth.Full,
+                        uiState = uiState,
+                        serviceStatus = serviceStatus,
+                        onClashModeSelected = viewModel::selectClashMode,
+                        onSystemProxyToggle = viewModel::toggleSystemProxy,
+                        // Profile card specific props
+                        profiles = uiState.profiles,
+                        selectedProfileId = uiState.selectedProfileId,
+                        isLoading = uiState.isLoading,
+                        showAddProfileSheet = uiState.showAddProfileSheet,
+                        showProfilePickerSheet = uiState.showProfilePickerSheet,
+                        updatingProfileId = uiState.updatingProfileId,
+                        updatedProfileId = uiState.updatedProfileId,
+                        onProfileSelected = viewModel::selectProfile,
+                        onProfileEdit = viewModel::editProfile,
+                        onProfileDelete = viewModel::deleteProfile,
+                        onProfileShare = viewModel::shareProfile,
+                        onProfileShareURL = viewModel::shareProfileURL,
+                        onProfileUpdate = viewModel::updateProfile,
+                        onProfileMove = viewModel::moveProfile,
+                        onShowAddProfileSheet = viewModel::showAddProfileSheet,
+                        onHideAddProfileSheet = viewModel::hideAddProfileSheet,
+                        onShowProfilePickerSheet = viewModel::showProfilePickerSheet,
+                        onHideProfilePickerSheet = viewModel::hideProfilePickerSheet,
+                        onOpenNewProfile = onOpenNewProfile,
+                        commandClient = viewModel.commandClient,
+                    )
                 }
             }
         }

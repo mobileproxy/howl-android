@@ -145,9 +145,13 @@ class DashboardViewModel :
         val savedOrder = loadItemOrder()
         val disabledItems = loadDisabledItems()
 
-        // Calculate visible items (all items minus disabled)
+        // Howl default: a clean home screen with no cards. The user opts cards back in
+        // via the ⋮ "Dashboard items" menu. Once they have configured the dashboard
+        // (reordered or toggled anything), respect their saved selection instead.
+        val hasConfigured =
+            Settings.dashboardItemOrder.isNotBlank() || Settings.dashboardDisabledItems.isNotEmpty()
         val allItems = CardGroup.values().toSet()
-        val visibleCards = allItems - disabledItems
+        val visibleCards = if (hasConfigured) allItems - disabledItems else emptySet()
 
         return DashboardUiState(
             cardOrder = savedOrder,
@@ -714,10 +718,11 @@ class DashboardViewModel :
         Settings.dashboardItemOrder = ""
         Settings.dashboardDisabledItems = emptySet()
 
+        // Howl default is a clean home screen with no cards (matches createInitialState).
         updateState {
             copy(
                 cardOrder = getDefaultItemOrder(),
-                visibleCards = CardGroup.values().toSet(),
+                visibleCards = emptySet(),
             )
         }
     }
