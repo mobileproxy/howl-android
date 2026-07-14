@@ -233,7 +233,16 @@ private fun HowlHomeContent(
     onOpenServers: () -> Unit,
 ) {
     val hasProfile = uiState.selectedProfileId != -1L
-    val serverName = if (hasProfile) uiState.selectedProfileName else null
+    // When connected, show the actual server/location from the outbound group;
+    // otherwise fall back to the subscription (profile) name.
+    val autoLabel = stringResource(R.string.howl_server_auto)
+    val locationName = uiState.selectedServerName
+    val serverName: String? = when {
+        serviceStatus == Status.Started && uiState.hasGroups && locationName.isNotBlank() ->
+            if (uiState.selectedServerAuto) "$autoLabel · $locationName" else locationName
+        hasProfile -> uiState.selectedProfileName
+        else -> null
+    }
 
     val statusLabel = when (serviceStatus) {
         Status.Started -> stringResource(R.string.howl_status_connected)

@@ -55,6 +55,9 @@ data class DashboardUiState(
     val isLoading: Boolean = false,
     val hasGroups: Boolean = false,
     val groupsCount: Int = 0,
+    // Current server/location shown in the home selector (from the outbound group).
+    val selectedServerName: String = "",
+    val selectedServerAuto: Boolean = false,
     val connectionsCount: Int = 0,
     val serviceStartTime: Long? = null,
     val deprecatedNotes: List<DeprecatedNote> = emptyList(),
@@ -491,6 +494,8 @@ class DashboardViewModel :
                     copy(
                         hasGroups = false,
                         groupsCount = 0,
+                        selectedServerName = "",
+                        selectedServerAuto = false,
                         connectionsCount = 0,
                         serviceStartTime = null,
                         clashModeVisible = false,
@@ -665,8 +670,30 @@ class DashboardViewModel :
     override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
         viewModelScope.launch(Dispatchers.Main) {
             val hasGroups = newGroups.isNotEmpty()
+
+            // Resolve the current server/location for the home selector.
+            // Start from the user-facing selector, and if it points to an auto
+            // (urltest) group, resolve one level down to the actual server.
+            val primary = newGroups.firstOrNull { it.selectable } ?: newGroups.firstOrNull()
+            val selectedTag = primary?.selected.orEmpty()
+            val autoGroup = newGroups.firstOrNull { it.tag == selectedTag && it.tag != primary?.tag }
+            val serverName: String
+            val serverAuto: Boolean
+            if (autoGroup != null) {
+                serverAuto = true
+                serverName = autoGroup.selected.orEmpty()
+            } else {
+                serverAuto = false
+                serverName = selectedTag
+            }
+
             updateState {
-                copy(hasGroups = hasGroups, groupsCount = newGroups.size)
+                copy(
+                    hasGroups = hasGroups,
+                    groupsCount = newGroups.size,
+                    selectedServerName = serverName,
+                    selectedServerAuto = serverAuto,
+                )
             }
         }
     }

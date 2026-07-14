@@ -642,4 +642,5 @@
     <string name="howl_card_diagnostics">Диагностика</string>
     <string name="howl_card_routing">Режим маршрутизации</string>
     <string name="howl_home_widgets_hint">Дополнительные виджеты для главного экрана — видны, когда VPN включён. По умолчанию скрыты. Перетащите за ручку, чтобы изменить порядок.</string>
+    <string name="howl_server_auto">Авто</string>
 </resources>

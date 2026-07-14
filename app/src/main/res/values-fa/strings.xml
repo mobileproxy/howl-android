@@ -636,4 +636,5 @@
     <string name="howl_card_diagnostics">تشخیص</string>
     <string name="howl_card_routing">حالت مسیریابی</string>
     <string name="howl_home_widgets_hint">ویجت‌های اختیاری برای صفحهٔ اصلی — هنگام روشن‌بودن VPN نمایش داده می‌شوند. به‌طور پیش‌فرض پنهان‌اند. برای تغییر ترتیب، دسته را بکشید.</string>
+    <string name="howl_server_auto">خودکار</string>
 </resources>

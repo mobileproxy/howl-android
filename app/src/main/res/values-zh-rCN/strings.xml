@@ -632,4 +632,5 @@
     <string name="howl_card_diagnostics">诊断</string>
     <string name="howl_card_routing">路由模式</string>
     <string name="howl_home_widgets_hint">主屏幕的可选小组件——VPN 开启时显示，默认隐藏。拖动手柄可调整顺序。</string>
+    <string name="howl_server_auto">自动</string>
 </resources>
