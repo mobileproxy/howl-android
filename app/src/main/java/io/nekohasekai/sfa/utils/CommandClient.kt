@@ -246,6 +246,10 @@ open class CommandClient(
             getAllHandlers().forEach { it.updateOutbounds(outbounds) }
         }
 
+        // DNS-query observability (sing-box-lx CommandClient) is unused by Howl.
+        override fun writeDNSQuery(query: io.nekohasekai.libbox.DnsQuery?) {
+        }
+
         override fun setDefaultLogLevel(level: Int) {
             if (!isActiveEpoch(epoch)) return
             getAllHandlers().forEach { it.setDefaultLogLevel(level) }
