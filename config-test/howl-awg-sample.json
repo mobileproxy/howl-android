@@ -1,0 +1,63 @@
+{
+    "log": { "level": "warn" },
+    "dns": {
+        "servers": [
+            { "tag": "dns-remote", "type": "tls", "server": "1.1.1.1", "detour": "Howl" },
+            { "tag": "dns-local", "type": "local" }
+        ],
+        "final": "dns-remote",
+        "strategy": "prefer_ipv4"
+    },
+    "inbounds": [
+        { "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true, "stack": "system" }
+    ],
+    "outbounds": [
+        { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test", "wolf AM Test"], "default": "auto" },
+        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test"], "url": "https://www.gstatic.com/generate_204", "interval": "3m", "tolerance": 50 },
+        {
+            "type": "vless", "tag": "shield DE Test",
+            "server": "1.2.3.4", "server_port": 738,
+            "uuid": "00000000-0000-0000-0000-000000000000", "flow": "xtls-rprx-vision",
+            "tls": {
+                "enabled": true, "server_name": "www.google.com",
+                "utls": { "enabled": true, "fingerprint": "chrome" },
+                "reality": { "enabled": true, "public_key": "GCRKNkloUGrQLlgG9LcdAd2murOMy1oJg-0ABB0eCwo", "short_id": "b8ff7e22" }
+            }
+        },
+        {
+            "type": "hysteria2", "tag": "bolt NL Test",
+            "server": "test.example.com", "server_port": 443, "password": "testpassword",
+            "obfs": { "type": "salamander", "password": "testobfs" },
+            "tls": { "enabled": true, "server_name": "test.example.com" }
+        },
+        { "type": "direct", "tag": "direct" }
+    ],
+    "endpoints": [
+        {
+            "type": "wireguard", "tag": "wolf AM Test",
+            "mtu": 1420,
+            "address": ["10.77.77.2/32"],
+            "private_key": "yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=",
+            "peers": [
+                {
+                    "address": "1.2.3.4", "port": 740,
+                    "public_key": "xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=",
+                    "allowed_ips": ["0.0.0.0/0"],
+                    "persistent_keepalive_interval": 15
+                }
+            ],
+            "jc": 5, "jmin": 40, "jmax": 70,
+            "s1": 111, "s2": 57,
+            "h1": 1634089367, "h2": 828443000, "h3": 1767573134, "h4": 1105866450
+        }
+    ],
+    "route": {
+        "auto_detect_interface": true,
+        "default_domain_resolver": "dns-local",
+        "final": "Howl",
+        "rules": [
+            { "action": "sniff" },
+            { "protocol": "dns", "action": "hijack-dns" }
+        ]
+    }
+}

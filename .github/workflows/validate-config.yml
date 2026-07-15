@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       singbox_ver:
-        description: "sing-box release version to check against"
-        default: "1.14.0-alpha.40"
+        description: "sing-box-lx release version to check against"
+        default: "1.14.0-lx.5"
   push:
     branches: [ dev ]
     paths:
@@ -18,14 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download sing-box + validate sample config
+      - name: Download sing-box-lx + validate sample configs (incl. AmneziaWG)
         run: |
           set -euxo pipefail
-          V="${{ github.event.inputs.singbox_ver || '1.14.0-alpha.40' }}"
-          curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/v${V}/sing-box-${V}-linux-amd64.tar.gz" -o sb.tgz
+          V="${{ github.event.inputs.singbox_ver || '1.14.0-lx.5' }}"
+          curl -fsSL "https://github.com/Leadaxe/sing-box-lx/releases/download/v${V}/sing-box-${V}-linux-amd64.tar.gz" -o sb.tgz
           tar xzf sb.tgz
           SB="$(find . -name 'sing-box' -type f | head -1)"
           "$SB" version
-          echo "=== sing-box check (Howl sample config) ==="
+          echo "=== sing-box check (Howl sample: VLESS + Hysteria2) ==="
           "$SB" check -c config-test/howl-sample.json
+          echo "=== sing-box check (Howl AmneziaWG sample: awg endpoint in urltest/selector) ==="
+          "$SB" check -c config-test/howl-awg-sample.json
           echo "CONFIG_SCHEMA_VALID=YES"
