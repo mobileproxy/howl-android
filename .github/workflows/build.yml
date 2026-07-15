@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       singbox_ref:
-        description: "sing-box git ref to build libbox from"
-        default: "v1.14.0-alpha.40"
+        description: "sing-box-lx git ref to build libbox from"
+        default: "v1.14.0-lx.5"
   push:
     branches: [ dev ]
     paths:
@@ -44,11 +44,11 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
 
-      - name: Build libbox.aar from sing-box (gomobile)
+      - name: Build libbox.aar from sing-box-lx (gomobile, with_awg for AmneziaWG)
         run: |
           set -euxo pipefail
-          REF="${{ github.event.inputs.singbox_ref || 'v1.14.0-alpha.40' }}"
-          git clone --depth 1 --branch "$REF" https://github.com/SagerNet/sing-box.git /tmp/sing-box
+          REF="${{ github.event.inputs.singbox_ref || 'v1.14.0-lx.5' }}"
+          git clone --depth 1 --branch "$REF" https://github.com/Leadaxe/sing-box-lx.git /tmp/sing-box
           cd /tmp/sing-box
           go install -v github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
           go install -v github.com/sagernet/gomobile/cmd/gobind@v0.1.13
