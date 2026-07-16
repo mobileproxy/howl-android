@@ -51,7 +51,6 @@
             "h1": 1634089367, "h2": 828443000, "h3": 1767573134, "h4": 1105866450
         },
         {
-            "_comment": "Second AWG node — deliberately the SAME address 10.77.77.2/32 as above, mirroring production (each node hands the single client .2 in its own subnet).",
             "type": "wireguard", "tag": "wolf NL Test",
             "mtu": 1420,
             "address": ["10.77.77.2/32"],
