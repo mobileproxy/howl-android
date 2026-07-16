@@ -12,8 +12,8 @@
         { "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true, "stack": "system" }
     ],
     "outbounds": [
-        { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test", "wolf AM Test"], "default": "auto", "interrupt_exist_connections": true },
-        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test"], "url": "https://www.gstatic.com/generate_204", "interval": "1m", "tolerance": 150, "interrupt_exist_connections": true },
+        { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test", "wolf AM Test", "wolf NL Test"], "default": "auto", "interrupt_exist_connections": true },
+        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test", "wolf NL Test"], "url": "https://www.gstatic.com/generate_204", "interval": "1m", "tolerance": 150, "interrupt_exist_connections": true },
         {
             "type": "vless", "tag": "shield DE Test",
             "server": "1.2.3.4", "server_port": 738,
@@ -49,6 +49,24 @@
             "jc": 5, "jmin": 40, "jmax": 70,
             "s1": 111, "s2": 57,
             "h1": 1634089367, "h2": 828443000, "h3": 1767573134, "h4": 1105866450
+        },
+        {
+            "_comment": "Second AWG node — deliberately the SAME address 10.77.77.2/32 as above, mirroring production (each node hands the single client .2 in its own subnet).",
+            "type": "wireguard", "tag": "wolf NL Test",
+            "mtu": 1420,
+            "address": ["10.77.77.2/32"],
+            "private_key": "6KpcbTFrpxrhKUUAgnGgociN9c8VbnCyRTdcgLYYVWM=",
+            "peers": [
+                {
+                    "address": "5.6.7.8", "port": 740,
+                    "public_key": "TrMvSoP4jYQlY6RIzBgbssQqY3vxI2Pi+y71lOWWXX0=",
+                    "allowed_ips": ["0.0.0.0/0"],
+                    "persistent_keepalive_interval": 15
+                }
+            ],
+            "jc": 9, "jmin": 40, "jmax": 70,
+            "s1": 39, "s2": 27,
+            "h1": 1330534955, "h2": 437550111, "h3": 1287604677, "h4": 882627408
         }
     ],
     "route": {
