@@ -12,8 +12,8 @@
         { "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true, "stack": "system" }
     ],
     "outbounds": [
-        { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test", "wolf AM Test"], "default": "auto" },
-        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test"], "url": "https://www.gstatic.com/generate_204", "interval": "3m", "tolerance": 50 },
+        { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test", "wolf AM Test"], "default": "auto", "interrupt_exist_connections": true },
+        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test"], "url": "https://www.gstatic.com/generate_204", "interval": "1m", "tolerance": 150, "interrupt_exist_connections": true },
         {
             "type": "vless", "tag": "shield DE Test",
             "server": "1.2.3.4", "server_port": 738,
