@@ -5,7 +5,7 @@ on:
     inputs:
       singbox_ref:
         description: "sing-box-lx git ref to build libbox from"
-        default: "v1.14.0-lx.5"
+        default: "v1.14.0-lx.9"
   push:
     branches: [ dev ]
     paths:
@@ -47,7 +47,7 @@ jobs:
       - name: Build libbox.aar from sing-box-lx (gomobile, with_awg for AmneziaWG)
         run: |
           set -euxo pipefail
-          REF="${{ github.event.inputs.singbox_ref || 'v1.14.0-lx.5' }}"
+          REF="${{ github.event.inputs.singbox_ref || 'v1.14.0-lx.9' }}"
           git clone --depth 1 --branch "$REF" https://github.com/Leadaxe/sing-box-lx.git /tmp/sing-box
           cd /tmp/sing-box
           # Only the AmneziaWG-patched wireguard-go submodule is needed for the build
