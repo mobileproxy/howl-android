@@ -155,7 +155,7 @@
     <string name="profile_add_import_file">وارد کردن از فایل</string>
     <string name="profile_add_scan_qr_code">اسکن QR کد</string>
     <string name="profile_add_create_manually">ایجاد دستی</string>
-    <string name="profile_override">بازنویسی پروفایل</string>
+    <string name="profile_override">مسیریابی</string>
     <string name="basic_information">اطلاعات پایه</string>
     <string name="remote_configuration">پیکربندی راه دور</string>
     <string name="last_updated_format">آخرین به‌روزرسانی: %s</string>

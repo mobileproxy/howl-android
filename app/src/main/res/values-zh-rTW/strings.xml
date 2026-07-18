@@ -155,7 +155,7 @@
     <string name="profile_add_import_file">從檔案匯入</string>
     <string name="profile_add_scan_qr_code">掃描二維碼</string>
     <string name="profile_add_create_manually">手動建立</string>
-    <string name="profile_override">設定覆寫</string>
+    <string name="profile_override">路由</string>
     <string name="basic_information">基本資訊</string>
     <string name="remote_configuration">遠端設定</string>
     <string name="last_updated_format">最後更新：%s</string>

@@ -155,7 +155,7 @@
     <string name="profile_add_import_file">从文件导入</string>
     <string name="profile_add_scan_qr_code">扫描二维码</string>
     <string name="profile_add_create_manually">手动创建</string>
-    <string name="profile_override">配置覆盖</string>
+    <string name="profile_override">路由</string>
     <string name="basic_information">基本信息</string>
     <string name="remote_configuration">远程配置</string>
     <string name="last_updated_format">最后更新：%s</string>

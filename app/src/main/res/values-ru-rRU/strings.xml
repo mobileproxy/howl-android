@@ -155,7 +155,7 @@
     <string name="profile_add_import_file">Импорт из файла</string>
     <string name="profile_add_scan_qr_code">Сканировать QR-код</string>
     <string name="profile_add_create_manually">Создать вручную</string>
-    <string name="profile_override">Перезапись профиля</string>
+    <string name="profile_override">Маршрутизация</string>
     <string name="basic_information">Основная информация</string>
     <string name="remote_configuration">Удалённая конфигурация</string>
     <string name="last_updated_format">Последнее обновление: %s</string>
