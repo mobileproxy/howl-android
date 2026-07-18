@@ -63,6 +63,12 @@ fun SettingsScreen(navController: NavController) {
     val hookStatus by HookStatusClient.status.collectAsState()
     val hasPendingPrivilegeDowngrade = HookModuleUpdateNotifier.isDowngrade(hookStatus)
     val hasPendingPrivilegeUpdate = HookModuleUpdateNotifier.isUpgrade(hookStatus)
+
+    // Раздел «Привилегированное расширение» показываем, только если хук LSPosed реально живёт
+    // в system_server (status != null). Без root его там нет, а переключатели внутри всё равно
+    // заблокированы — пункт только путал бы. Статус != null и когда модуль ждёт перезагрузки
+    // после обновления, поэтому кнопка «Перезагрузить» остаётся достижимой.
+    val hasPrivilegeModule = hookStatus != null
     LaunchedEffect(Unit) {
         HookStatusClient.refresh()
     }
@@ -221,6 +227,16 @@ fun SettingsScreen(navController: NavController) {
                     },
                     modifier =
                     Modifier
+                        .then(
+                            // Без раздела привилегий этот пункт становится последним в карточке.
+                            if (hasPrivilegeModule) {
+                                Modifier
+                            } else {
+                                Modifier.clip(
+                                    RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
+                                )
+                            },
+                        )
                         .clickable { navController.navigate("settings/remote_control") },
                     colors =
                     ListItemDefaults.colors(
@@ -228,36 +244,38 @@ fun SettingsScreen(navController: NavController) {
                     ),
                 )
 
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(R.string.privilege_settings),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    },
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.Outlined.AdminPanelSettings,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    trailingContent = {
-                        if (hasPendingPrivilegeDowngrade) {
-                            Badge(containerColor = MaterialTheme.colorScheme.error)
-                        } else if (hasPendingPrivilegeUpdate) {
-                            Badge(containerColor = Color(0xFFFFC107))
-                        }
-                    },
-                    modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
-                        .clickable { navController.navigate("settings/privilege") },
-                    colors =
-                    ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                    ),
-                )
+                if (hasPrivilegeModule) {
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                stringResource(R.string.privilege_settings),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                        },
+                        leadingContent = {
+                            Icon(
+                                imageVector = Icons.Outlined.AdminPanelSettings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        },
+                        trailingContent = {
+                            if (hasPendingPrivilegeDowngrade) {
+                                Badge(containerColor = MaterialTheme.colorScheme.error)
+                            } else if (hasPendingPrivilegeUpdate) {
+                                Badge(containerColor = Color(0xFFFFC107))
+                            }
+                        },
+                        modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                            .clickable { navController.navigate("settings/privilege") },
+                        colors =
+                        ListItemDefaults.colors(
+                            containerColor = Color.Transparent,
+                        ),
+                    )
+                }
             }
         }
 
