@@ -5,7 +5,7 @@ on:
     inputs:
       singbox_ver:
         description: "sing-box-lx release version to check against"
-        default: "1.14.0-lx.5"
+        default: "1.14.0-lx.9"
   push:
     branches: [ dev ]
     paths:
@@ -21,7 +21,7 @@ jobs:
       - name: Download sing-box-lx + validate sample configs (incl. AmneziaWG)
         run: |
           set -euxo pipefail
-          V="${{ github.event.inputs.singbox_ver || '1.14.0-lx.5' }}"
+          V="${{ github.event.inputs.singbox_ver || '1.14.0-lx.9' }}"
           curl -fsSL "https://github.com/Leadaxe/sing-box-lx/releases/download/v${V}/sing-box-${V}-linux-amd64.tar.gz" -o sb.tgz
           tar xzf sb.tgz
           SB="$(find . -name 'sing-box' -type f | head -1)"
@@ -30,4 +30,6 @@ jobs:
           "$SB" check -c config-test/howl-sample.json
           echo "=== sing-box check (Howl AmneziaWG sample: awg endpoint in urltest/selector) ==="
           "$SB" check -c config-test/howl-awg-sample.json
+          echo "=== sing-box check (Howl split-tunnel sample: domain bypass → direct + dns-local) ==="
+          "$SB" check -c config-test/howl-splittunnel-sample.json
           echo "CONFIG_SCHEMA_VALID=YES"
