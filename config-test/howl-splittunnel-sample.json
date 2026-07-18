@@ -6,7 +6,7 @@
             { "tag": "dns-local", "type": "local" }
         ],
         "rules": [
-            { "domain_suffix": ["sberbank.ru", "gosuslugi.ru", "nalog.gov.ru", "my-own-domain.example"], "server": "dns-local" }
+            { "domain": ["sberbank.ru", "gosuslugi.ru", "gov.ru", "my-own-domain.example"], "domain_suffix": [".sberbank.ru", ".gosuslugi.ru", ".gov.ru", ".my-own-domain.example"], "server": "dns-local" }
         ],
         "final": "dns-remote",
         "strategy": "prefer_ipv4"
@@ -36,7 +36,7 @@
         "rules": [
             { "action": "sniff" },
             { "protocol": "dns", "action": "hijack-dns" },
-            { "domain_suffix": ["sberbank.ru", "gosuslugi.ru", "nalog.gov.ru", "my-own-domain.example"], "outbound": "direct" }
+            { "domain": ["sberbank.ru", "gosuslugi.ru", "gov.ru", "my-own-domain.example"], "domain_suffix": [".sberbank.ru", ".gosuslugi.ru", ".gov.ru", ".my-own-domain.example"], "outbound": "direct" }
         ]
     }
 }
