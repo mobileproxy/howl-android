@@ -35,6 +35,7 @@ import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
+import io.nekohasekai.sfa.utils.SplitTunnel
 import io.nekohasekai.sfa.vendor.Vendor
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -119,11 +120,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 return
             }
 
-            val content = File(profile.typed.path).readText()
-            if (content.isBlank()) {
+            val rawContent = File(profile.typed.path).readText()
+            if (rawContent.isBlank()) {
                 stopAndAlert(Alert.EmptyConfiguration)
                 return
             }
+            // Домены-исключения подмешиваем на лету: файл профиля перезаписывается
+            // при обновлении подписки, а локальный список должен это пережить.
+            val content = SplitTunnel.apply(rawContent, Settings.splitTunnelDomains)
 
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {
@@ -208,11 +212,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             return
         }
 
-        val content = File(profile.typed.path).readText()
-        if (content.isBlank()) {
+        val rawContent = File(profile.typed.path).readText()
+        if (rawContent.isBlank()) {
             stopAndAlert(Alert.EmptyConfiguration)
             return
         }
+        val content = SplitTunnel.apply(rawContent, Settings.splitTunnelDomains)
         lastProfileName = profile.name
         try {
             commandServer.startOrReloadService(

@@ -85,6 +85,9 @@ object Settings {
     const val PACKAGE_QUERY_MODE_ROOT = "ROOT"
     var perAppProxyPackageQueryMode by dataStore.string(SettingsKey.PER_APP_PROXY_PACKAGE_QUERY_MODE) { PACKAGE_QUERY_MODE_SHIZUKU }
 
+    // Сырой пользовательский ввод: домен на строку. Разбирается в SplitTunnel.parseDomains().
+    var splitTunnelDomains by dataStore.string(SettingsKey.SPLIT_TUNNEL_DOMAINS) { "" }
+
     fun getEffectivePerAppProxyMode(): Int = if (perAppProxyManagedMode) {
         PER_APP_PROXY_EXCLUDE
     } else {

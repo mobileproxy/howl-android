@@ -36,6 +36,7 @@ import io.nekohasekai.sfa.compose.screen.settings.ProfileOverrideScreen
 import io.nekohasekai.sfa.compose.screen.settings.RemoteControlScreen
 import io.nekohasekai.sfa.compose.screen.settings.ServiceSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SettingsScreen
+import io.nekohasekai.sfa.compose.screen.settings.SplitTunnelScreen
 import io.nekohasekai.sfa.constant.Status
 
 private val slideInFromRight: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
@@ -279,6 +280,16 @@ fun SFANavHost(
             popExitTransition = slideOutToRight,
         ) {
             PerAppProxyScreen(onBack = { navController.navigateUp() }, serviceStatus = serviceStatus)
+        }
+
+        composable(
+            route = "settings/profile_override/split_tunnel",
+            enterTransition = slideInFromRight,
+            exitTransition = slideOutToLeft,
+            popEnterTransition = slideInFromLeft,
+            popExitTransition = slideOutToRight,
+        ) {
+            SplitTunnelScreen(navController = navController, serviceStatus = serviceStatus)
         }
 
         composable(

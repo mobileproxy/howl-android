@@ -242,6 +242,12 @@
     <string name="per_app_proxy_select_all">Select all</string>
     <string name="per_app_proxy_select_none">Deselect all</string>
     <string name="per_app_proxy_backup">Backup</string>
+    <string name="split_tunnel">Sites bypassing the VPN</string>
+    <string name="split_tunnel_summary">Open selected sites directly, outside the tunnel</string>
+    <string name="split_tunnel_description">Some sites block foreign addresses and will not open over a VPN — online banking and government services in particular. Sites listed here are opened directly, bypassing the VPN. All other traffic still goes through the tunnel.</string>
+    <string name="split_tunnel_domains_label">One domain per line</string>
+    <string name="split_tunnel_recognized">Recognized domains: %1$d</string>
+    <string name="split_tunnel_hint">Subdomains are included automatically: example.com also covers www.example.com. This list adds to the one from your account dashboard and survives subscription updates.</string>
     <string name="per_app_proxy_import">Import from clipboard</string>
     <string name="per_app_proxy_export">Export to clipboard</string>
     <string name="per_app_proxy_scan">Scan</string>

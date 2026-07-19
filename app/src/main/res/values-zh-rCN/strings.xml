@@ -242,6 +242,12 @@
     <string name="per_app_proxy_select_all">全选</string>
     <string name="per_app_proxy_select_none">全不选</string>
     <string name="per_app_proxy_backup">备份</string>
+    <string name="split_tunnel">绕过 VPN 的网站</string>
+    <string name="split_tunnel_summary">让选定网站直连，不走隧道</string>
+    <string name="split_tunnel_description">部分网站会屏蔽境外地址，通过 VPN 无法打开，银行和政务网站尤其如此。此处列出的网站将直连，绕过 VPN。其余流量仍走隧道。</string>
+    <string name="split_tunnel_domains_label">每行一个域名</string>
+    <string name="split_tunnel_recognized">已识别域名：%1$d</string>
+    <string name="split_tunnel_hint">子域名会自动包含：example.com 同时覆盖 www.example.com。此列表会追加到账户面板中的列表，并在订阅更新后保留。</string>
     <string name="per_app_proxy_import">从剪切板导入</string>
     <string name="per_app_proxy_export">导出到剪切板</string>
     <string name="per_app_proxy_scan">扫描</string>
