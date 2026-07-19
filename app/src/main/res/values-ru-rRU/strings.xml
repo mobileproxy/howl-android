@@ -246,7 +246,11 @@
     <string name="split_tunnel_summary">Открывать выбранные сайты напрямую, мимо туннеля</string>
     <string name="split_tunnel_description">Некоторые сайты блокируют иностранные адреса и под VPN не открываются — чаще всего это банки и госуслуги. Перечисленные здесь сайты будут открываться напрямую, мимо VPN. Весь остальной трафик по-прежнему идёт через туннель.</string>
     <string name="split_tunnel_domains_label">По одному домену на строку</string>
-    <string name="split_tunnel_recognized">Распознано доменов: %1$d</string>
+    <string name="split_tunnel_recognized_prefix">Распознано:</string>
+    <string name="split_tunnel_recognized_none">Пока ни одного домена не распознано</string>
+    <string name="split_tunnel_saved_applied">Сохранено и применено</string>
+    <string name="split_tunnel_saved_later">Сохранено. Применится при следующем подключении.</string>
+    <string name="split_tunnel_saved_manual">Сохранено, но применить сразу не вышло — переподключитесь вручную.</string>
     <string name="split_tunnel_hint">Поддомены учитываются сами: example.com покроет и www.example.com. Этот список добавляется к списку из личного кабинета и сохраняется при обновлении подписки.</string>
     <string name="per_app_proxy_import">Импорт из буфера обмена</string>
     <string name="per_app_proxy_export">Экспорт в буфер обмена</string>

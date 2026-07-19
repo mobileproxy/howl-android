@@ -246,7 +246,11 @@
     <string name="split_tunnel_summary">讓選定網站直連，不走通道</string>
     <string name="split_tunnel_description">部分網站會封鎖境外位址，透過 VPN 無法開啟，銀行與政府服務尤其如此。此處列出的網站將直連，繞過 VPN。其餘流量仍走通道。</string>
     <string name="split_tunnel_domains_label">每行一個網域</string>
-    <string name="split_tunnel_recognized">已辨識網域：%1$d</string>
+    <string name="split_tunnel_recognized_prefix">已辨識：</string>
+    <string name="split_tunnel_recognized_none">尚未辨識到網域</string>
+    <string name="split_tunnel_saved_applied">已儲存並生效</string>
+    <string name="split_tunnel_saved_later">已儲存，下次連線時生效。</string>
+    <string name="split_tunnel_saved_manual">已儲存，但無法立即生效——請手動重新連線。</string>
     <string name="split_tunnel_hint">子網域會自動包含：example.com 同時涵蓋 www.example.com。此清單會附加到帳戶面板中的清單，並在訂閱更新後保留。</string>
     <string name="per_app_proxy_import">從剪貼簿匯入</string>
     <string name="per_app_proxy_export">匯出到剪貼簿</string>

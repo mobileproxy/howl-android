@@ -246,7 +246,11 @@
     <string name="split_tunnel_summary">باز کردن سایت‌های انتخابی به‌صورت مستقیم، خارج از تونل</string>
     <string name="split_tunnel_description">برخی سایت‌ها نشانی‌های خارجی را مسدود می‌کنند و با VPN باز نمی‌شوند — به‌ویژه بانک‌ها و خدمات دولتی. سایت‌های فهرست‌شده در اینجا مستقیم و خارج از VPN باز می‌شوند. بقیه ترافیک همچنان از تونل عبور می‌کند.</string>
     <string name="split_tunnel_domains_label">در هر خط یک دامنه</string>
-    <string name="split_tunnel_recognized">دامنه‌های شناسایی‌شده: %1$d</string>
+    <string name="split_tunnel_recognized_prefix">شناسایی‌شده:</string>
+    <string name="split_tunnel_recognized_none">هنوز دامنه‌ای شناسایی نشده است</string>
+    <string name="split_tunnel_saved_applied">ذخیره و اعمال شد</string>
+    <string name="split_tunnel_saved_later">ذخیره شد. در اتصال بعدی اعمال می‌شود.</string>
+    <string name="split_tunnel_saved_manual">ذخیره شد، اما اعمال فوری ممکن نبود — دستی دوباره وصل شوید.</string>
     <string name="split_tunnel_hint">زیردامنه‌ها خودکار در نظر گرفته می‌شوند: example.com شامل www.example.com هم می‌شود. این فهرست به فهرست حساب کاربری افزوده می‌شود و با به‌روزرسانی اشتراک حفظ می‌ماند.</string>
     <string name="per_app_proxy_import">وارد کردن از کلیپ‌بورد</string>
     <string name="per_app_proxy_export">خروجی به کلیپ‌بورد</string>

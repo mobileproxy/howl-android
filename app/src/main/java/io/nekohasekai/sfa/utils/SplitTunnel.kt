@@ -32,7 +32,13 @@ object SplitTunnel {
     fun parseDomains(raw: String): List<String> {
         val out = LinkedHashSet<String>()
         for (part in raw.split('\n', '\r', ',', ';', ' ', '\t')) {
-            var d = part.trim().lowercase()
+            // Невидимые символы (zero-width, неразрывный пробел) приезжают из клавиатур и
+            // буфера обмена и молча ломают совпадение — на экране домен выглядит правильным,
+            // а правило не срабатывает.
+            var d = part
+                .filterNot { it.code == 0x200B || it.code == 0x200C || it.code == 0x200D || it.code == 0xFEFF || it.code == 0xA0 }
+                .trim()
+                .lowercase()
             if (d.isEmpty()) continue
             d = d.replace(Regex("^[a-z0-9+.\\-]+://"), "")   // схема
             d = d.replace(Regex("[/?#].*$"), "")             // путь и параметры

@@ -31,9 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
-import io.nekohasekai.sfa.compose.base.UiEvent
-import io.nekohasekai.sfa.compose.base.rememberApplyServiceChangeNotifier
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
@@ -60,12 +59,19 @@ fun SplitTunnelScreen(navController: NavController, serviceStatus: Status = Stat
     }
 
     val scope = rememberCoroutineScope()
-    val notifyApplyChange = rememberApplyServiceChangeNotifier(serviceStatus)
 
     var text by remember { mutableStateOf(Settings.splitTunnelDomains) }
-    // Показываем, сколько строк реально распозналось как домены — иначе опечатка
-    // молча проглатывается и человек думает, что правило работает.
-    val parsedCount = remember(text) { SplitTunnel.parseDomains(text).size }
+    var savedMessage by remember { mutableStateOf<String?>(null) }
+
+    // Показываем сами распознанные домены, а не их количество: опечатку («ozon,ru»)
+    // так видно сразу, и понятно, что именно уйдёт мимо туннеля.
+    val parsed = SplitTunnel.parseDomains(text)
+
+    val msgApplied = stringResource(R.string.split_tunnel_saved_applied)
+    val msgLater = stringResource(R.string.split_tunnel_saved_later)
+    val msgManual = stringResource(R.string.split_tunnel_saved_manual)
+    val recognizedPrefix = stringResource(R.string.split_tunnel_recognized_prefix)
+    val recognizedNone = stringResource(R.string.split_tunnel_recognized_none)
 
     Column(
         modifier = Modifier
@@ -89,14 +95,28 @@ fun SplitTunnelScreen(navController: NavController, serviceStatus: Status = Stat
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it },
+                    onValueChange = {
+                        text = it
+                        savedMessage = null
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp),
+                        .height(180.dp),
                     label = { Text(stringResource(R.string.split_tunnel_domains_label)) },
-                    placeholder = { Text("sberbank.ru\ngosuslugi.ru") },
-                    supportingText = {
-                        Text(stringResource(R.string.split_tunnel_recognized, parsedCount))
+                    placeholder = { Text("ozon.ru\nsberbank.ru") },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (parsed.isEmpty()) {
+                        recognizedNone
+                    } else {
+                        recognizedPrefix + " " + parsed.joinToString(", ")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (parsed.isEmpty()) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.primary
                     },
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -106,13 +126,36 @@ fun SplitTunnelScreen(navController: NavController, serviceStatus: Status = Stat
                             withContext(Dispatchers.IO) {
                                 Settings.splitTunnelDomains = text
                             }
-                            // Правила подмешиваются при старте ядра, поэтому нужен перезапуск.
-                            notifyApplyChange(UiEvent.ApplyServiceChange.Mode.Restart)
+                            savedMessage = if (serviceStatus == Status.Started) {
+                                // Перечитываем конфиг сразу. Раньше показывался только короткий
+                                // снекбар с кнопкой «Перезапустить», и без нажатия настройка
+                                // молча не применялась — человек считал, что фича не работает.
+                                val failure = withContext(Dispatchers.IO) {
+                                    try {
+                                        Libbox.newStandaloneCommandClient().serviceReload()
+                                        null
+                                    } catch (e: Exception) {
+                                        e
+                                    }
+                                }
+                                if (failure == null) msgApplied else msgManual
+                            } else {
+                                msgLater
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.save))
+                }
+                val message = savedMessage
+                if (message != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
         }
