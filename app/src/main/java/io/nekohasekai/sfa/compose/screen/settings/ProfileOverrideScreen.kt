@@ -19,13 +19,10 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AppShortcut
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Route
-import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,7 +54,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import io.nekohasekai.sfa.R
-import io.nekohasekai.sfa.bg.RootClient
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.base.rememberApplyServiceChangeNotifier
 import io.nekohasekai.sfa.compose.screen.profileoverride.PerAppProxyScanner
@@ -92,11 +88,22 @@ fun ProfileOverrideScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var autoRedirect by remember { mutableStateOf(Settings.autoRedirect) }
     var perAppProxyEnabled by remember { mutableStateOf(Settings.perAppProxyEnabled) }
     var managedModeEnabled by remember { mutableStateOf(Settings.perAppProxyManagedMode) }
     var isScanning by remember { mutableStateOf(false) }
     val notifyApplyChange = rememberApplyServiceChangeNotifier(serviceStatus)
+
+    // Управляемый режим (авто-исключение китайских приложений) убран из интерфейса —
+    // для нашей аудитории он бессмыслен. Если он остался включённым с прежних версий,
+    // выключаем: иначе «Управление» было бы заблокировано навсегда, без способа это снять.
+    LaunchedEffect(Unit) {
+        if (managedModeEnabled) {
+            managedModeEnabled = false
+            withContext(Dispatchers.IO) {
+                Settings.perAppProxyManagedMode = false
+            }
+        }
+    }
 
     fun scanAndSaveManagedList(shouldNotify: Boolean = false) {
         isScanning = true
@@ -239,80 +246,6 @@ fun ProfileOverrideScreen(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .clickable { navController.navigate("settings/profile_override/split_tunnel") },
-                colors =
-                ListItemDefaults.colors(
-                    containerColor = Color.Transparent,
-                ),
-            )
-        }
-
-        // Card 1: Auto Redirect
-        Card(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ),
-        ) {
-            ListItem(
-                headlineContent = {
-                    Text(
-                        stringResource(R.string.auto_redirect),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                },
-                supportingContent = {
-                    Text(
-                        stringResource(R.string.auto_redirect_description),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.Route,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = autoRedirect,
-                        onCheckedChange = { checked ->
-                            if (checked && !autoRedirect) {
-                                scope.launch {
-                                    val hasRoot = RootClient.checkRootAvailable()
-                                    if (hasRoot) {
-                                        autoRedirect = true
-                                        withContext(Dispatchers.IO) {
-                                            Settings.autoRedirect = true
-                                        }
-                                        notifyApplyChange(UiEvent.ApplyServiceChange.Mode.Reload)
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.root_access_required),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
-                                    }
-                                }
-                            } else if (!checked) {
-                                autoRedirect = false
-                                scope.launch(Dispatchers.IO) {
-                                    Settings.autoRedirect = false
-                                    withContext(Dispatchers.Main) {
-                                        notifyApplyChange(UiEvent.ApplyServiceChange.Mode.Reload)
-                                    }
-                                }
-                            }
-                        },
-                    )
-                },
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)),
                 colors =
                 ListItemDefaults.colors(
                     containerColor = Color.Transparent,
@@ -501,68 +434,12 @@ fun ProfileOverrideScreen(
                             )
                         },
                         modifier =
-                        Modifier.clickable(enabled = manageEnabled) {
-                            navController.navigate("settings/profile_override/manage")
-                        },
-                        colors =
-                        ListItemDefaults.colors(
-                            containerColor = Color.Transparent,
-                        ),
-                    )
-
-                    // Managed Mode toggle
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                stringResource(R.string.per_app_proxy_managed_mode),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                        },
-                        supportingContent = {
-                            Text(
-                                stringResource(R.string.per_app_proxy_managed_mode_description),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        },
-                        leadingContent = {
-                            Icon(
-                                imageVector = Icons.Outlined.SmartToy,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        },
-                        trailingContent = {
-                            if (isScanning) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
-                                Switch(
-                                    checked = managedModeEnabled,
-                                    onCheckedChange = { checked ->
-                                        if (checked) {
-                                            managedModeEnabled = true
-                                            scope.launch(Dispatchers.IO) {
-                                                Settings.perAppProxyManagedMode = true
-                                            }
-                                            scanAndSaveManagedList(shouldNotify = true)
-                                        } else {
-                                            managedModeEnabled = false
-                                            scope.launch(Dispatchers.IO) {
-                                                Settings.perAppProxyManagedMode = false
-                                                withContext(Dispatchers.Main) {
-                                                    notifyApplyChange(UiEvent.ApplyServiceChange.Mode.Reload)
-                                                }
-                                            }
-                                        }
-                                    },
-                                )
-                            }
-                        },
-                        modifier = Modifier.clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)),
+                        Modifier
+                            // «Управление» стало последним пунктом карточки — скругляем низ.
+                            .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
+                            .clickable(enabled = manageEnabled) {
+                                navController.navigate("settings/profile_override/manage")
+                            },
                         colors =
                         ListItemDefaults.colors(
                             containerColor = Color.Transparent,
