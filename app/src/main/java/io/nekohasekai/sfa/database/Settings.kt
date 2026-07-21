@@ -88,6 +88,11 @@ object Settings {
     // Сырой пользовательский ввод: домен на строку. Разбирается в SplitTunnel.parseDomains().
     var splitTunnelDomains by dataStore.string(SettingsKey.SPLIT_TUNNEL_DOMAINS) { "" }
 
+    var watchdogEnabled by dataStore.boolean(SettingsKey.WATCHDOG_ENABLED) { true }
+
+    // Журнал сторожа: последние события, по строке на событие (новые сверху).
+    var watchdogLog by dataStore.string(SettingsKey.WATCHDOG_LOG) { "" }
+
     fun getEffectivePerAppProxyMode(): Int = if (perAppProxyManagedMode) {
         PER_APP_PROXY_EXCLUDE
     } else {

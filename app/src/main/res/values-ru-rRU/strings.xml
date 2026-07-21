@@ -242,6 +242,11 @@
     <string name="per_app_proxy_select_all">Выбрать все</string>
     <string name="per_app_proxy_select_none">Снять выделение</string>
     <string name="per_app_proxy_backup">Резервная копия</string>
+    <string name="watchdog">Автопочинка соединения</string>
+    <string name="watchdog_description">Раз в минуту проверяет, что трафик реально идёт, и восстанавливает связь, если она зависла</string>
+    <string name="watchdog_restart_note">Изменение применится при следующем подключении.</string>
+    <string name="watchdog_log">Журнал событий</string>
+    <string name="watchdog_log_empty">Событий пока нет — связь работала стабильно.</string>
     <string name="split_tunnel">Сайты в обход VPN</string>
     <string name="split_tunnel_summary">Открывать выбранные сайты напрямую, мимо туннеля</string>
     <string name="split_tunnel_description">Некоторые сайты блокируют иностранные адреса и под VPN не открываются — чаще всего это банки и госуслуги. Перечисленные здесь сайты будут открываться напрямую, мимо VPN. Весь остальной трафик по-прежнему идёт через туннель.</string>

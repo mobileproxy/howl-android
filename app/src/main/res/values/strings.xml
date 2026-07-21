@@ -242,6 +242,11 @@
     <string name="per_app_proxy_select_all">Select all</string>
     <string name="per_app_proxy_select_none">Deselect all</string>
     <string name="per_app_proxy_backup">Backup</string>
+    <string name="watchdog">Connection watchdog</string>
+    <string name="watchdog_description">Checks every minute that traffic really flows, and restores the connection if it stalls</string>
+    <string name="watchdog_restart_note">The change takes effect the next time you connect.</string>
+    <string name="watchdog_log">Event log</string>
+    <string name="watchdog_log_empty">No events yet — the connection has been stable.</string>
     <string name="split_tunnel">Sites bypassing the VPN</string>
     <string name="split_tunnel_summary">Open selected sites directly, outside the tunnel</string>
     <string name="split_tunnel_description">Some sites block foreign addresses and will not open over a VPN — online banking and government services in particular. Sites listed here are opened directly, bypassing the VPN. All other traffic still goes through the tunnel.</string>

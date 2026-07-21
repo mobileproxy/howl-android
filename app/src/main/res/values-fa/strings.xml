@@ -242,6 +242,11 @@
     <string name="per_app_proxy_select_all">انتخاب همه</string>
     <string name="per_app_proxy_select_none">لغو انتخاب همه</string>
     <string name="per_app_proxy_backup">پشتیبان‌گیری</string>
+    <string name="watchdog">نگهبان اتصال</string>
+    <string name="watchdog_description">هر دقیقه بررسی می‌کند که ترافیک واقعاً برقرار است و در صورت گیر کردن، اتصال را بازیابی می‌کند</string>
+    <string name="watchdog_restart_note">تغییر در اتصال بعدی اعمال می‌شود.</string>
+    <string name="watchdog_log">گزارش رویدادها</string>
+    <string name="watchdog_log_empty">هنوز رویدادی نیست — اتصال پایدار بوده است.</string>
     <string name="split_tunnel">سایت‌های خارج از VPN</string>
     <string name="split_tunnel_summary">باز کردن سایت‌های انتخابی به‌صورت مستقیم، خارج از تونل</string>
     <string name="split_tunnel_description">برخی سایت‌ها نشانی‌های خارجی را مسدود می‌کنند و با VPN باز نمی‌شوند — به‌ویژه بانک‌ها و خدمات دولتی. سایت‌های فهرست‌شده در اینجا مستقیم و خارج از VPN باز می‌شوند. بقیه ترافیک همچنان از تونل عبور می‌کند.</string>

@@ -27,6 +27,10 @@ object SettingsKey {
     // поэтому переживают обновление удалённого профиля-подписки.
     const val SPLIT_TUNNEL_DOMAINS = "split_tunnel_domains"
 
+    // Сторож соединения: проверяет, что трафик реально идёт, и чинит залипший туннель.
+    const val WATCHDOG_ENABLED = "watchdog_enabled"
+    const val WATCHDOG_LOG = "watchdog_log"
+
     const val ALLOW_BYPASS = "allow_bypass"
     const val SYSTEM_PROXY_ENABLED = "system_proxy_enabled"
 

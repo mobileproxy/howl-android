@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FilterAlt
+import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SettingsRemote
@@ -160,6 +161,27 @@ fun SettingsScreen(navController: NavController) {
                         )
                     },
                     modifier = Modifier.clickable { navController.navigate("settings/service") },
+                    colors =
+                    ListItemDefaults.colors(
+                        containerColor = Color.Transparent,
+                    ),
+                )
+
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            stringResource(R.string.watchdog),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Outlined.HealthAndSafety,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    modifier = Modifier.clickable { navController.navigate("settings/watchdog") },
                     colors =
                     ListItemDefaults.colors(
                         containerColor = Color.Transparent,

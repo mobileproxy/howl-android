@@ -176,6 +176,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 notification.show(lastProfileName, R.string.status_started)
             }
             notification.start()
+            // Ядро не замечает «подключено, но трафик не идёт» — за этим следит сторож.
+            ConnectivityWatchdog.start { serviceReload0() }
         } catch (e: Exception) {
             stopAndAlert(Alert.StartService, e.message)
             return
@@ -284,6 +286,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             receiverRegistered = false
         }
         notification.close()
+        ConnectivityWatchdog.stop()
         GlobalScope.launch(Dispatchers.IO) {
             val pfd = fileDescriptor
             if (pfd != null) {
@@ -314,6 +317,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
     private suspend fun stopAndAlert(type: Alert, message: String? = null) {
         Settings.startedByUser = false
+        ConnectivityWatchdog.stop()
         val pfd = fileDescriptor
         if (pfd != null) {
             pfd.close()

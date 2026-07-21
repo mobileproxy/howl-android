@@ -37,6 +37,7 @@ import io.nekohasekai.sfa.compose.screen.settings.RemoteControlScreen
 import io.nekohasekai.sfa.compose.screen.settings.ServiceSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SplitTunnelScreen
+import io.nekohasekai.sfa.compose.screen.settings.WatchdogScreen
 import io.nekohasekai.sfa.constant.Status
 
 private val slideInFromRight: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
@@ -290,6 +291,16 @@ fun SFANavHost(
             popExitTransition = slideOutToRight,
         ) {
             SplitTunnelScreen(navController = navController, serviceStatus = serviceStatus)
+        }
+
+        composable(
+            route = "settings/watchdog",
+            enterTransition = slideInFromRight,
+            exitTransition = slideOutToLeft,
+            popEnterTransition = slideInFromLeft,
+            popExitTransition = slideOutToRight,
+        ) {
+            WatchdogScreen(navController = navController)
         }
 
         composable(
