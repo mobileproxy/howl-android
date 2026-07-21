@@ -99,18 +99,22 @@ fun SFANavHost(
         }
 
         composable(Screen.Log.route) {
+            // Логи перестали быть вкладкой (Фаза 3) и открываются только из Настроек,
+            // поэтому нужна стрелка «назад» — иначе с экрана не выйти.
             if (logViewModel != null) {
                 LogScreen(
                     serviceStatus = serviceStatus,
                     showStartFab = showStartFab,
                     showStatusBar = showStatusBar,
                     viewModel = logViewModel,
+                    onBack = { navController.navigateUp() },
                 )
             } else {
                 LogScreen(
                     serviceStatus = serviceStatus,
                     showStartFab = showStartFab,
                     showStatusBar = showStatusBar,
+                    onBack = { navController.navigateUp() },
                 )
             }
         }

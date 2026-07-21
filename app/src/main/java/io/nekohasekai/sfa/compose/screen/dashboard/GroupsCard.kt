@@ -99,6 +99,17 @@ fun GroupsCard(
     val snackbarHostState = remember { SnackbarHostState() }
     val uiState by actualViewModel.uiState.collectAsState()
 
+    // Группа автоподбора (urltest) перечисляет те же серверы, что и селектор, и не кликается —
+    // читается как дубль профиля. Пинги не теряются: они рисуются у каждого пункта внутри
+    // оставшейся группы. Если селектора нет вовсе, показываем список как есть.
+    val visibleGroups = remember(uiState.groups) {
+        if (uiState.groups.any { it.selectable }) {
+            uiState.groups.filter { it.selectable }
+        } else {
+            uiState.groups
+        }
+    }
+
     if (showTopBar) {
         val allCollapsed = uiState.expandedGroups.isEmpty()
         OverrideTopBar {
@@ -239,7 +250,7 @@ private fun GroupsCardContent(
                 }
             }
 
-            uiState.groups.isEmpty() -> {
+            visibleGroups.isEmpty() -> {
                 item(key = "groups_empty") {
                     Box(
                         modifier =
@@ -259,7 +270,7 @@ private fun GroupsCardContent(
 
             else -> {
                 items(
-                    items = uiState.groups,
+                    items = visibleGroups,
                     key = { it.tag },
                     contentType = { "GroupCard" },
                 ) { group ->

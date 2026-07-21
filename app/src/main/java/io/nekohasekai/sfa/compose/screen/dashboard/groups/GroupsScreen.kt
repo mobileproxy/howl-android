@@ -110,6 +110,18 @@ fun GroupsScreen(
         }
     }
 
+    // Группа автоподбора (urltest) перечисляет те же серверы, что и селектор выше, и по ней
+    // нельзя кликнуть — выглядит как дубль профиля. Пинги от этого не теряются: они рисуются
+    // у каждого пункта внутри оставшейся группы. Если селектора нет вовсе, показываем как есть,
+    // иначе экран окажется пустым.
+    val visibleGroups = remember(uiState.groups) {
+        if (uiState.groups.any { it.selectable }) {
+            uiState.groups.filter { it.selectable }
+        } else {
+            uiState.groups
+        }
+    }
+
     if (uiState.isLoading) {
         Box(
             modifier = modifier.fillMaxSize(),
@@ -130,7 +142,7 @@ fun GroupsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(
-                items = uiState.groups,
+                items = visibleGroups,
                 key = { it.tag },
                 contentType = { "GroupCard" },
             ) { group ->

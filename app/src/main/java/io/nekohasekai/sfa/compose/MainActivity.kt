@@ -715,13 +715,16 @@ class MainActivity :
             when {
                 isSettingsSubScreen -> Screen.Settings.route
                 currentRoute?.startsWith(Screen.Connections.route) == true -> Screen.Connections.route
-                currentRoute?.startsWith(Screen.Log.route) == true -> Screen.Log.route
+                // Логи с Фазы 3 не вкладка, а раздел Настроек — вкладка должна подсвечиваться
+                // соответственно, иначе выбранной не выглядит ни одна.
+                currentRoute?.startsWith(Screen.Log.route) == true -> Screen.Settings.route
                 isProfileRoute -> Screen.Dashboard.route
                 else -> currentRoute
             }
         val isConnectionsRoute = currentRootRoute == Screen.Connections.route
         val isGroupsRoute = currentRootRoute == Screen.Groups.route
-        val isLogRoute = currentRootRoute == Screen.Log.route
+        // По самому маршруту, а не по корневому: корнем для Логов теперь считается вкладка Настроек.
+        val isLogRoute = currentRoute?.startsWith(Screen.Log.route) == true
 
         val isSubScreen = isSettingsSubScreen || isConnectionsDetail || isProfileRoute
         // Get LogViewModel instance if we're on the Log screen
@@ -793,6 +796,24 @@ class MainActivity :
                     launchSingleTop = true
                 }
                 pendingNavigationRoute.value = null
+            }
+        }
+
+        // Тап по вкладке. Если мы уже внутри неё, но глубже корня (например, в Логах, которые
+        // открываются из Настроек), — возвращаемся в корень вкладки. Без этого срабатывало
+        // восстановление состояния и Настройки снова открывались на Логах, из которых
+        // пользователь как раз и пытался выйти.
+        val onNavigationItemClick: (String) -> Unit = { route ->
+            if (currentRootRoute == route && currentRoute != route) {
+                navController.popBackStack(route, inclusive = false)
+            } else {
+                navController.navigate(route) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
         }
 
@@ -1081,15 +1102,7 @@ class MainActivity :
                                     },
                                     label = { Text(stringResource(screen.titleRes)) },
                                     selected = selected,
-                                    onClick = {
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
+                                    onClick = { onNavigationItemClick(screen.route) },
                                 )
                             }
                         }
@@ -1125,22 +1138,11 @@ class MainActivity :
                                         },
                                         label = { Text(stringResource(screen.titleRes)) },
                                         selected =
-                                        currentDestination?.hierarchy?.any {
-                                            it.route == screen.route
-                                        } == true,
-                                        onClick = {
-                                            navController.navigate(screen.route) {
-                                                // Pop up to the start destination of the graph to
-                                                // avoid building up a large stack of destinations
-                                                popUpTo(navController.graph.findStartDestination().id) {
-                                                    saveState = true
-                                                }
-                                                // Avoid multiple copies of the same destination
-                                                launchSingleTop = true
-                                                // Restore state when reselecting a previously selected item
-                                                restoreState = true
-                                            }
-                                        },
+                                        currentRootRoute == screen.route ||
+                                            currentDestination?.hierarchy?.any {
+                                                it.route == screen.route
+                                            } == true,
+                                        onClick = { onNavigationItemClick(screen.route) },
                                     )
                                 }
                             }
