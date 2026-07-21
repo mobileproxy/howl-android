@@ -649,6 +649,9 @@
     <string name="howl_status_disconnecting">Отключение…</string>
     <string name="howl_hint_tap_connect">Нажмите, чтобы подключиться</string>
     <string name="howl_hint_tap_disconnect">Нажмите, чтобы отключить</string>
+    <string name="howl_background_banner_title">Разрешите работу в фоне</string>
+    <string name="howl_background_banner_body">Без этого разрешения система может усыплять VPN, и связь будет обрываться.</string>
+    <string name="howl_background_banner_action">Разрешить</string>
     <string name="howl_server">Сервер</string>
     <string name="howl_no_server">Нет сервера</string>
     <string name="howl_hint_add_server">Добавьте подписку для подключения</string>

@@ -314,6 +314,12 @@ private fun HowlHomeContent(
                         textAlign = TextAlign.Center,
                     )
                 }
+
+                // Просьба разрешить работу в фоне — сама показывается только при
+                // отсутствии разрешения и исчезает после выдачи. Новый пользователь
+                // в настройки не пойдёт, а без разрешения система усыпляет VPN.
+                Spacer(modifier = Modifier.height(20.dp))
+                BackgroundPermissionBanner()
             }
         }
 

@@ -642,6 +642,9 @@
     <string name="howl_status_disconnecting">中斷連線中…</string>
     <string name="howl_hint_tap_connect">點按以連線</string>
     <string name="howl_hint_tap_disconnect">點按以中斷連線</string>
+    <string name="howl_background_banner_title">允許背景執行</string>
+    <string name="howl_background_banner_body">沒有此權限，系統可能讓 VPN 休眠，連線會中斷。</string>
+    <string name="howl_background_banner_action">允許</string>
     <string name="howl_server">伺服器</string>
     <string name="howl_no_server">無伺服器</string>
     <string name="howl_hint_add_server">新增訂閱以連線</string>

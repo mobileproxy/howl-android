@@ -639,6 +639,9 @@
     <string name="howl_status_disconnecting">断开中…</string>
     <string name="howl_hint_tap_connect">点按以连接</string>
     <string name="howl_hint_tap_disconnect">点按以断开</string>
+    <string name="howl_background_banner_title">允许后台运行</string>
+    <string name="howl_background_banner_body">没有此权限，系统可能会让 VPN 休眠，连接会中断。</string>
+    <string name="howl_background_banner_action">允许</string>
     <string name="howl_server">服务器</string>
     <string name="howl_no_server">无服务器</string>
     <string name="howl_hint_add_server">添加订阅以连接</string>

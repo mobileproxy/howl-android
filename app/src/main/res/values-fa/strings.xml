@@ -643,6 +643,9 @@
     <string name="howl_status_disconnecting">در حال قطع اتصال…</string>
     <string name="howl_hint_tap_connect">برای اتصال ضربه بزنید</string>
     <string name="howl_hint_tap_disconnect">برای قطع اتصال ضربه بزنید</string>
+    <string name="howl_background_banner_title">اجرا در پس‌زمینه را مجاز کنید</string>
+    <string name="howl_background_banner_body">بدون این اجازه، سیستم ممکن است VPN را به خواب ببرد و اتصال قطع شود.</string>
+    <string name="howl_background_banner_action">اجازه دادن</string>
     <string name="howl_server">سرور</string>
     <string name="howl_no_server">بدون سرور</string>
     <string name="howl_hint_add_server">برای اتصال اشتراک اضافه کنید</string>

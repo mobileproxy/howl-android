@@ -683,6 +683,9 @@
     <string name="howl_status_disconnecting">Disconnecting…</string>
     <string name="howl_hint_tap_connect">Tap to connect</string>
     <string name="howl_hint_tap_disconnect">Tap to disconnect</string>
+    <string name="howl_background_banner_title">Allow background operation</string>
+    <string name="howl_background_banner_body">Without this permission the system may put the VPN to sleep and the connection will drop.</string>
+    <string name="howl_background_banner_action">Allow</string>
     <string name="howl_server">Server</string>
     <string name="howl_no_server">No server</string>
     <string name="howl_hint_add_server">Add a subscription to connect</string>
