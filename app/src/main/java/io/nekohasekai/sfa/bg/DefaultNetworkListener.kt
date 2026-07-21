@@ -27,7 +27,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import io.nekohasekai.sfa.Application
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -168,7 +168,16 @@ object DefaultNetworkListener {
                 removeCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
             }
         }.build()
-    private val mainHandler = Handler(Looper.getMainLooper())
+    /**
+     * Колбэки сети приходят СЮДА, а не в главный поток.
+     *
+     * Обработчик синхронно ходит в system_server за свойствами сети и дёргает ядро, а при
+     * переключении сервера таких событий прилетает пачка. На главном потоке это подвешивает
+     * интерфейс: экраны перестают открываться, потом всё появляется разом.
+     */
+    private val callbackHandler = Handler(
+        HandlerThread("howl-network-callback").apply { start() }.looper,
+    )
 
     /**
      * Unfortunately registerDefaultNetworkCallback is going to return VPN interface since Android P DP1:
@@ -188,20 +197,20 @@ object DefaultNetworkListener {
                     Application.connectivity.registerBestMatchingNetworkCallback(
                         request,
                         Callback,
-                        mainHandler,
+                        callbackHandler,
                     )
                 }
 
             in 28 until 31 ->
                 @TargetApi(28)
                 { // we want REQUEST here instead of LISTEN
-                    Application.connectivity.requestNetwork(request, Callback, mainHandler)
+                    Application.connectivity.requestNetwork(request, Callback, callbackHandler)
                 }
 
             in 26 until 28 ->
                 @TargetApi(26)
                 {
-                    Application.connectivity.registerDefaultNetworkCallback(Callback, mainHandler)
+                    Application.connectivity.registerDefaultNetworkCallback(Callback, callbackHandler)
                 }
 
             in 24 until 26 ->

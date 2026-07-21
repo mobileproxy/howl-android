@@ -57,6 +57,9 @@ object DefaultNetworkMonitor {
                     continue
                 }
                 listener.updateDefaultInterface(linkProperties.interfaceName, interfaceIndex, false, false)
+                // Цикл — это ретраи на случай, если свойства сети ещё не готовы. Данные получены,
+                // повторять нечего: без выхода ядро дёргалось 10 раз подряд на каждое событие сети.
+                return
             }
         } else {
             listener.updateDefaultInterface("", -1, false, false)
