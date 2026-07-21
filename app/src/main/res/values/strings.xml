@@ -192,7 +192,7 @@
     <string name="save_to_file">To File</string>
 
     <!-- Settings -->
-    <string name="service">Service</string>
+    <string name="service">Background operation</string>
     <string name="core">Core</string>
     <string name="core_version_title">Core Version</string>
     <string name="core_data_size">Data Size</string>

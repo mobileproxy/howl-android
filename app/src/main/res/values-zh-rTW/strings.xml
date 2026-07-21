@@ -192,7 +192,7 @@
     <string name="save_to_file">儲存到檔案</string>
 
     <!-- Settings -->
-    <string name="service">服務</string>
+    <string name="service">背景執行</string>
     <string name="core">核心</string>
     <string name="core_version_title">核心版本</string>
     <string name="core_data_size">資料大小</string>

@@ -17,7 +17,6 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
@@ -122,28 +121,9 @@ fun SettingsScreen(navController: NavController) {
                     ),
                 )
 
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(R.string.core),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    },
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    modifier =
-                    Modifier
-                        .clickable { navController.navigate("settings/core") },
-                    colors =
-                    ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                    ),
-                )
+                // «Ядро» убрано из меню: версия ядра, размер данных, рабочая директория,
+                // бета-настройки и кнопка «Уничтожить» — отладка, а не пользовательские
+                // настройки. Экран и код на месте, просто не на виду.
 
                 ListItem(
                     headlineContent = {

@@ -192,7 +192,7 @@
     <string name="save_to_file">В файл</string>
 
     <!-- Settings -->
-    <string name="service">Служба</string>
+    <string name="service">Работа в фоне</string>
     <string name="core">Ядро</string>
     <string name="core_version_title">Версия ядра</string>
     <string name="core_data_size">Размер данных</string>

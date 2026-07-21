@@ -192,7 +192,7 @@
     <string name="save_to_file">به فایل</string>
 
     <!-- Settings -->
-    <string name="service">سرویس</string>
+    <string name="service">اجرا در پس‌زمینه</string>
     <string name="core">هسته</string>
     <string name="core_version_title">نسخه هسته</string>
     <string name="core_data_size">اندازه داده</string>
