@@ -11,12 +11,11 @@ import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.bg.RootClient
 import io.nekohasekai.sfa.compose.screen.qrscan.QRCodeCropArea
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.update.HowlUpdateChecker
 import io.nekohasekai.sfa.update.UpdateCheckException
 import io.nekohasekai.sfa.update.UpdateInfo
 import io.nekohasekai.sfa.update.UpdateSource
 import io.nekohasekai.sfa.update.UpdateState
-import io.nekohasekai.sfa.update.UpdateTrack
-import io.nekohasekai.sfa.update.checkFDroidUpdate
 
 object Vendor : VendorInterface {
     private const val TAG = "Vendor"
@@ -97,16 +96,14 @@ object Vendor : VendorInterface {
 
     override val hasCustomUpdate = true
 
-    override val updateSources = listOf(UpdateSource.GITHUB, UpdateSource.FDROID)
+    // Источник один — наш сайт, поэтому выбор источника в настройках не показывается:
+    // экран рисует его только при updateSources.size > 1. Прежняя GitHub-проверка искала
+    // обновления в репозитории sing-box, то есть у чужого проекта: наших сборок там нет,
+    // а чужое приложение поверх Howl не встанет — другой идентификатор и подпись.
+    override val updateSources = listOf(UpdateSource.GITHUB)
 
-    override fun checkUpdateAsync(): UpdateInfo? = when (UpdateSource.fromString(Settings.updateSource)) {
-        UpdateSource.FDROID -> checkFDroidUpdate(Application.application)
-        UpdateSource.GITHUB -> {
-            val track = UpdateTrack.fromString(Settings.updateTrack)
-            GitHubUpdateChecker().use { checker ->
-                checker.checkUpdate(track)
-            }
-        }
+    override fun checkUpdateAsync(): UpdateInfo? = HowlUpdateChecker().use { checker ->
+        checker.checkUpdate()
     }
 
     override fun scheduleAutoUpdate() {

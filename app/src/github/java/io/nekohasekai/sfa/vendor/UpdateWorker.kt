@@ -11,10 +11,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.nekohasekai.sfa.database.Settings
-import io.nekohasekai.sfa.update.UpdateSource
+import io.nekohasekai.sfa.update.HowlUpdateChecker
 import io.nekohasekai.sfa.update.UpdateState
-import io.nekohasekai.sfa.update.UpdateTrack
-import io.nekohasekai.sfa.update.checkFDroidUpdate
 import java.util.concurrent.TimeUnit
 
 class UpdateWorker(private val appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
@@ -61,13 +59,9 @@ class UpdateWorker(private val appContext: Context, params: WorkerParameters) : 
         Log.d(TAG, "Checking for updates...")
 
         return try {
-            val updateInfo = when (UpdateSource.fromString(Settings.updateSource)) {
-                UpdateSource.FDROID -> checkFDroidUpdate(appContext)
-                UpdateSource.GITHUB -> {
-                    val track = UpdateTrack.fromString(Settings.updateTrack)
-                    GitHubUpdateChecker().use { it.checkUpdate(track) }
-                }
-            }
+            // Источник тот же, что и при ручной проверке, — наш сайт. Иначе фоновая проверка
+            // продолжала бы ходить в репозиторий sing-box и предлагать чужое приложение.
+            val updateInfo = HowlUpdateChecker().use { it.checkUpdate() }
 
             if (updateInfo == null) {
                 Log.d(TAG, "No update available")

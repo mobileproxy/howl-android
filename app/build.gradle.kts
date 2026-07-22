@@ -70,9 +70,20 @@ android {
         applicationId = "how.vpn.howl"
         minSdk = 21
         targetSdk = 35
-        versionCode = getVersionProps("VERSION_CODE").toInt()
-        versionName = getVersionProps("VERSION_NAME")
-        base.archivesName.set("Howl-${versionName}")
+        // Версия своя, а не унаследованная от sing-box: VERSION_NAME поднимаем осмысленно,
+        // а номер сборки растёт сам от номера запуска CI. Раньше все сборки выходили с одним
+        // номером — нельзя было понять, что именно стоит у клиента, и обновление было невозможно
+        // в принципе: приложению не с чем сравнивать.
+        // ⚠️ versionCode обязан только расти: у уже установленных сборок он 692, поэтому база
+        // выше этого числа. Понизить — значит сломать установку поверх.
+        val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        versionCode = getVersionProps("VERSION_CODE").toInt() + buildNumber
+        versionName = if (buildNumber > 0) {
+            "${getVersionProps("VERSION_NAME")} ($versionCode)"
+        } else {
+            getVersionProps("VERSION_NAME")
+        }
+        base.archivesName.set("Howl-${getVersionProps("VERSION_NAME")}")
     }
 
     signingConfigs {
