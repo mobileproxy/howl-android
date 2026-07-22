@@ -245,6 +245,9 @@
     <string name="watchdog">连接自愈</string>
     <string name="watchdog_description">每分钟检查流量是否真正通畅，卡住时自动恢复连接</string>
     <string name="watchdog_restart_note">更改将在下次连接时生效。</string>
+    <string name="core_log">内核日志</string>
+    <string name="core_log_description">内核会把日志写入文件，重新连接后依然保留——不像日志页面，每次连接都会从头开始。连接异常时请发送此文件。</string>
+    <string name="core_log_size">已收集：%1$s</string>
     <string name="watchdog_log">事件日志</string>
     <string name="watchdog_log_empty">暂无事件——连接一直稳定。</string>
     <string name="split_tunnel">绕过 VPN 的网站</string>

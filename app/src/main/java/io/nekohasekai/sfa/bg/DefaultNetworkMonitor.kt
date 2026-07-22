@@ -11,10 +11,21 @@ object DefaultNetworkMonitor {
     var defaultNetwork: Network? = null
     private var listener: InterfaceUpdateListener? = null
 
+    /**
+     * Дёргается при смене сети (Wi-Fi ↔ мобильная). Ядро при этом переключает только НОВЫЕ
+     * соединения, а уже открытые остаются привязаны к исчезнувшему интерфейсу и молча умирают —
+     * отсюда «подключено, но трафик не идёт». Сторож использует это, чтобы проверить связь
+     * сразу, а не ждать очередной минутной проверки.
+     */
+    @Volatile
+    var onNetworkChanged: (() -> Unit)? = null
+
     suspend fun start() {
         DefaultNetworkListener.start(this) {
+            val changed = defaultNetwork != it
             defaultNetwork = it
             checkDefaultInterfaceUpdate(it)
+            if (changed) runCatching { onNetworkChanged?.invoke() }
         }
         defaultNetwork = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Application.connectivity.activeNetwork

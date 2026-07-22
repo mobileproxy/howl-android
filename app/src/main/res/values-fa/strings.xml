@@ -245,6 +245,9 @@
     <string name="watchdog">نگهبان اتصال</string>
     <string name="watchdog_description">هر دقیقه بررسی می‌کند که ترافیک واقعاً برقرار است و در صورت گیر کردن، اتصال را بازیابی می‌کند</string>
     <string name="watchdog_restart_note">تغییر در اتصال بعدی اعمال می‌شود.</string>
+    <string name="core_log">گزارش هسته</string>
+    <string name="core_log_description">هسته گزارش را در فایلی می‌نویسد که بین اتصال‌های مجدد باقی می‌ماند — برخلاف صفحه گزارش‌ها که با هر اتصال از نو شروع می‌شود. اگر اتصال مشکل داشت، این فایل را بفرستید.</string>
+    <string name="core_log_size">جمع‌آوری‌شده: %1$s</string>
     <string name="watchdog_log">گزارش رویدادها</string>
     <string name="watchdog_log_empty">هنوز رویدادی نیست — اتصال پایدار بوده است.</string>
     <string name="split_tunnel">سایت‌های خارج از VPN</string>

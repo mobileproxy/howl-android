@@ -245,6 +245,9 @@
     <string name="watchdog">連線自癒</string>
     <string name="watchdog_description">每分鐘檢查流量是否真正暢通，卡住時自動恢復連線</string>
     <string name="watchdog_restart_note">變更將在下次連線時生效。</string>
+    <string name="core_log">核心紀錄</string>
+    <string name="core_log_description">核心會把紀錄寫入檔案，重新連線後仍然保留——不像紀錄頁面，每次連線都從頭開始。連線異常時請傳送此檔案。</string>
+    <string name="core_log_size">已收集：%1$s</string>
     <string name="watchdog_log">事件紀錄</string>
     <string name="watchdog_log_empty">尚無事件——連線一直穩定。</string>
     <string name="split_tunnel">繞過 VPN 的網站</string>

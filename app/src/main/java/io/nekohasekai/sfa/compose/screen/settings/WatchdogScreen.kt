@@ -1,18 +1,23 @@
 package io.nekohasekai.sfa.compose.screen.settings
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,14 +39,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.utils.CoreLog
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,9 +70,11 @@ fun WatchdogScreen(navController: NavController) {
         )
     }
 
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(Settings.watchdogEnabled) }
     var log by remember { mutableStateOf(Settings.watchdogLog) }
+    var coreLogSize by remember { mutableStateOf(CoreLog.sizeBytes()) }
 
     Column(
         modifier = Modifier
@@ -127,6 +139,55 @@ fun WatchdogScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
+            text = stringResource(R.string.core_log),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 32.dp, top = 16.dp, bottom = 8.dp),
+        )
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = stringResource(R.string.core_log_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.core_log_size, formatSize(coreLogSize)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row {
+                    Button(
+                        onClick = { scope.launch { shareCoreLog(context) } },
+                        enabled = coreLogSize > 0,
+                    ) {
+                        Text(stringResource(R.string.menu_share))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            CoreLog.clear()
+                            coreLogSize = CoreLog.sizeBytes()
+                        },
+                        enabled = coreLogSize > 0,
+                    ) {
+                        Text(stringResource(R.string.clear))
+                    }
+                }
+            }
+        }
+
+        Text(
             text = stringResource(R.string.watchdog_log),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
@@ -169,4 +230,37 @@ fun WatchdogScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+private fun formatSize(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> "%.1f МБ".format(bytes / 1024.0 / 1024.0)
+    bytes >= 1024 -> "${bytes / 1024} КБ"
+    else -> "$bytes Б"
+}
+
+/**
+ * Отдаём журнал наружу. Файлы лежат в приватном каталоге, недоступном FileProvider'у,
+ * поэтому склеиваем оба поколения (старое сверху) во временный файл в кэше — его провайдер
+ * отдать может.
+ */
+private suspend fun shareCoreLog(context: Context) {
+    val prepared = withContext(Dispatchers.IO) {
+        runCatching {
+            val target = File(context.cacheDir, "howl-core-log.txt")
+            target.outputStream().use { output ->
+                listOf(CoreLog.previousFile(), CoreLog.file())
+                    .filter { it.exists() }
+                    .forEach { part -> part.inputStream().use { it.copyTo(output) } }
+            }
+            target
+        }.getOrNull()
+    } ?: return
+
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.cache", prepared)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, null))
 }

@@ -3,11 +3,14 @@ package io.nekohasekai.sfa.bg
 import io.nekohasekai.sfa.database.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.HttpURLConnection
 import java.net.InetAddress
@@ -50,39 +53,66 @@ object ConnectivityWatchdog {
     private const val PROBE_URL = "https://www.gstatic.com/generate_204"
     private const val PROBE_HOST = "www.gstatic.com"
 
+    private const val SETTLE_AFTER_NETWORK_MS = 5_000L
+
     private var scope: CoroutineScope? = null
     private var consecutiveFailures = 0
     private var lastHealAt = 0L
+    private var heal: (suspend () -> Unit)? = null
+    private var networkJob: Job? = null
+
+    // Проверки не должны накладываться: минутный цикл и проверка по смене сети могут
+    // прийтись на один момент, а каждая занимает до 20 секунд.
+    private val checkMutex = Mutex()
 
     fun start(heal: suspend () -> Unit) {
         stop()
         if (!Settings.watchdogEnabled) return
         val newScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope = newScope
+        this.heal = heal
         consecutiveFailures = 0
-        newScope.launch { loop(heal) }
+        newScope.launch { loop() }
+        DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
     }
 
     fun stop() {
+        DefaultNetworkMonitor.onNetworkChanged = null
+        networkJob = null
         scope?.cancel()
         scope = null
+        heal = null
         consecutiveFailures = 0
     }
 
-    private suspend fun loop(heal: suspend () -> Unit) {
+    /**
+     * Смена Wi-Fi ↔ мобильной — самый частый момент, когда соединения умирают незаметно.
+     * Ждём, пока сеть устаканится, и проверяем связь сразу, не дожидаясь минутного цикла.
+     */
+    private fun onNetworkChanged() {
+        val currentScope = scope ?: return
+        networkJob?.cancel()
+        networkJob = currentScope.launch {
+            delay(SETTLE_AFTER_NETWORK_MS)
+            appendLog("сменилась сеть — проверяю связь")
+            runCatching { checkOnce() }
+        }
+    }
+
+    private suspend fun loop() {
         delay(FIRST_CHECK_DELAY_MS)
         val currentScope = scope ?: return
         while (currentScope.isActive) {
-            runCatching { checkOnce(heal) }
+            runCatching { checkOnce() }
             delay(CHECK_INTERVAL_MS)
         }
     }
 
-    private suspend fun checkOnce(heal: suspend () -> Unit) {
+    private suspend fun checkOnce() = checkMutex.withLock {
         // Нет сети вообще (самолётный режим, нет сигнала) — не наша беда, чинить нечего.
         if (DefaultNetworkMonitor.defaultNetwork == null) {
             consecutiveFailures = 0
-            return
+            return@withLock
         }
 
         val tunnelOk = probe { tcpReachable() }
@@ -93,7 +123,7 @@ object ConnectivityWatchdog {
                 appendLog("связь восстановилась сама")
             }
             consecutiveFailures = 0
-            return
+            return@withLock
         }
 
         consecutiveFailures++
@@ -105,19 +135,19 @@ object ConnectivityWatchdog {
 
         if (consecutiveFailures < FAILURES_BEFORE_HEAL) {
             appendLog("$what — проверяю ещё раз")
-            return
+            return@withLock
         }
 
         val now = System.currentTimeMillis()
         if (now - lastHealAt < MIN_HEAL_INTERVAL_MS) {
             appendLog("$what — чинил недавно, жду")
-            return
+            return@withLock
         }
 
         lastHealAt = now
         consecutiveFailures = 0
         appendLog("$what — перезапускаю соединения")
-        val failure = runCatching { heal() }.exceptionOrNull()
+        val failure = runCatching { heal?.invoke() }.exceptionOrNull()
         if (failure != null) {
             appendLog("починить не удалось: ${failure.message ?: failure.toString()}")
         }
