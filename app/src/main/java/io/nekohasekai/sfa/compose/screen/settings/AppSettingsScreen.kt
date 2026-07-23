@@ -396,20 +396,37 @@ fun AppSettingsScreen(
             updateInfo = updateInfo!!,
             onDismiss = { showUpdateAvailableDialog = false },
             onUpdate = {
-                // Отдаём скачивание браузеру, а установку — штатному установщику Android.
-                // Старый путь качал APK ЧЕРЕЗ туннель и глушил VPN (BoxService.stop в
-                // ApkInstaller), а «тихая» установка без привилегий стора молча не срабатывала —
-                // связь рвалась, и ничего не ставилось. Браузер качает надёжно (докачка,
-                // повтор), а тап по файлу открывает обычный установщик — как при ручном
-                // обновлении с сайта, которое у пользователя как раз и сработало.
+                // Обновление целиком внутри приложения: качаем с прогрессом, затем открываем
+                // штатное окно установки Android. VPN при этом не трогаем — систему просим
+                // заменить приложение, и она сама остановит его в нужный момент.
                 showUpdateAvailableDialog = false
-                runCatching {
-                    context.startActivity(
-                        android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse(updateInfo!!.downloadUrl),
-                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
+                showDownloadDialog = true
+                downloadError = null
+                downloadJob = scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            Vendor.downloadAndInstall(context, updateInfo!!.downloadUrl)
+                        }
+                        showDownloadDialog = false
+                    } catch (e: Exception) {
+                        // Запасной путь: отдаём ссылку браузеру — он скачает, а тап по файлу
+                        // откроет тот же установщик. Так обновление остаётся возможным, даже
+                        // если что-то пошло не так со скачиванием внутри приложения.
+                        Log.e("AppSettingsScreen", "Error downloading update", e)
+                        showDownloadDialog = false
+                        val opened = runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(updateInfo!!.downloadUrl),
+                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }.isSuccess
+                        if (!opened) {
+                            showDownloadDialog = true
+                            downloadError = e.message
+                        }
+                    }
                 }
             },
         )
