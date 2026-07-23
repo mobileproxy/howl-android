@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.bg
 
+import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.database.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,8 +36,12 @@ import java.util.Locale
  *   • запрос к домену — проверяет DNS и путь целиком.
  * Трафик приложения идёт через тот же tun, что и у браузера, — это честная сквозная проверка.
  *
- * При двух провалах подряд перезагружает конфиг: соединения пересоздаются, как при ручном
- * переключении протокола. Каждое событие пишется в журнал (Настройки → Автопочинка).
+ * Починка идёт по нарастающей. Первый раз — переподключение (reload): часто виноваты залипшие
+ * сокеты после смены сети, и этого достаточно. Если не помогло — уводим на автоподбор и
+ * заставляем перемерить задержки, то есть уходим на другой узел, ровно как при ручной смене
+ * сервера: это лечит случай, когда деградировал сам узел (по журналу с устройства — таймаут
+ * TCP к нему), а reload упирался бы в ту же стену. Каждое событие — в журнал (Настройки →
+ * Автопочинка).
  */
 object ConnectivityWatchdog {
 
@@ -55,9 +60,18 @@ object ConnectivityWatchdog {
 
     private const val SETTLE_AFTER_NETWORK_MS = 5_000L
 
+    // Теги из sub.php: селектор «Howl», внутри него автоподбор «auto» (urltest).
+    // Если сервер сгенерирован иначе — вызовы ниже просто ничего не сделают, это безопасно.
+    private const val SELECTOR_TAG = "Howl"
+    private const val AUTO_TAG = "auto"
+
     private var scope: CoroutineScope? = null
     private var consecutiveFailures = 0
     private var lastHealAt = 0L
+    // Сколько раз чинили подряд, не добившись успеха. 0 — свежий сбой, лечим мягко
+    // (просто переподключением); ≥1 — прошлый reload не помог, значит дело не в залипших
+    // сокетах, а в самом узле → уводим на автоподбор, как при ручной смене сервера.
+    private var healAttempts = 0
     private var heal: (suspend () -> Unit)? = null
     private var networkJob: Job? = null
 
@@ -72,6 +86,7 @@ object ConnectivityWatchdog {
         scope = newScope
         this.heal = heal
         consecutiveFailures = 0
+        healAttempts = 0
         newScope.launch { loop() }
         DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
     }
@@ -83,6 +98,7 @@ object ConnectivityWatchdog {
         scope = null
         heal = null
         consecutiveFailures = 0
+        healAttempts = 0
     }
 
     /**
@@ -119,10 +135,11 @@ object ConnectivityWatchdog {
         val domainOk = probe { domainReachable() }
 
         if (tunnelOk && domainOk) {
-            if (consecutiveFailures > 0) {
-                appendLog("связь восстановилась сама")
+            if (consecutiveFailures > 0 || healAttempts > 0) {
+                appendLog("связь восстановилась")
             }
             consecutiveFailures = 0
+            healAttempts = 0
             return@withLock
         }
 
@@ -146,12 +163,41 @@ object ConnectivityWatchdog {
 
         lastHealAt = now
         consecutiveFailures = 0
-        appendLog("$what — перезапускаю соединения")
-        val failure = runCatching { heal?.invoke() }.exceptionOrNull()
-        if (failure != null) {
-            appendLog("починить не удалось: ${failure.message ?: failure.toString()}")
+
+        // Первый раз — просто переподключаемся: часто виноваты залипшие сокеты (например,
+        // после смены сети), и reload их пересоздаёт. Если это уже не первая починка в этом
+        // эпизоде, значит reload не помог — виноват сам узел, и надо уходить на другой.
+        if (healAttempts == 0) {
+            appendLog("$what — переподключаюсь")
+            val failure = runCatching { heal?.invoke() }.exceptionOrNull()
+            if (failure != null) {
+                appendLog("переподключиться не удалось: ${failure.message ?: failure.toString()}")
+            }
+        } else {
+            appendLog("$what — не помогло, меняю сервер")
+            switchToFastestServer()
+            val failure = runCatching { heal?.invoke() }.exceptionOrNull()
+            if (failure != null) {
+                appendLog("сменить сервер не удалось: ${failure.message ?: failure.toString()}")
+            }
         }
+        healAttempts++
         delay(SETTLE_AFTER_HEAL_MS)
+    }
+
+    /**
+     * Уводит на автоподбор и заставляет перемерить задержки — то же, что делает ручная смена
+     * сервера: если узел, на котором мы сидим, деградировал, urltest выберет живой и быстрый.
+     * Помогает и когда пользователь вручную закрепился на конкретной локации, которая отвалилась.
+     */
+    private fun switchToFastestServer() {
+        // Standalone-клиент здесь одноразовый (fire-and-forget), как во всех остальных местах
+        // проекта — connect/close не нужны.
+        runCatching {
+            val client = Libbox.newStandaloneCommandClient()
+            client.selectOutbound(SELECTOR_TAG, AUTO_TAG)
+            client.urlTest(SELECTOR_TAG)
+        }
     }
 
     /** Проба под таймаутом: зависшая сеть не должна подвесить сам сторож. */
