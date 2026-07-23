@@ -38,20 +38,27 @@ import java.util.Locale
  *   • запрос к домену — проверяет DNS и путь целиком.
  * Трафик приложения идёт через тот же tun, что и у браузера, — это честная сквозная проверка.
  *
- * Починка идёт по нарастающей. Первый раз — переподключение (reload): часто виноваты залипшие
- * сокеты после смены сети, и этого достаточно. Если не помогло — уводим на автоподбор и
- * заставляем перемерить задержки, то есть уходим на другой узел, ровно как при ручной смене
- * сервера: это лечит случай, когда деградировал сам узел (по журналу с устройства — таймаут
- * TCP к нему), а reload упирался бы в ту же стену. Каждое событие — в журнал (Настройки →
- * Автопочинка).
+ * Починка идёт по нарастающей — три ступени, каждая лечит свою причину:
+ *   1) переподключение — залипшие сокеты после смены сети;
+ *   2) другая СЕТЬ телефона — телефон держится за мёртвый Wi-Fi, хотя рядом живая мобильная
+ *      (по журналу 23.07: `dial wlan0: no route to host` за 6 мс — сеть отвергала пакеты сразу,
+ *      при этом мобильная была доступна; reload не спасал, т.к. ядру отдавалась та же сеть);
+ *   3) другой СЕРВЕР — деградация узла.
+ * Пока идёт сбой, проверки чаще (15 с вместо 60), чтобы пройти лестницу за полминуты, а не
+ * за минуты. Каждое событие — в журнал (Настройки → Автопочинка).
  */
 object ConnectivityWatchdog {
 
     private const val CHECK_INTERVAL_MS = 60_000L
+    // Пока идёт сбой, проверяем чаще: минута простоя — это уже «интернет пропал» для человека.
+    private const val CHECK_INTERVAL_FAILING_MS = 15_000L
     private const val FIRST_CHECK_DELAY_MS = 30_000L      // дать туннелю подняться
     private const val PROBE_TIMEOUT_MS = 8_000
     private const val FAILURES_BEFORE_HEAL = 2
-    private const val MIN_HEAL_INTERVAL_MS = 3 * 60_000L  // защита от цикла перезагрузок
+    // Между ступенями лестницы (переподключение → другая сеть → другой сервер) ждём немного:
+    // иначе ступени не успевают отработать. Полный откат к длинным паузам — только когда
+    // лестница пройдена и ясно, что дело в качестве канала.
+    private const val MIN_HEAL_INTERVAL_MS = 30_000L
     private const val BACKOFF_HEAL_INTERVAL_MS = 15 * 60_000L // канал плох — чиним реже
     private const val SETTLE_AFTER_HEAL_MS = 20_000L
     private const val MAX_LOG_LINES = 30
@@ -123,7 +130,10 @@ object ConnectivityWatchdog {
         val currentScope = scope ?: return
         while (currentScope.isActive) {
             runCatching { checkOnce() }
-            delay(CHECK_INTERVAL_MS)
+            // Всё хорошо — проверяем раз в минуту; идёт сбой — каждые 15 секунд, чтобы пройти
+            // лестницу починки быстро, а не растягивать простой на минуты.
+            val failing = consecutiveFailures > 0 || healAttempts > 0
+            delay(if (failing) CHECK_INTERVAL_FAILING_MS else CHECK_INTERVAL_MS)
         }
     }
 
@@ -140,6 +150,9 @@ object ConnectivityWatchdog {
         if (tunnelOk && domainOk) {
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog("связь восстановилась")
+                // Возвращаемся к обычному выбору сети: если во время сбоя ушли на мобильную,
+                // а Wi-Fi ожил — надо вернуться на него, иначе будем зря жечь мобильный трафик.
+                if (healAttempts > 0) DefaultNetworkMonitor.reevaluate()
             }
             consecutiveFailures = 0
             healAttempts = 0
@@ -182,8 +195,9 @@ object ConnectivityWatchdog {
         // Чем больше безуспешных починок подряд, тем дольше ждём перед следующей: если две
         // попытки не помогли, дело почти наверняка в качестве канала, а не в туннеле, и частые
         // перезапуски только рвут те соединения, что ещё проходят.
+        // Лестницу (0→1→2) проходим быстро; дальше, если ничего не помогло, — редкие попытки.
         val now = System.currentTimeMillis()
-        val waitBeforeHeal = if (healAttempts >= 2) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
+        val waitBeforeHeal = if (healAttempts > 2) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
         if (now - lastHealAt < waitBeforeHeal) {
             appendLog("$what — чинил недавно, жду")
             return@withLock
@@ -192,21 +206,28 @@ object ConnectivityWatchdog {
         lastHealAt = now
         consecutiveFailures = 0
 
-        // Первый раз — просто переподключаемся: часто виноваты залипшие сокеты (например,
-        // после смены сети), и reload их пересоздаёт. Если это уже не первая починка в этом
-        // эпизоде, значит reload не помог — виноват сам узел, и надо уходить на другой.
-        if (healAttempts == 0) {
-            appendLog("$what — переподключаюсь")
-            val failure = runCatching { heal?.invoke() }.exceptionOrNull()
-            if (failure != null) {
-                appendLog("переподключиться не удалось: ${failure.message ?: failure.toString()}")
+        // Лестница починки: сначала дёшево, потом радикальнее.
+        //   1) переподключение — лечит залипшие сокеты после смены сети;
+        //   2) другая СЕТЬ телефона — лечит «держимся за мёртвый Wi-Fi, а рядом живая мобильная»
+        //      (ровно этот случай reload не чинил: ядру отдавалась та же нерабочая сеть);
+        //   3) другой СЕРВЕР — лечит деградацию узла.
+        when (healAttempts) {
+            0 -> {
+                appendLog("$what — переподключаюсь")
+                runHeal("переподключиться")
             }
-        } else {
-            appendLog("$what — не помогло, меняю сервер")
-            switchToFastestServer()
-            val failure = runCatching { heal?.invoke() }.exceptionOrNull()
-            if (failure != null) {
-                appendLog("сменить сервер не удалось: ${failure.message ?: failure.toString()}")
+
+            1 -> {
+                DefaultNetworkMonitor.reevaluate(preferAlternative = true)
+                val via = DefaultNetworkMonitor.reportedInterface
+                appendLog("$what — не помогло, перехожу на другую сеть" + if (via != null) " ($via)" else "")
+                runHeal("сменить сеть")
+            }
+
+            else -> {
+                appendLog("$what — не помогло, меняю сервер")
+                switchToFastestServer()
+                runHeal("сменить сервер")
             }
         }
         healAttempts++
@@ -218,6 +239,13 @@ object ConnectivityWatchdog {
      * сервера: если узел, на котором мы сидим, деградировал, urltest выберет живой и быстрый.
      * Помогает и когда пользователь вручную закрепился на конкретной локации, которая отвалилась.
      */
+    private suspend fun runHeal(what: String) {
+        val failure = runCatching { heal?.invoke() }.exceptionOrNull()
+        if (failure != null) {
+            appendLog("$what не удалось: ${failure.message ?: failure.toString()}")
+        }
+    }
+
     private fun switchToFastestServer() {
         // Standalone-клиент здесь одноразовый (fire-and-forget), как во всех остальных местах
         // проекта — connect/close не нужны.
