@@ -65,7 +65,9 @@ object Vendor : VendorInterface {
             .setTitle(R.string.check_update)
             .setMessage(message)
             .setPositiveButton(R.string.update) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.releaseUrl))
+                // Прямо на APK, а не на страницу-папку (она может отдавать 403): браузер качает
+                // файл, тап открывает штатный установщик. Ту же ссылку даёт кнопка в настройках.
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.downloadUrl))
                 activity.startActivity(intent)
             }
             .setNegativeButton(R.string.cancel, null)

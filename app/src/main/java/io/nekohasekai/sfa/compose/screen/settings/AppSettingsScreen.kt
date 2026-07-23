@@ -396,18 +396,20 @@ fun AppSettingsScreen(
             updateInfo = updateInfo!!,
             onDismiss = { showUpdateAvailableDialog = false },
             onUpdate = {
-                showDownloadDialog = true
-                downloadError = null
-                downloadJob = scope.launch {
-                    try {
-                        withContext(Dispatchers.IO) {
-                            Vendor.downloadAndInstall(context, updateInfo!!.downloadUrl)
-                        }
-                        showDownloadDialog = false
-                    } catch (e: Exception) {
-                        Log.e("AppSettingsScreen", "Error downloading update", e)
-                        downloadError = e.message
-                    }
+                // Отдаём скачивание браузеру, а установку — штатному установщику Android.
+                // Старый путь качал APK ЧЕРЕЗ туннель и глушил VPN (BoxService.stop в
+                // ApkInstaller), а «тихая» установка без привилегий стора молча не срабатывала —
+                // связь рвалась, и ничего не ставилось. Браузер качает надёжно (докачка,
+                // повтор), а тап по файлу открывает обычный установщик — как при ручном
+                // обновлении с сайта, которое у пользователя как раз и сработало.
+                showUpdateAvailableDialog = false
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(updateInfo!!.downloadUrl),
+                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
                 }
             },
         )
