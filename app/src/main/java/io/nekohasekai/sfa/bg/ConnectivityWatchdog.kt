@@ -1,6 +1,8 @@
 package io.nekohasekai.sfa.bg
 
+import android.net.NetworkCapabilities
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +52,7 @@ object ConnectivityWatchdog {
     private const val PROBE_TIMEOUT_MS = 8_000
     private const val FAILURES_BEFORE_HEAL = 2
     private const val MIN_HEAL_INTERVAL_MS = 3 * 60_000L  // защита от цикла перезагрузок
+    private const val BACKOFF_HEAL_INTERVAL_MS = 15 * 60_000L // канал плох — чиним реже
     private const val SETTLE_AFTER_HEAL_MS = 20_000L
     private const val MAX_LOG_LINES = 30
 
@@ -143,6 +146,27 @@ object ConnectivityWatchdog {
             return@withLock
         }
 
+        // ★ Сначала выясняем, ЧЬЯ это беда. Перезапуск лечит только зависший туннель; если у
+        // самого телефона нет рабочего интернета (плохой сигнал, каптивный Wi-Fi с логином),
+        // перезапуск бесполезен и вреден — он рвёт и те соединения, что ещё проходят.
+        // По журналу с устройства именно так и было: в окне сбоя к узлу проходило 25 соединений
+        // из 95, а сторож дважды перезапускал ядро впустую.
+        when (underlyingNetwork()) {
+            UnderlyingNetwork.CAPTIVE_PORTAL -> {
+                appendLog("Wi-Fi требует входа в систему — VPN не пройдёт, пока не войдёте")
+                consecutiveFailures = 0
+                return@withLock
+            }
+
+            UnderlyingNetwork.NO_INTERNET -> {
+                appendLog("у сети телефона нет интернета — жду, перезапуск не поможет")
+                consecutiveFailures = 0
+                return@withLock
+            }
+
+            UnderlyingNetwork.OK -> Unit
+        }
+
         consecutiveFailures++
         val what = when {
             !tunnelOk && !domainOk -> "туннель не отвечает"
@@ -155,8 +179,12 @@ object ConnectivityWatchdog {
             return@withLock
         }
 
+        // Чем больше безуспешных починок подряд, тем дольше ждём перед следующей: если две
+        // попытки не помогли, дело почти наверняка в качестве канала, а не в туннеле, и частые
+        // перезапуски только рвут те соединения, что ещё проходят.
         val now = System.currentTimeMillis()
-        if (now - lastHealAt < MIN_HEAL_INTERVAL_MS) {
+        val waitBeforeHeal = if (healAttempts >= 2) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
+        if (now - lastHealAt < waitBeforeHeal) {
             appendLog("$what — чинил недавно, жду")
             return@withLock
         }
@@ -197,6 +225,33 @@ object ConnectivityWatchdog {
             val client = Libbox.newStandaloneCommandClient()
             client.selectOutbound(SELECTOR_TAG, AUTO_TAG)
             client.urlTest(SELECTOR_TAG)
+        }
+    }
+
+    private enum class UnderlyingNetwork { OK, NO_INTERNET, CAPTIVE_PORTAL }
+
+    /**
+     * Что думает о нижележащей сети сама система. Android постоянно проверяет каждую сеть на
+     * реальный выход в интернет — это тот самый механизм, который рисует «!» на значке Wi-Fi
+     * и предлагает войти в гостевую сеть. Переиспользуем его вердикт вместо своих догадок.
+     *
+     * Сеть здесь физическая (Wi-Fi/мобильная), а не наш tun: DefaultNetworkListener специально
+     * запрашивает не-VPN сеть. При сомнениях считаем, что сеть в порядке, — лучше лишний раз
+     * попробовать починить, чем молча ничего не делать.
+     */
+    private fun underlyingNetwork(): UnderlyingNetwork {
+        val network = DefaultNetworkMonitor.defaultNetwork ?: return UnderlyingNetwork.OK
+        val caps = runCatching {
+            Application.connectivity.getNetworkCapabilities(network)
+        }.getOrNull() ?: return UnderlyingNetwork.OK
+        return when {
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) ->
+                UnderlyingNetwork.CAPTIVE_PORTAL
+
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ->
+                UnderlyingNetwork.NO_INTERNET
+
+            else -> UnderlyingNetwork.OK
         }
     }
 
