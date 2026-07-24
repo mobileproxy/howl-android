@@ -13,7 +13,7 @@
     ],
     "outbounds": [
         { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test", "wolf AM Test", "wolf NL Test"], "default": "auto", "interrupt_exist_connections": true },
-        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test", "wolf NL Test"], "url": "https://www.gstatic.com/generate_204", "interval": "1m", "tolerance": 150, "interrupt_exist_connections": true },
+        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test", "bolt NL Test", "wolf AM Test", "wolf NL Test"], "url": "https://www.gstatic.com/generate_204", "interval": "3m", "tolerance": 300 },
         {
             "type": "vless", "tag": "shield DE Test",
             "server": "1.2.3.4", "server_port": 738,

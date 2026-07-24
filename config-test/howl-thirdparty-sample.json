@@ -13,7 +13,7 @@
     ],
     "outbounds": [
         { "type": "selector", "tag": "Howl", "outbounds": ["auto", "vless reality tcp", "vless tls ws", "vmess ws tls", "shadowsocks", "trojan tls", "hysteria2 obfs", "tuic v5"], "default": "auto", "interrupt_exist_connections": true },
-        { "type": "urltest", "tag": "auto", "outbounds": ["vless reality tcp", "vless tls ws", "vmess ws tls", "shadowsocks", "trojan tls", "hysteria2 obfs", "tuic v5"], "url": "https://www.gstatic.com/generate_204", "interval": "1m", "tolerance": 150, "interrupt_exist_connections": true },
+        { "type": "urltest", "tag": "auto", "outbounds": ["vless reality tcp", "vless tls ws", "vmess ws tls", "shadowsocks", "trojan tls", "hysteria2 obfs", "tuic v5"], "url": "https://www.gstatic.com/generate_204", "interval": "3m", "tolerance": 300 },
 
         {
             "type": "vless", "tag": "vless reality tcp",

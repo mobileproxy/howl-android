@@ -426,6 +426,11 @@ object SubscriptionConverter {
     private fun build(outbounds: List<JSONObject>): String {
         val tags = JSONArray(outbounds.map { it.getString("tag") })
 
+        // interrupt_exist_connections — только у селектора: ручное переключение сервера должно
+        // применяться сразу. У urltest выбор меняется САМ, по шуму задержки, и обрыв всех
+        // соединений на каждом перескоке для человека выглядит как «пропал интернет»
+        // (журнал 24.07 21:25: девять соединений оборвались в одну секунду). За мёртвый узел
+        // отвечает сторож — он реагирует на доказанный сбой, а не на дрожание RTT.
         val selector = JSONObject()
             .put("type", "selector")
             .put("tag", SELECTOR_TAG)
@@ -438,9 +443,8 @@ object SubscriptionConverter {
             .put("tag", AUTO_TAG)
             .put("outbounds", tags)
             .put("url", PROBE_URL)
-            .put("interval", "1m")
-            .put("tolerance", 150)
-            .put("interrupt_exist_connections", true)
+            .put("interval", "3m")
+            .put("tolerance", 300)
 
         val all = JSONArray()
         all.put(selector)
