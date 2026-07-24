@@ -14,6 +14,7 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.CommandClient
+import io.nekohasekai.sfa.subscription.SubscriptionConverter
 import io.nekohasekai.sfa.utils.CommandTarget
 import io.nekohasekai.sfa.utils.HTTPClient
 import io.nekohasekai.sfa.utils.RemoteControlManager
@@ -370,8 +371,9 @@ class DashboardViewModel :
 
             try {
                 // Fetch remote config
-                val content = HTTPClient().use { it.getString(profile.typed.remoteURL) }
-                Libbox.checkConfig(content)
+                val raw = HTTPClient().use { it.getString(profile.typed.remoteURL) }
+                // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
+                val content = SubscriptionConverter.normalize(raw, profile.name)
 
                 // Check if content changed
                 val file = File(profile.typed.path)

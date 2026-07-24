@@ -10,6 +10,7 @@ import io.nekohasekai.sfa.bg.UpdateProfileWork
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.subscription.SubscriptionConverter
 import io.nekohasekai.sfa.utils.HTTPClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -268,9 +269,9 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
                 }
             }
 
-        // Validate config
-        Libbox.checkConfig(configContent)
-        configFile.writeText(configContent)
+        // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
+        val normalized = SubscriptionConverter.normalize(configContent, state.name)
+        configFile.writeText(normalized)
 
         // Create profile in database and select it
         ProfileManager.create(profile, andSelect = true)
@@ -301,8 +302,8 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
 
         // Fetch initial config - this MUST succeed for remote profiles
         val content = HTTPClient().use { it.getString(state.remoteUrl) }
-        Libbox.checkConfig(content)
-        val configContent = content
+        // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
+        val configContent = SubscriptionConverter.normalize(content, state.name)
 
         configFile.writeText(configContent)
 

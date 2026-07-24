@@ -13,6 +13,7 @@ import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.subscription.SubscriptionConverter
 import io.nekohasekai.sfa.utils.HTTPClient
 import java.io.File
 import java.util.Date
@@ -75,8 +76,9 @@ class UpdateProfileWork {
                     continue
                 }
                 try {
-                    val content = HTTPClient().use { it.getString(profile.typed.remoteURL) }
-                    Libbox.checkConfig(content)
+                    val raw = HTTPClient().use { it.getString(profile.typed.remoteURL) }
+                    // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
+                    val content = SubscriptionConverter.normalize(raw, profile.name)
                     val file = File(profile.typed.path)
                     if (file.readText() != content) {
                         File(profile.typed.path).writeText(content)

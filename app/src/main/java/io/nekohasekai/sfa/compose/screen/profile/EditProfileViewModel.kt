@@ -13,6 +13,7 @@ import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.subscription.SubscriptionConverter
 import io.nekohasekai.sfa.utils.HTTPClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -255,8 +256,9 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                 var selectedProfileUpdated = false
 
                 // Fetch remote config
-                val content = HTTPClient().use { it.getString(profile.typed.remoteURL) }
-                Libbox.checkConfig(content)
+                val raw = HTTPClient().use { it.getString(profile.typed.remoteURL) }
+                // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
+                val content = SubscriptionConverter.normalize(raw, profile.name)
 
                 // Check if content changed
                 val file = File(profile.typed.path)
