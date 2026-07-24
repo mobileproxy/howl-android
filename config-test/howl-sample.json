@@ -2,14 +2,14 @@
     "log": { "level": "warn" },
     "dns": {
         "servers": [
-            { "tag": "dns-remote", "type": "tls", "server": "1.1.1.1", "detour": "Howl" },
+            { "tag": "dns-remote", "type": "udp", "server": "1.1.1.1", "detour": "Howl" },
             { "tag": "dns-local", "type": "local" }
         ],
         "final": "dns-remote",
         "strategy": "prefer_ipv4"
     },
     "inbounds": [
-        { "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30"], "auto_route": true, "strict_route": true, "stack": "system" }
+        { "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"], "auto_route": true, "strict_route": true, "stack": "system" }
     ],
     "outbounds": [
         { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test", "bolt NL Test"], "default": "auto" },
@@ -38,7 +38,8 @@
         "final": "Howl",
         "rules": [
             { "action": "sniff" },
-            { "protocol": "dns", "action": "hijack-dns" }
+            { "protocol": "dns", "action": "hijack-dns" },
+            { "ip_version": 6, "action": "reject", "method": "default" }
         ]
     }
 }
