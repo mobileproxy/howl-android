@@ -50,8 +50,16 @@ object CoreLog {
     }
 
     /**
-     * Прописывает в конфиг вывод логов в файл. Уровень поднимаем до info: warn (как приходит
-     * с сервера) молчит ровно про то, что нужно для разбора обрывов.
+     * Прописывает в конфиг вывод логов в файл. Уровень НЕ трогаем — оставляем тот, что пришёл
+     * с сервера (warn).
+     *
+     * Раньше здесь поднимался уровень до info «чтобы было видно больше». Обошлось дорого:
+     * на info ядро пишет строку `router: found package name` на КАЖДЫЙ пакет, а каждая такая
+     * строка — это системный запрос к Android о владельце сокета. Во время звонка в Telegram
+     * это ~600 запросов в секунду прямо на пути пакетов: 98% журнала (36 545 строк из 37 060 за
+     * минуту) против 177 реальных соединений. Туннель захлёбывался, и вылечить это мог только
+     * полный перезапуск. Для разбора аварий хватает ERROR-строк — все прошлые диагнозы
+     * поставлены по ним, а смены сети видны в журнале автопочинки.
      */
     fun apply(content: String): String = runCatching {
         rotateIfNeeded()
@@ -59,9 +67,6 @@ object CoreLog {
         val log = root.optJSONObject("log") ?: JSONObject().also { root.put("log", it) }
         log.put("output", file().absolutePath)
         log.put("timestamp", true)
-        if (log.optString("level").lowercase() in setOf("", "panic", "fatal", "error", "warn")) {
-            log.put("level", "info")
-        }
         root.toString()
     }.getOrDefault(content)
 }
