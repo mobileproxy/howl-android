@@ -47,6 +47,15 @@ import java.util.Locale
  *   3) другой СЕРВЕР — деградация узла.
  * Пока идёт сбой, проверки чаще (15 с вместо 60), чтобы пройти лестницу за полминуты, а не
  * за минуты. Каждое событие — в журнал (Настройки → Автопочинка).
+ *
+ * ★ Правка 24.07.2026. Вердикт «у телефона нет интернета» раньше приводил к ВЫХОДУ из починки —
+ * и лестница никогда не доходила до ступени 2 ровно в том случае, ради которого её и писали.
+ * В журнале ядра это видно как сотни `dial wlan0 (27): no route to host` подряд на протяжении
+ * сорока минут; спасало только ручное переподключение. Теперь мёртвая сеть, наоборот, сразу
+ * ведёт на ступень 2, минуя бесполезное переподключение. Вдобавок уходить стало КУДА: пока
+ * телефон держится за Wi-Fi, Android гасит модем, поэтому мобильную сеть мы теперь поднимаем
+ * заявкой сами, а сеть, через которую трафик не пошёл, попадает в штрафной ящик на три минуты,
+ * чтобы следующий же системный колбэк не вернул нас на неё обратно.
  */
 object ConnectivityWatchdog {
 
@@ -104,6 +113,9 @@ object ConnectivityWatchdog {
 
     fun stop() {
         DefaultNetworkMonitor.onNetworkChanged = null
+        // Модем поднимали только ради починки — держать его дальше незачем.
+        DefaultNetworkMonitor.releaseCellularBackup()
+        DefaultNetworkMonitor.clearPenalties()
         networkJob = null
         scope?.cancel()
         scope = null
@@ -151,6 +163,10 @@ object ConnectivityWatchdog {
         if (tunnelOk && domainOk) {
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog(str(R.string.watchdog_log_recovered))
+                // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
+                // поднятый ради починки модем пора отпустить: он ест батарею и мобильный трафик.
+                DefaultNetworkMonitor.clearPenalties()
+                DefaultNetworkMonitor.releaseCellularBackup()
                 // Возвращаемся к обычному выбору сети: если во время сбоя ушли на мобильную,
                 // а Wi-Fi ожил — надо вернуться на него, иначе будем зря жечь мобильный трафик.
                 if (healAttempts > 0) DefaultNetworkMonitor.reevaluate()
@@ -160,27 +176,6 @@ object ConnectivityWatchdog {
             return@withLock
         }
 
-        // ★ Сначала выясняем, ЧЬЯ это беда. Перезапуск лечит только зависший туннель; если у
-        // самого телефона нет рабочего интернета (плохой сигнал, каптивный Wi-Fi с логином),
-        // перезапуск бесполезен и вреден — он рвёт и те соединения, что ещё проходят.
-        // По журналу с устройства именно так и было: в окне сбоя к узлу проходило 25 соединений
-        // из 95, а сторож дважды перезапускал ядро впустую.
-        when (underlyingNetwork()) {
-            UnderlyingNetwork.CAPTIVE_PORTAL -> {
-                appendLog(str(R.string.watchdog_log_captive))
-                consecutiveFailures = 0
-                return@withLock
-            }
-
-            UnderlyingNetwork.NO_INTERNET -> {
-                appendLog(str(R.string.watchdog_log_no_internet))
-                consecutiveFailures = 0
-                return@withLock
-            }
-
-            UnderlyingNetwork.OK -> Unit
-        }
-
         consecutiveFailures++
         val what = when {
             !tunnelOk && !domainOk -> str(R.string.watchdog_reason_tunnel)
@@ -188,7 +183,36 @@ object ConnectivityWatchdog {
             else -> str(R.string.watchdog_reason_direct)
         }
 
-        if (consecutiveFailures < FAILURES_BEFORE_HEAL) {
+        // ★ Выясняем, ЧЬЯ это беда. Перезапуск лечит только зависший туннель; если у самого
+        // телефона нет рабочего интернета, перезапуск бесполезен и вреден — он рвёт и те
+        // соединения, что ещё проходят.
+        val state = underlyingNetwork()
+
+        // Каптивный Wi-Fi ждёт, пока человек войдёт на страницу гостевой сети. Тут мы бессильны.
+        if (state == UnderlyingNetwork.CAPTIVE_PORTAL) {
+            appendLog(str(R.string.watchdog_log_captive))
+            return@withLock
+        }
+
+        // ★★ Сеть телефона мертва. РАНЬШЕ ЗДЕСЬ БЫЛ ВЫХОД — и это была главная дыра: лестница
+        // починки никогда не доходила до смены сети ровно в том случае, ради которого её и
+        // делали. Журнал ядра 24.07: сотни `dial wlan0 (27): no route to host` подряд с 17:20
+        // до 18:03, смены сети так и не случилось, помогло только ручное переподключение.
+        val networkDead = state == UnderlyingNetwork.NO_INTERNET
+        if (networkDead) {
+            // Пока телефон держится за Wi-Fi, Android гасит модем — и уходить физически некуда.
+            // Просим систему поднять мобильную заранее: к следующей проверке она уже поднимется.
+            DefaultNetworkMonitor.requestCellularBackup()
+            if (!DefaultNetworkMonitor.hasAlternativeNetwork()) {
+                // Альтернативы нет — это честное «интернета нет», а не наша беда. Счётчик НЕ
+                // сбрасываем: проверки останутся частыми и подхватят сеть, как только она будет.
+                appendLog(str(R.string.watchdog_log_no_internet))
+                return@withLock
+            }
+        }
+
+        // Мёртвая сеть — приговор окончательный, второе мнение не нужно: чиним сразу.
+        if (consecutiveFailures < FAILURES_BEFORE_HEAL && !networkDead) {
             appendLog(str(R.string.watchdog_log_recheck, what))
             return@withLock
         }
@@ -198,7 +222,10 @@ object ConnectivityWatchdog {
         // перезапуски только рвут те соединения, что ещё проходят.
         // Лестницу (0→1→2) проходим быстро; дальше, если ничего не помогло, — редкие попытки.
         val now = System.currentTimeMillis()
-        val waitBeforeHeal = if (healAttempts > 2) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
+        // Долгие паузы уместны, только когда лестница пройдена и дело в качестве канала.
+        // Мёртвая сеть под это не подпадает: уходить есть куда, тянуть четверть часа незачем.
+        val waitBeforeHeal =
+            if (healAttempts > 2 && !networkDead) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
         if (now - lastHealAt < waitBeforeHeal) {
             appendLog(str(R.string.watchdog_log_wait, what))
             return@withLock
@@ -209,16 +236,15 @@ object ConnectivityWatchdog {
 
         // Лестница починки: сначала дёшево, потом радикальнее.
         //   1) переподключение — лечит залипшие сокеты после смены сети;
-        //   2) другая СЕТЬ телефона — лечит «держимся за мёртвый Wi-Fi, а рядом живая мобильная»
-        //      (ровно этот случай reload не чинил: ядру отдавалась та же нерабочая сеть);
+        //   2) другая СЕТЬ телефона — лечит «держимся за мёртвый Wi-Fi, а рядом живая мобильная»;
         //   3) другой СЕРВЕР — лечит деградацию узла.
-        when (healAttempts) {
-            0 -> {
-                appendLog(str(R.string.watchdog_log_reconnect, what))
-                runHeal(str(R.string.watchdog_act_reconnect))
-            }
-
-            1 -> {
+        // Ступень выбираем по ПРИЧИНЕ, а не только по счётчику: когда сеть телефона мертва,
+        // переподключение заведомо бесполезно — залипшие сокеты ни при чём, менять надо сеть.
+        when {
+            networkDead || healAttempts == 1 -> {
+                // Порядок важен: сначала штраф текущей сети, иначе перевыбор вернёт её же.
+                DefaultNetworkMonitor.markCurrentNetworkBad()
+                DefaultNetworkMonitor.requestCellularBackup()
                 DefaultNetworkMonitor.reevaluate(preferAlternative = true)
                 val via = DefaultNetworkMonitor.reportedInterface
                 appendLog(
@@ -226,6 +252,11 @@ object ConnectivityWatchdog {
                     else str(R.string.watchdog_log_switch_network, what),
                 )
                 runHeal(str(R.string.watchdog_act_switch_network))
+            }
+
+            healAttempts == 0 -> {
+                appendLog(str(R.string.watchdog_log_reconnect, what))
+                runHeal(str(R.string.watchdog_act_reconnect))
             }
 
             else -> {
