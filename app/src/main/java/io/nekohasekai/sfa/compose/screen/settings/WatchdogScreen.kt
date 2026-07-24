@@ -44,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
+import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.Settings
@@ -161,7 +162,7 @@ fun WatchdogScreen(navController: NavController) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = stringResource(R.string.core_log_size, formatSize(coreLogSize)),
+                    text = stringResource(R.string.core_log_size, Libbox.formatBytes(coreLogSize)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -232,11 +233,7 @@ fun WatchdogScreen(navController: NavController) {
     }
 }
 
-private fun formatSize(bytes: Long): String = when {
-    bytes >= 1024 * 1024 -> "%.1f МБ".format(bytes / 1024.0 / 1024.0)
-    bytes >= 1024 -> "${bytes / 1024} КБ"
-    else -> "$bytes Б"
-}
+
 
 /**
  * Отдаём журнал наружу. Файлы лежат в приватном каталоге, недоступном FileProvider'у,

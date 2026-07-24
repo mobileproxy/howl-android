@@ -3,6 +3,7 @@ package io.nekohasekai.sfa.bg
 import android.net.NetworkCapabilities
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.Application
+import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,7 +121,7 @@ object ConnectivityWatchdog {
         networkJob?.cancel()
         networkJob = currentScope.launch {
             delay(SETTLE_AFTER_NETWORK_MS)
-            appendLog("сменилась сеть — проверяю связь")
+            appendLog(str(R.string.watchdog_log_network_changed))
             runCatching { checkOnce() }
         }
     }
@@ -149,7 +150,7 @@ object ConnectivityWatchdog {
 
         if (tunnelOk && domainOk) {
             if (consecutiveFailures > 0 || healAttempts > 0) {
-                appendLog("связь восстановилась")
+                appendLog(str(R.string.watchdog_log_recovered))
                 // Возвращаемся к обычному выбору сети: если во время сбоя ушли на мобильную,
                 // а Wi-Fi ожил — надо вернуться на него, иначе будем зря жечь мобильный трафик.
                 if (healAttempts > 0) DefaultNetworkMonitor.reevaluate()
@@ -166,13 +167,13 @@ object ConnectivityWatchdog {
         // из 95, а сторож дважды перезапускал ядро впустую.
         when (underlyingNetwork()) {
             UnderlyingNetwork.CAPTIVE_PORTAL -> {
-                appendLog("Wi-Fi требует входа в систему — VPN не пройдёт, пока не войдёте")
+                appendLog(str(R.string.watchdog_log_captive))
                 consecutiveFailures = 0
                 return@withLock
             }
 
             UnderlyingNetwork.NO_INTERNET -> {
-                appendLog("у сети телефона нет интернета — жду, перезапуск не поможет")
+                appendLog(str(R.string.watchdog_log_no_internet))
                 consecutiveFailures = 0
                 return@withLock
             }
@@ -182,13 +183,13 @@ object ConnectivityWatchdog {
 
         consecutiveFailures++
         val what = when {
-            !tunnelOk && !domainOk -> "туннель не отвечает"
-            tunnelOk && !domainOk -> "DNS не отвечает (туннель жив)"
-            else -> "домен открывается, прямой канал нет"
+            !tunnelOk && !domainOk -> str(R.string.watchdog_reason_tunnel)
+            tunnelOk && !domainOk -> str(R.string.watchdog_reason_dns)
+            else -> str(R.string.watchdog_reason_direct)
         }
 
         if (consecutiveFailures < FAILURES_BEFORE_HEAL) {
-            appendLog("$what — проверяю ещё раз")
+            appendLog(str(R.string.watchdog_log_recheck, what))
             return@withLock
         }
 
@@ -199,7 +200,7 @@ object ConnectivityWatchdog {
         val now = System.currentTimeMillis()
         val waitBeforeHeal = if (healAttempts > 2) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
         if (now - lastHealAt < waitBeforeHeal) {
-            appendLog("$what — чинил недавно, жду")
+            appendLog(str(R.string.watchdog_log_wait, what))
             return@withLock
         }
 
@@ -213,21 +214,24 @@ object ConnectivityWatchdog {
         //   3) другой СЕРВЕР — лечит деградацию узла.
         when (healAttempts) {
             0 -> {
-                appendLog("$what — переподключаюсь")
-                runHeal("переподключиться")
+                appendLog(str(R.string.watchdog_log_reconnect, what))
+                runHeal(str(R.string.watchdog_act_reconnect))
             }
 
             1 -> {
                 DefaultNetworkMonitor.reevaluate(preferAlternative = true)
                 val via = DefaultNetworkMonitor.reportedInterface
-                appendLog("$what — не помогло, перехожу на другую сеть" + if (via != null) " ($via)" else "")
-                runHeal("сменить сеть")
+                appendLog(
+                    if (via != null) str(R.string.watchdog_log_switch_network_via, what, via)
+                    else str(R.string.watchdog_log_switch_network, what),
+                )
+                runHeal(str(R.string.watchdog_act_switch_network))
             }
 
             else -> {
-                appendLog("$what — не помогло, меняю сервер")
+                appendLog(str(R.string.watchdog_log_switch_server, what))
                 switchToFastestServer()
-                runHeal("сменить сервер")
+                runHeal(str(R.string.watchdog_act_switch_server))
             }
         }
         healAttempts++
@@ -239,10 +243,14 @@ object ConnectivityWatchdog {
      * сервера: если узел, на котором мы сидим, деградировал, urltest выберет живой и быстрый.
      * Помогает и когда пользователь вручную закрепился на конкретной локации, которая отвалилась.
      */
+    /** Строки журнала берём из ресурсов: журнал видит пользователь, а языков у приложения пять. */
+    private fun str(id: Int, vararg args: Any): String =
+        runCatching { Application.application.getString(id, *args) }.getOrDefault("")
+
     private suspend fun runHeal(what: String) {
         val failure = runCatching { heal?.invoke() }.exceptionOrNull()
         if (failure != null) {
-            appendLog("$what не удалось: ${failure.message ?: failure.toString()}")
+            appendLog(str(R.string.watchdog_log_failed, what, failure.message ?: failure.toString()))
         }
     }
 
