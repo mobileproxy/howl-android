@@ -5,6 +5,7 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.subscription.ProfileTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -80,10 +81,10 @@ object ConnectivityWatchdog {
 
     private const val SETTLE_AFTER_NETWORK_MS = 5_000L
 
-    // Теги из sub.php: селектор «Howl», внутри него автоподбор «auto» (urltest).
-    // Если сервер сгенерирован иначе — вызовы ниже просто ничего не сделают, это безопасно.
-    private const val SELECTOR_TAG = "Howl"
-    private const val AUTO_TAG = "auto"
+    // Теги групп НЕ зашиты: «Howl»/«auto» — это имена из нашего sub.php, а у профиля от
+    // стороннего сервиса они другие. С зашитыми именами ступень «сменить сервер» на чужом
+    // профиле молча ничего не делала: ошибки нет, починки тоже. Читаем их из самого конфига
+    // при старте службы — см. ProfileTags.
 
     private var scope: CoroutineScope? = null
     private var consecutiveFailures = 0
@@ -286,12 +287,15 @@ object ConnectivityWatchdog {
     }
 
     private fun switchToFastestServer() {
+        val selector = ProfileTags.selector ?: return
         // Standalone-клиент здесь одноразовый (fire-and-forget), как во всех остальных местах
         // проекта — connect/close не нужны.
         runCatching {
             val client = Libbox.newStandaloneCommandClient()
-            client.selectOutbound(SELECTOR_TAG, AUTO_TAG)
-            client.urlTest(SELECTOR_TAG)
+            // Автоподбора может не быть вовсе (в профиле один сервер) — тогда просто
+            // перемеряем задержки: смена сервера бессмысленна, а свежие замеры не помешают.
+            ProfileTags.auto?.let { client.selectOutbound(selector, it) }
+            client.urlTest(selector)
         }
     }
 

@@ -35,6 +35,8 @@ import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
+import io.nekohasekai.sfa.subscription.ConfigHardening
+import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.CoreLog
 import io.nekohasekai.sfa.utils.SplitTunnel
 import io.nekohasekai.sfa.vendor.Vendor
@@ -128,7 +130,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
             // Домены-исключения подмешиваем на лету: файл профиля перезаписывается
             // при обновлении подписки, а локальный список должен это пережить.
-            val content = CoreLog.apply(SplitTunnel.apply(rawContent, Settings.splitTunnelDomains))
+            // ConfigHardening доводит ЛЮБОЙ профиль (в том числе чужой) до наших требований
+            // по бесперебойности — иначе сторонняя подписка работала бы заметно хуже нашей.
+            val content = CoreLog.apply(
+                ConfigHardening.apply(SplitTunnel.apply(rawContent, Settings.splitTunnelDomains)),
+            )
+            // Теги групп нужны сторожу для ступени «сменить сервер»: у чужого профиля они
+            // называются иначе, чем у нашего, и зашивать их нельзя.
+            ProfileTags.scan(content)
 
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {
@@ -220,7 +229,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             stopAndAlert(Alert.EmptyConfiguration)
             return
         }
-        val content = CoreLog.apply(SplitTunnel.apply(rawContent, Settings.splitTunnelDomains))
+        // Та же цепочка, что и при первом запуске: перезагрузка конфига не должна терять
+        // ни закалку, ни теги групп — иначе после reload сторож «слепнет» до перезапуска.
+        val content = CoreLog.apply(
+            ConfigHardening.apply(SplitTunnel.apply(rawContent, Settings.splitTunnelDomains)),
+        )
+        ProfileTags.scan(content)
         lastProfileName = profile.name
         try {
             commandServer.startOrReloadService(
