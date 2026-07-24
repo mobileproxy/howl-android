@@ -32,4 +32,9 @@ jobs:
           "$SB" check -c config-test/howl-awg-sample.json
           echo "=== sing-box check (Howl split-tunnel sample: domain bypass → direct + dns-local) ==="
           "$SB" check -c config-test/howl-splittunnel-sample.json
+          echo "=== sing-box check (сторонние подписки: все типы, которые умеет конвертер URI) ==="
+          # Это ЭТАЛОН формы для SubscriptionConverter: Kotlin обязан собирать ровно такие
+          # outbound'ы. Если ядро перестанет принимать какой-то тип — узнаем здесь, а не у
+          # пользователя с чужой подпиской.
+          "$SB" check -c config-test/howl-thirdparty-sample.json
           echo "CONFIG_SCHEMA_VALID=YES"
