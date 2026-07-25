@@ -2,16 +2,21 @@ package io.nekohasekai.sfa.bg
 
 import android.net.NetworkCapabilities
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.subscription.ProfileTags
+import io.nekohasekai.sfa.utils.AppLifecycleObserver
+import io.nekohasekai.sfa.utils.CommandClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -35,10 +40,19 @@ import java.util.Locale
  * сокеты после смены Wi-Fi↔LTE) выглядят как «всё зелёное», хотя ни один сайт не открывается.
  * Ядро такое не замечает и само не чинит.
  *
- * Что делает. Раз в минуту прогоняет ДВЕ разные пробы — так видно, что именно сломалось:
+ * Что делает. Прогоняет ДВЕ разные пробы — так видно, что именно сломалось:
  *   • TCP на 1.1.1.1:443 — без DNS, проверяет сам туннель;
  *   • запрос к домену — проверяет DNS и путь целиком.
  * Трафик приложения идёт через тот же tun, что и у браузера, — это честная сквозная проверка.
+ *
+ * Когда проверяет. Не по расписанию, а по СОБЫТИЯМ — чтобы реагировать за секунды, а не «когда-
+ * нибудь на минутном тике»:
+ *   • включился экран или открыли приложение — человек взялся за телефон, проверяем ЗАРАНЕЕ;
+ *   • сменилась сеть (Wi-Fi ↔ мобильная) — самый частый момент тихой смерти сокетов;
+ *   • залипание трафика — ядро сообщает, что мы шлём, а в ответ тишина (ловится за ~9 секунд).
+ * Фоновый цикл раз в 1.5 минуты остаётся страховкой на случай, если ни одно событие не пришло.
+ * Все триггеры лишь ЗАПУСКАЮТ пробу; чинит только реальный провал пробы, поэтому ложная тревога
+ * безвредна.
  *
  * Починка идёт по нарастающей — три ступени, каждая лечит свою причину:
  *   1) переподключение — залипшие сокеты после смены сети;
@@ -60,10 +74,23 @@ import java.util.Locale
  */
 object ConnectivityWatchdog {
 
-    private const val CHECK_INTERVAL_MS = 60_000L
+    // Фоновый цикл — это СТРАХОВКА, а не основной способ заметить сбой. Основное — события ниже
+    // (экран, передний план, залипание трафика), которые ловят проблему за секунды. Поэтому в
+    // норме цикл редкий: будить телефон чаще незачем, когда есть мгновенные сигналы.
+    private const val CHECK_INTERVAL_MS = 90_000L
     // Пока идёт сбой, проверяем чаще: минута простоя — это уже «интернет пропал» для человека.
     private const val CHECK_INTERVAL_FAILING_MS = 15_000L
     private const val FIRST_CHECK_DELAY_MS = 30_000L      // дать туннелю подняться
+
+    // Внеплановые проверки (экран, передний план, залипание) не должны идти лавиной: между ними
+    // выдерживаем паузу. Проба и так занимает до ~16с, чаще смысла нет, а поток событий (каждое
+    // уведомление зажигает экран) иначе устроил бы шквал проб.
+    private const val MIN_TRIGGER_INTERVAL_MS = 8_000L
+    // Залипание трафика: приложение ЗАМЕТНО шлёт, а в ответ полная тишина дольше этого срока —
+    // верный признак вставшего туннеля. Отдельные простои (ничего не качаем) сюда не попадают:
+    // условие требует именно активной отправки без единого ответного байта.
+    private const val TRAFFIC_STALL_MS = 9_000L
+    private const val TRAFFIC_STALL_UPLINK_BPS = 4_096L  // «шлём», а не фоновый keep-alive
     private const val PROBE_TIMEOUT_MS = 8_000
     private const val FAILURES_BEFORE_HEAL = 2
     // Между ступенями лестницы (переподключение → другая сеть → другой сервер) ждём немного:
@@ -96,7 +123,18 @@ object ConnectivityWatchdog {
     private var heal: (suspend () -> Unit)? = null
     private var networkJob: Job? = null
 
-    // Проверки не должны накладываться: минутный цикл и проверка по смене сети могут
+    // Внеплановые проверки по событиям: время последней (для троттлинга) и подписка на статус
+    // ядра, по которой ловим залипание трафика. Volatile — пишутся из потока Command-клиента и
+    // сбрасываются из start(): нужна видимость между потоками (гонка сама по себе безвредна —
+    // худшее, что бывает, это лишняя проба).
+    @Volatile
+    private var lastTriggerAt = 0L
+    private var statusClient: CommandClient? = null
+
+    @Volatile
+    private var trafficStalledSince = 0L
+
+    // Проверки не должны накладываться: фоновый цикл, смена сети и событийные триггеры могут
     // прийтись на один момент, а каждая занимает до 20 секунд.
     private val checkMutex = Mutex()
 
@@ -108,8 +146,14 @@ object ConnectivityWatchdog {
         this.heal = heal
         consecutiveFailures = 0
         healAttempts = 0
+        // Первые FIRST_CHECK_DELAY_MS не триггерим: туннель ещё поднимается, ложный «сбой» тут
+        // привёл бы к починке поднимающегося туннеля. Троттл, выставленный «в будущее», это гасит.
+        lastTriggerAt = System.currentTimeMillis() + FIRST_CHECK_DELAY_MS
+        trafficStalledSince = 0L
         newScope.launch { loop() }
+        newScope.launch { watchUserPresence() }
         DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
+        startTrafficMonitor(newScope)
     }
 
     fun stop() {
@@ -117,12 +161,73 @@ object ConnectivityWatchdog {
         // Модем поднимали только ради починки — держать его дальше незачем.
         DefaultNetworkMonitor.releaseCellularBackup()
         DefaultNetworkMonitor.clearPenalties()
+        statusClient?.let { runCatching { it.disconnect() } }
+        statusClient = null
         networkJob = null
         scope?.cancel()
         scope = null
         heal = null
         consecutiveFailures = 0
         healAttempts = 0
+    }
+
+    /**
+     * Человек взялся за телефон — включил экран или открыл приложение. Скорее всего он вот-вот
+     * начнёт пользоваться сетью, поэтому проверяем связь ЗАРАНЕЕ: если что-то отвалилось, пока
+     * телефон лежал, к моменту, когда откроют браузер, оно уже будет чиниться, а не «через минуту».
+     */
+    private suspend fun watchUserPresence() {
+        merge(
+            AppLifecycleObserver.isScreenOn.filter { it },
+            AppLifecycleObserver.isForeground.filter { it },
+        ).collect { triggerImmediateCheck() }
+    }
+
+    /**
+     * Подписка на статус ядра (те же цифры uplink/downlink, что в уведомлении). Ловит залипание
+     * «шлём, а в ответ тишина» за секунды и в фоне — это и есть быстрая реакция без частого
+     * опроса. Клиент локальный (в пределах процесса), сеть не трогает.
+     */
+    private fun startTrafficMonitor(currentScope: CoroutineScope) {
+        val client = CommandClient(currentScope, CommandClient.ConnectionType.Status, TrafficHandler, localOnly = true)
+        statusClient = client
+        runCatching { client.connect() }
+    }
+
+    private object TrafficHandler : CommandClient.Handler {
+        override fun updateStatus(status: StatusMessage) {
+            // Шлём заметно, но в ответ НИ БАЙТА — засекаем, с какого момента длится тишина.
+            val sending = status.uplink >= TRAFFIC_STALL_UPLINK_BPS
+            val receiving = status.downlink > 0
+            if (sending && !receiving) {
+                val now = System.currentTimeMillis()
+                if (trafficStalledSince == 0L) {
+                    trafficStalledSince = now
+                } else if (now - trafficStalledSince >= TRAFFIC_STALL_MS) {
+                    triggerImmediateCheck()
+                }
+            } else {
+                // Пришёл хоть один ответный байт (или перестали слать) — тишины нет.
+                trafficStalledSince = 0L
+            }
+        }
+    }
+
+    /**
+     * Внеплановая проверка — не дожидаясь очередного тика цикла. Зовётся по событиям, каждое из
+     * которых означает «сейчас человек, скорее всего, упрётся в проблему». Троттлинг обязателен:
+     * события идут пачками (уведомления зажигают экран), а проба длится секунды.
+     *
+     * Ключевое: триггер лишь УСКОРЯЕТ диагностику, но не чинит вслепую — сама починка идёт только
+     * если проба реально провалилась. Поэтому ложная тревога безвредна, и сигналы можно держать
+     * чувствительными.
+     */
+    private fun triggerImmediateCheck() {
+        val currentScope = scope ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastTriggerAt < MIN_TRIGGER_INTERVAL_MS) return
+        lastTriggerAt = now
+        currentScope.launch { runCatching { checkOnce() } }
     }
 
     /**
