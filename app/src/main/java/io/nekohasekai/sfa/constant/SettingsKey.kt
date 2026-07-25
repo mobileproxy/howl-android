@@ -26,6 +26,7 @@ object SettingsKey {
     // Домены, которые идут мимо VPN. Хранятся локально и подмешиваются в конфиг при старте,
     // поэтому переживают обновление удалённого профиля-подписки.
     const val SPLIT_TUNNEL_DOMAINS = "split_tunnel_domains"
+    const val SPLIT_TUNNEL_MODE = "split_tunnel_mode"
 
     // Выбор DNS-сервера: режим (auto/cloudflare/google/adguard/custom) и адрес для custom.
     const val DNS_MODE = "dns_mode"

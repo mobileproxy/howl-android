@@ -70,6 +70,9 @@
     <string name="service">Hintergrundbetrieb</string>
     <string name="split_tunnel">Websites außerhalb des VPN</string>
     <string name="split_tunnel_description">Manche Websites sperren ausländische Adressen und öffnen sich über ein VPN nicht — besonders Online-Banking und Behördenseiten. Die hier aufgeführten Websites werden direkt geöffnet, am VPN vorbei. Der gesamte übrige Verkehr läuft weiter durch den Tunnel.</string>
+    <string name="split_tunnel_mode_exclude">Diese Seiten am VPN vorbei</string>
+    <string name="split_tunnel_mode_include">Nur diese Seiten über das VPN</string>
+    <string name="split_tunnel_include_warning">Alles, was nicht aufgeführt ist, läuft direkt am VPN vorbei. Nur nutzen, wenn Sie das VPN nur für wenige Seiten brauchen.</string>
     <string name="split_tunnel_domains_label">Eine Domain pro Zeile</string>
     <string name="split_tunnel_hint">Subdomains sind automatisch enthalten: example.com deckt auch www.example.com ab. Diese Liste ergänzt die aus Ihrem Konto und bleibt bei Abo-Updates erhalten.</string>
     <string name="dns_settings">DNS-Server</string>

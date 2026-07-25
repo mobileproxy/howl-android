@@ -203,7 +203,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         val content = CoreLog.apply(
             ConfigHardening.apply(
                 DnsOverride.apply(
-                    SplitTunnel.apply(rawContent, Settings.splitTunnelDomains),
+                    SplitTunnel.apply(rawContent, Settings.splitTunnelDomains, Settings.splitTunnelMode),
                     Settings.dnsMode,
                     Settings.dnsCustomServer,
                 ),

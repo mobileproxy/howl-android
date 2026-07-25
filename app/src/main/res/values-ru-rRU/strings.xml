@@ -270,6 +270,9 @@
     <string name="split_tunnel">Сайты в обход VPN</string>
     <string name="split_tunnel_summary">Открывать выбранные сайты напрямую, мимо туннеля</string>
     <string name="split_tunnel_description">Некоторые сайты блокируют иностранные адреса и под VPN не открываются — чаще всего это банки и госуслуги. Перечисленные здесь сайты будут открываться напрямую, мимо VPN. Весь остальной трафик по-прежнему идёт через туннель.</string>
+    <string name="split_tunnel_mode_exclude">Эти сайты — мимо VPN</string>
+    <string name="split_tunnel_mode_include">Через VPN — только эти сайты</string>
+    <string name="split_tunnel_include_warning">Всё, что не в списке, идёт напрямую, мимо VPN. Включайте, только если VPN нужен для нескольких сайтов.</string>
     <string name="split_tunnel_domains_label">По одному домену на строку</string>
     <string name="split_tunnel_recognized_prefix">Распознано:</string>
     <string name="split_tunnel_recognized_none">Пока ни одного домена не распознано</string>

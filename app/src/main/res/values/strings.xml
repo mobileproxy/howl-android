@@ -270,6 +270,9 @@
     <string name="split_tunnel">Sites bypassing the VPN</string>
     <string name="split_tunnel_summary">Open selected sites directly, outside the tunnel</string>
     <string name="split_tunnel_description">Some sites block foreign addresses and will not open over a VPN — online banking and government services in particular. Sites listed here are opened directly, bypassing the VPN. All other traffic still goes through the tunnel.</string>
+    <string name="split_tunnel_mode_exclude">These sites bypass the VPN</string>
+    <string name="split_tunnel_mode_include">Only these sites use the VPN</string>
+    <string name="split_tunnel_include_warning">Everything not listed goes directly, outside the VPN. Use this only if you want the VPN for a few sites.</string>
     <string name="split_tunnel_domains_label">One domain per line</string>
     <string name="split_tunnel_recognized_prefix">Recognized:</string>
     <string name="split_tunnel_recognized_none">No domains recognized yet</string>

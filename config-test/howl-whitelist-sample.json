@@ -1,0 +1,43 @@
+{
+    "log": { "level": "warn" },
+    "dns": {
+        "servers": [
+            { "tag": "dns-remote", "type": "udp", "server": "1.1.1.1", "detour": "Howl" },
+            { "tag": "dns-local", "type": "local" }
+        ],
+        "rules": [
+            { "domain": ["youtube.com", "my-own-domain.example"], "domain_suffix": [".youtube.com", ".my-own-domain.example"], "server": "dns-remote" }
+        ],
+        "final": "dns-local",
+        "strategy": "ipv4_only"
+    },
+    "inbounds": [
+        { "type": "tun", "tag": "tun-in", "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"], "auto_route": true, "strict_route": true, "stack": "system" }
+    ],
+    "outbounds": [
+        { "type": "selector", "tag": "Howl", "outbounds": ["auto", "shield DE Test"], "default": "auto", "interrupt_exist_connections": true },
+        { "type": "urltest", "tag": "auto", "outbounds": ["shield DE Test"], "url": "https://www.gstatic.com/generate_204", "interval": "3m", "tolerance": 300 },
+        {
+            "type": "vless", "tag": "shield DE Test",
+            "server": "1.2.3.4", "server_port": 443,
+            "uuid": "00000000-0000-0000-0000-000000000000", "flow": "xtls-rprx-vision",
+            "tls": {
+                "enabled": true, "server_name": "www.google.com",
+                "utls": { "enabled": true, "fingerprint": "chrome" },
+                "reality": { "enabled": true, "public_key": "GCRKNkloUGrQLlgG9LcdAd2murOMy1oJg-0ABB0eCwo", "short_id": "b8ff7e22" }
+            }
+        },
+        { "type": "direct", "tag": "direct" }
+    ],
+    "route": {
+        "auto_detect_interface": true,
+        "default_domain_resolver": "dns-local",
+        "final": "direct",
+        "rules": [
+            { "action": "sniff" },
+            { "protocol": "dns", "action": "hijack-dns" },
+            { "ip_version": 6, "action": "reject", "method": "default" },
+            { "domain": ["youtube.com", "my-own-domain.example"], "domain_suffix": [".youtube.com", ".my-own-domain.example"], "outbound": "Howl" }
+        ]
+    }
+}

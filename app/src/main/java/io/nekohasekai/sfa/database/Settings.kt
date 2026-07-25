@@ -87,6 +87,8 @@ object Settings {
 
     // Сырой пользовательский ввод: домен на строку. Разбирается в SplitTunnel.parseDomains().
     var splitTunnelDomains by dataStore.string(SettingsKey.SPLIT_TUNNEL_DOMAINS) { "" }
+    // Режим списка: 0 = эти домены мимо VPN (дефолт), 1 = через VPN ТОЛЬКО эти. См. SplitTunnel.
+    var splitTunnelMode by dataStore.int(SettingsKey.SPLIT_TUNNEL_MODE) { io.nekohasekai.sfa.utils.SplitTunnel.MODE_EXCLUDE }
 
     // Выбор DNS. Дефолт "auto" = не вмешиваемся, оставляем DNS от сервиса. См. DnsOverride.
     var dnsMode by dataStore.string(SettingsKey.DNS_MODE) { io.nekohasekai.sfa.utils.DnsOverride.MODE_AUTO }

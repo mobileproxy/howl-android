@@ -37,4 +37,7 @@ jobs:
           # outbound'ы. Если ядро перестанет принимать какой-то тип — узнаем здесь, а не у
           # пользователя с чужой подпиской.
           "$SB" check -c config-test/howl-thirdparty-sample.json
+          echo "=== sing-box check (whitelist split: через VPN только список, final=direct) ==="
+          # Форма, которую собирает SplitTunnel.applyInclude — инвертированная маршрутизация.
+          "$SB" check -c config-test/howl-whitelist-sample.json
           echo "CONFIG_SCHEMA_VALID=YES"

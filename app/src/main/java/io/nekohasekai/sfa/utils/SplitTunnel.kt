@@ -19,6 +19,10 @@ import java.net.IDN
  */
 object SplitTunnel {
 
+    // Режим списка доменов.
+    const val MODE_EXCLUDE = 0  // перечисленные домены идут МИМО VPN, остальное — через (дефолт)
+    const val MODE_INCLUDE = 1  // через VPN идут ТОЛЬКО перечисленные, остальное — напрямую
+
     private const val MAX_DOMAINS = 50
 
     private val DOMAIN_REGEX =
@@ -70,47 +74,100 @@ object SplitTunnel {
      * @param raw сырой пользовательский ввод из настроек
      * @return конфиг с правилом, либо исходный — если список пуст или конфиг неожиданной формы
      */
-    fun apply(content: String, raw: String): String {
+    fun apply(content: String, raw: String, mode: Int = MODE_EXCLUDE): String {
         val domains = parseDomains(raw)
+        // Пустой список → не трогаем конфиг. Для include это КРИТИЧНО: пустой whitelist означал
+        // бы «через VPN не идёт ничего» = весь трафик голым мимо туннеля. Безопаснее оставить
+        // всё под VPN, чем случайно раздеть пользователя.
         if (domains.isEmpty()) return content
         return try {
-            val root = JSONObject(content)
-            val route = root.optJSONObject("route") ?: return content
-
-            // Правило дописываем В КОНЕЦ массива: до него должны отработать sniff (иначе домен
-            // ещё не извлечён из TLS SNI и совпадения не будет) и hijack-dns.
-            val routeRules = route.optJSONArray("rules")
-                ?: JSONArray().also { route.put("rules", it) }
-            routeRules.put(
-                JSONObject().apply {
-                    put("domain", jsonArrayOf(domains))
-                    put("domain_suffix", jsonArrayOf(domains.map { ".$it" }))
-                    put("outbound", "direct")
-                },
-            )
-
-            // Правило ссылается на выход «direct» — если его в конфиге нет, ядро не стартует.
-            ensureDirectOutbound(root)
-
-            // Обходимые домены резолвим локально: соединение к ним и так идёт напрямую, зато
-            // сайт отдаёт корректный местный адрес, а не геопривязку к стране выхода VPN.
-            // Если в конфиге нет сервера dns-local — просто пропускаем, маршрут всё равно работает.
-            val dns = root.optJSONObject("dns")
-            if (dns != null && hasDnsServer(dns, "dns-local")) {
-                val dnsRules = dns.optJSONArray("rules")
-                    ?: JSONArray().also { dns.put("rules", it) }
-                dnsRules.put(
-                    JSONObject().apply {
-                        put("domain", jsonArrayOf(domains))
-                        put("domain_suffix", jsonArrayOf(domains.map { ".$it" }))
-                        put("server", "dns-local")
-                    },
-                )
-            }
-            root.toString()
+            if (mode == MODE_INCLUDE) applyInclude(content, domains) else applyExclude(content, domains)
         } catch (e: Exception) {
             content
         }
+    }
+
+    /** Перечисленные домены — мимо VPN (direct), остальной трафик — через туннель. */
+    private fun applyExclude(content: String, domains: List<String>): String {
+        val root = JSONObject(content)
+        val route = root.optJSONObject("route") ?: return content
+
+        // Правило дописываем В КОНЕЦ массива: до него должны отработать sniff (иначе домен
+        // ещё не извлечён из TLS SNI и совпадения не будет) и hijack-dns.
+        val routeRules = route.optJSONArray("rules")
+            ?: JSONArray().also { route.put("rules", it) }
+        routeRules.put(
+            JSONObject().apply {
+                put("domain", jsonArrayOf(domains))
+                put("domain_suffix", jsonArrayOf(domains.map { ".$it" }))
+                put("outbound", "direct")
+            },
+        )
+
+        // Правило ссылается на выход «direct» — если его в конфиге нет, ядро не стартует.
+        ensureDirectOutbound(root)
+
+        // Обходимые домены резолвим локально: соединение к ним и так идёт напрямую, зато
+        // сайт отдаёт корректный местный адрес, а не геопривязку к стране выхода VPN.
+        // Если в конфиге нет сервера dns-local — просто пропускаем, маршрут всё равно работает.
+        val dns = root.optJSONObject("dns")
+        if (dns != null && hasDnsServer(dns, "dns-local")) {
+            val dnsRules = dns.optJSONArray("rules")
+                ?: JSONArray().also { dns.put("rules", it) }
+            dnsRules.put(
+                JSONObject().apply {
+                    put("domain", jsonArrayOf(domains))
+                    put("domain_suffix", jsonArrayOf(domains.map { ".$it" }))
+                    put("server", "dns-local")
+                },
+            )
+        }
+        return root.toString()
+    }
+
+    /**
+     * Через VPN идут ТОЛЬКО перечисленные домены, остальное — напрямую. Инвертирует модель:
+     * маршрут по умолчанию становится direct, а на туннель заворачиваются лишь эти домены.
+     *
+     * VPN-выход берём из текущего `route.final` — это работает и с нашим селектором «Howl», и с
+     * тегом чужого профиля. Если final отсутствует, инвертировать не на что → отдаём исходный
+     * конфиг: пусть лучше всё идёт через VPN, чем непонятно куда.
+     */
+    private fun applyInclude(content: String, domains: List<String>): String {
+        val root = JSONObject(content)
+        val route = root.optJSONObject("route") ?: return content
+        val vpnOutbound = route.optString("final").takeIf { it.isNotBlank() } ?: return content
+
+        val routeRules = route.optJSONArray("rules")
+            ?: JSONArray().also { route.put("rules", it) }
+        routeRules.put(
+            JSONObject().apply {
+                put("domain", jsonArrayOf(domains))
+                put("domain_suffix", jsonArrayOf(domains.map { ".$it" }))
+                put("outbound", vpnOutbound)
+            },
+        )
+        // Всё, что не попало в whitelist, — напрямую.
+        ensureDirectOutbound(root)
+        route.put("final", "direct")
+
+        // DNS инвертируем так же: имена whitelist резолвим через туннель (dns-remote), остальные
+        // локально. Иначе для сайтов-мимо-VPN имя резолвилось бы через туннель, а коннект шёл
+        // напрямую — лишний крюк и рассинхрон геолокации.
+        val dns = root.optJSONObject("dns")
+        if (dns != null && hasDnsServer(dns, "dns-remote") && hasDnsServer(dns, "dns-local")) {
+            val dnsRules = dns.optJSONArray("rules")
+                ?: JSONArray().also { dns.put("rules", it) }
+            dnsRules.put(
+                JSONObject().apply {
+                    put("domain", jsonArrayOf(domains))
+                    put("domain_suffix", jsonArrayOf(domains.map { ".$it" }))
+                    put("server", "dns-remote")
+                },
+            )
+            dns.put("final", "dns-local")
+        }
+        return root.toString()
     }
 
     private fun jsonArrayOf(values: List<String>): JSONArray {
