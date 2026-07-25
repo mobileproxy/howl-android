@@ -2,6 +2,7 @@ package io.nekohasekai.sfa.bg
 
 import android.net.NetworkCapabilities
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.OutboundGroup
 import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
@@ -108,6 +109,10 @@ object ConnectivityWatchdog {
 
     private const val SETTLE_AFTER_NETWORK_MS = 5_000L
 
+    // Узел считаем пригодным для принудительного увода, только если автоподбор ИЗМЕРИЛ его
+    // задержку и она разумная. 0 = не измерен/недоступен, слишком большая = мёртвый.
+    private const val MAX_NODE_DELAY_MS = 3_000
+
     // Теги групп НЕ зашиты: «Howl»/«auto» — это имена из нашего sub.php, а у профиля от
     // стороннего сервиса они другие. С зашитыми именами ступень «сменить сервер» на чужом
     // профиле молча ничего не делала: ошибки нет, починки тоже. Читаем их из самого конфига
@@ -134,6 +139,25 @@ object ConnectivityWatchdog {
     @Volatile
     private var trafficStalledSince = 0L
 
+    // Карусель узлов. Автоподбор внутри ядра выбирает узел по короткой пробе и может залипнуть
+    // на узле, который на пробу отвечает, но реальный трафик через него у ЭТОГО клиента не идёт
+    // (плохой маршрут провайдера — сам узел при этом здоров). Тогда сторож уводит на КОНКРЕТНЫЙ
+    // другой узел, а залипший кладёт в штрафной ящик. Подписка на группы даёт список узлов с
+    // измеренными задержками и текущий выбор.
+    private var groupsClient: CommandClient? = null
+
+    // Узлы группы автоподбора: тег → задержка (мс, 0 = не измерен/недоступен). Обновляется ядром.
+    @Volatile
+    private var autoNodes: List<Pair<String, Int>> = emptyList()
+
+    // Что автоподбор выбрал прямо сейчас — с этого узла и уводим при залипании.
+    @Volatile
+    private var autoSelected: String? = null
+
+    // Узлы, на которых уже залипли в текущей сети. Сбрасывается при смене сети (маршруты меняются)
+    // и когда перепробованы все (тогда возвращаемся к автоподбору с чистого листа).
+    private val stuckNodes = mutableSetOf<String>()
+
     // Проверки не должны накладываться: фоновый цикл, смена сети и событийные триггеры могут
     // прийтись на один момент, а каждая занимает до 20 секунд.
     private val checkMutex = Mutex()
@@ -150,10 +174,14 @@ object ConnectivityWatchdog {
         // привёл бы к починке поднимающегося туннеля. Троттл, выставленный «в будущее», это гасит.
         lastTriggerAt = System.currentTimeMillis() + FIRST_CHECK_DELAY_MS
         trafficStalledSince = 0L
+        stuckNodes.clear()
+        autoNodes = emptyList()
+        autoSelected = null
         newScope.launch { loop() }
         newScope.launch { watchUserPresence() }
         DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
         startTrafficMonitor(newScope)
+        startGroupsMonitor(newScope)
     }
 
     fun stop() {
@@ -163,6 +191,9 @@ object ConnectivityWatchdog {
         DefaultNetworkMonitor.clearPenalties()
         statusClient?.let { runCatching { it.disconnect() } }
         statusClient = null
+        groupsClient?.let { runCatching { it.disconnect() } }
+        groupsClient = null
+        stuckNodes.clear()
         networkJob = null
         scope?.cancel()
         scope = null
@@ -214,6 +245,33 @@ object ConnectivityWatchdog {
     }
 
     /**
+     * Подписка на группы ядра: список узлов автоподбора с измеренными задержками и текущий выбор.
+     * Нужна карусели узлов — чтобы при залипании увести на конкретный рабочий узел, а не
+     * переспрашивать автоподбор (он вернёт тот же залипший).
+     */
+    private fun startGroupsMonitor(currentScope: CoroutineScope) {
+        val client = CommandClient(currentScope, CommandClient.ConnectionType.Groups, GroupsHandler, localOnly = true)
+        groupsClient = client
+        runCatching { client.connect() }
+    }
+
+    private object GroupsHandler : CommandClient.Handler {
+        override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
+            // Группа автоподбора — по тегу из конфига (у чужого профиля он другой).
+            val autoTag = ProfileTags.auto ?: return
+            val auto = newGroups.firstOrNull { it.tag == autoTag } ?: return
+            autoSelected = auto.selected.takeIf { it.isNotBlank() }
+            val nodes = mutableListOf<Pair<String, Int>>()
+            val items = auto.items
+            while (items.hasNext()) {
+                val item = items.next()
+                nodes.add(item.tag to item.urlTestDelay)
+            }
+            autoNodes = nodes
+        }
+    }
+
+    /**
      * Внеплановая проверка — не дожидаясь очередного тика цикла. Зовётся по событиям, каждое из
      * которых означает «сейчас человек, скорее всего, упрётся в проблему». Троттлинг обязателен:
      * события идут пачками (уведомления зажигают экран), а проба длится секунды.
@@ -236,6 +294,9 @@ object ConnectivityWatchdog {
      */
     private fun onNetworkChanged() {
         val currentScope = scope ?: return
+        // Сеть сменилась — маршруты к узлам стали другими, прошлые «плохие узлы» больше не
+        // приговор. Чистим штрафной ящик, чтобы карусель могла снова пробовать любой узел.
+        stuckNodes.clear()
         networkJob?.cancel()
         networkJob = currentScope.launch {
             delay(SETTLE_AFTER_NETWORK_MS)
@@ -391,16 +452,42 @@ object ConnectivityWatchdog {
         }
     }
 
+    /**
+     * Карусель узлов. Автоподбор мог залипнуть на узле, который отвечает на короткую пробу, но
+     * реальный трафик через него у этого клиента не идёт (плохой маршрут). Поэтому:
+     *   1) залипший узел — в штрафной ящик;
+     *   2) уводим на КОНКРЕТНЫЙ следующий узел с валидной задержкой, минуя штрафные, — а не
+     *      переспрашиваем автоподбор (он вернул бы тот же залипший, ведь на пробу узел отвечает);
+     *   3) если рабочих узлов не осталось (все перепробованы) — чистим ящик и отдаём выбор
+     *      автоподбору заново: вдруг маршрут восстановился.
+     * Штрафы сбрасываются при смене сети — там маршруты другие, старые вердикты не актуальны.
+     */
     private fun switchToFastestServer() {
         val selector = ProfileTags.selector ?: return
         // Standalone-клиент здесь одноразовый (fire-and-forget), как во всех остальных местах
         // проекта — connect/close не нужны.
         runCatching {
             val client = Libbox.newStandaloneCommandClient()
-            // Автоподбора может не быть вовсе (в профиле один сервер) — тогда просто
-            // перемеряем задержки: смена сервера бессмысленна, а свежие замеры не помешают.
-            ProfileTags.auto?.let { client.selectOutbound(selector, it) }
-            client.urlTest(selector)
+            val current = autoSelected
+            if (current != null) stuckNodes.add(current)
+
+            // Кандидат: узел с ИЗМЕРЕННОЙ разумной задержкой, не в штрафном ящике.
+            val candidate = autoNodes
+                .filter { (tag, delay) -> tag !in stuckNodes && delay in 1..MAX_NODE_DELAY_MS }
+                .minByOrNull { it.second }
+                ?.first
+
+            if (candidate != null) {
+                // Принудительно на конкретный рабочий узел — уходим с залипшего.
+                client.selectOutbound(selector, candidate)
+                client.urlTest(selector)
+            } else {
+                // Узлов не знаем (один сервер / группы ещё не пришли) или все в ящике —
+                // отдаём выбор автоподбору с чистого листа.
+                stuckNodes.clear()
+                ProfileTags.auto?.let { client.selectOutbound(selector, it) }
+                client.urlTest(selector)
+            }
         }
     }
 
