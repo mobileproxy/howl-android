@@ -140,6 +140,10 @@ class MainActivity :
     private val connection = ServiceConnection(this, this)
     private lateinit var dashboardViewModel: DashboardViewModel
     private var currentServiceStatus by mutableStateOf(Status.Stopped)
+
+    // Автоподключение при открытии приложения выполняем ОДИН раз за запуск активности: как
+    // только пришёл первый достоверный статус от сервиса и он «остановлен» — стартуем.
+    private var autoConnectHandled = false
     private var currentAlert by mutableStateOf<Pair<Alert, String?>?>(null)
     private var showLocationPermissionDialog by mutableStateOf(false)
     private var showBackgroundLocationDialog by mutableStateOf(false)
@@ -1296,6 +1300,27 @@ class MainActivity :
         // Update service status in ViewModels
         if (::dashboardViewModel.isInitialized) {
             dashboardViewModel.updateServiceStatus(status)
+        }
+        maybeAutoConnect(status)
+    }
+
+    /**
+     * Подключиться при открытии приложения, если это включено в настройках. Ждём именно первый
+     * достоверный статус от сервиса (а не значение по умолчанию), иначе рискуем стартовать
+     * поверх уже работающего туннеля. Срабатывает один раз за запуск активности.
+     */
+    private fun maybeAutoConnect(status: Status) {
+        if (autoConnectHandled) return
+        if (!Settings.autoConnectOnAppOpen) {
+            autoConnectHandled = true
+            return
+        }
+        if (status == Status.Stopped) {
+            autoConnectHandled = true
+            startService()
+        } else if (status == Status.Started || status == Status.Starting) {
+            // Уже подключён или подключается — делать нечего, просто больше не пробуем.
+            autoConnectHandled = true
         }
     }
 

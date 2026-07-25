@@ -32,6 +32,10 @@ object SettingsKey {
     const val DNS_MODE = "dns_mode"
     const val DNS_CUSTOM_SERVER = "dns_custom_server"
 
+    // Автоподключение: при открытии приложения и при загрузке телефона.
+    const val AUTO_CONNECT_ON_APP_OPEN = "auto_connect_on_app_open"
+    const val AUTO_START_ON_BOOT = "auto_start_on_boot"
+
     // Сторож соединения: проверяет, что трафик реально идёт, и чинит залипший туннель.
     const val WATCHDOG_ENABLED = "watchdog_enabled"
     const val WATCHDOG_LOG = "watchdog_log"

@@ -85,6 +85,11 @@
     <string name="dns_custom_label">IP del servidor DNS</string>
     <string name="dns_custom_invalid">Introduce una dirección IP válida</string>
     <string name="dns_hint">Un DNS incorrecto rompe la resolución de nombres y parece «sin internet». Si los sitios dejan de abrirse, vuelve a «Automático».</string>
+    <string name="auto_connect_title">Conexión automática</string>
+    <string name="auto_connect_on_open_title">Conectar al abrir la app</string>
+    <string name="auto_connect_on_open_summary">Iniciar la VPN automáticamente cada vez que abres la app.</string>
+    <string name="auto_start_boot_title">Iniciar al encender el teléfono</string>
+    <string name="auto_start_boot_summary">Si la VPN estaba activa antes de reiniciar, se vuelve a activar automáticamente tras encender el dispositivo.</string>
     <string name="split_tunnel_recognized_none">Todavía no se ha reconocido ningún dominio</string>
     <string name="split_tunnel_recognized_prefix">Reconocidos:</string>
     <string name="split_tunnel_saved_applied">Guardado y aplicado</string>

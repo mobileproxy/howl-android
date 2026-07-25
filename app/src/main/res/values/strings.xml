@@ -290,6 +290,11 @@
     <string name="dns_custom_label">DNS server IP</string>
     <string name="dns_custom_invalid">Enter a valid IP address</string>
     <string name="dns_hint">A wrong DNS breaks name resolution and looks like “no internet.” If sites stop opening, switch back to Automatic.</string>
+    <string name="auto_connect_title">Auto-connect</string>
+    <string name="auto_connect_on_open_title">Connect when the app opens</string>
+    <string name="auto_connect_on_open_summary">Start the VPN automatically each time you open the app.</string>
+    <string name="auto_start_boot_title">Start on device boot</string>
+    <string name="auto_start_boot_summary">If the VPN was on before restart, bring it back up automatically after the phone boots.</string>
     <string name="per_app_proxy_import">Import from clipboard</string>
     <string name="per_app_proxy_export">Export to clipboard</string>
     <string name="per_app_proxy_scan">Scan</string>

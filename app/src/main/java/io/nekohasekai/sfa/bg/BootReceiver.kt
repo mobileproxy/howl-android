@@ -20,7 +20,9 @@ class BootReceiver : BroadcastReceiver() {
             else -> return
         }
         GlobalScope.launch(Dispatchers.IO) {
-            if (Settings.startedByUser) {
+            // startedByUser — VPN был запущен до перезагрузки; autoStartOnBoot — пользователь
+            // разрешил поднимать его при загрузке (по умолчанию да, тумблер даёт отключить).
+            if (Settings.startedByUser && Settings.autoStartOnBoot) {
                 CrashReportManager.refresh()
                 if (CrashReportManager.unreadCount.value > 0) {
                     Settings.startedByUser = false

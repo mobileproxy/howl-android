@@ -290,6 +290,11 @@
     <string name="dns_custom_label">IP-адрес DNS-сервера</string>
     <string name="dns_custom_invalid">Введите корректный IP-адрес</string>
     <string name="dns_hint">Неверный DNS ломает определение адресов и выглядит как «нет интернета». Если сайты перестали открываться — вернитесь на «Автоматически».</string>
+    <string name="auto_connect_title">Автоподключение</string>
+    <string name="auto_connect_on_open_title">Подключаться при открытии приложения</string>
+    <string name="auto_connect_on_open_summary">Запускать VPN автоматически каждый раз при открытии приложения.</string>
+    <string name="auto_start_boot_title">Запускать при загрузке телефона</string>
+    <string name="auto_start_boot_summary">Если VPN был включён до перезагрузки, поднимать его автоматически после включения телефона.</string>
     <string name="per_app_proxy_import">Импорт из буфера обмена</string>
     <string name="per_app_proxy_export">Экспорт в буфер обмена</string>
     <string name="per_app_proxy_scan">Сканирование</string>

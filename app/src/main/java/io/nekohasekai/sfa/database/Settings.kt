@@ -94,6 +94,12 @@ object Settings {
     var dnsMode by dataStore.string(SettingsKey.DNS_MODE) { io.nekohasekai.sfa.utils.DnsOverride.MODE_AUTO }
     var dnsCustomServer by dataStore.string(SettingsKey.DNS_CUSTOM_SERVER) { "" }
 
+    // Подключаться при открытии приложения. Дефолт off — новое поведение не навязываем.
+    var autoConnectOnAppOpen by dataStore.boolean(SettingsKey.AUTO_CONNECT_ON_APP_OPEN) { false }
+    // Запускать при загрузке телефона. Дефолт on = сохраняем прежнее поведение BootReceiver
+    // (он и так поднимал VPN, если он был запущен до перезагрузки); тумблер даёт это отключить.
+    var autoStartOnBoot by dataStore.boolean(SettingsKey.AUTO_START_ON_BOOT) { true }
+
     var watchdogEnabled by dataStore.boolean(SettingsKey.WATCHDOG_ENABLED) { true }
 
     // Журнал сторожа: последние события, по строке на событие (новые сверху).

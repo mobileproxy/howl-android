@@ -36,6 +36,7 @@ import io.nekohasekai.sfa.compose.screen.settings.ProfileOverrideScreen
 import io.nekohasekai.sfa.compose.screen.settings.RemoteControlScreen
 import io.nekohasekai.sfa.compose.screen.settings.ServiceSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SettingsScreen
+import io.nekohasekai.sfa.compose.screen.settings.AutoConnectScreen
 import io.nekohasekai.sfa.compose.screen.settings.DnsSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SplitTunnelScreen
 import io.nekohasekai.sfa.compose.screen.settings.WatchdogScreen
@@ -316,6 +317,16 @@ fun SFANavHost(
             popExitTransition = slideOutToRight,
         ) {
             DnsSettingsScreen(navController = navController, serviceStatus = serviceStatus)
+        }
+
+        composable(
+            route = "settings/auto_connect",
+            enterTransition = slideInFromRight,
+            exitTransition = slideOutToLeft,
+            popEnterTransition = slideInFromLeft,
+            popExitTransition = slideOutToRight,
+        ) {
+            AutoConnectScreen(navController = navController)
         }
 
         composable(
