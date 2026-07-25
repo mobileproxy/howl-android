@@ -38,6 +38,7 @@ import io.nekohasekai.sfa.compose.screen.settings.ServiceSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.AutoConnectScreen
 import io.nekohasekai.sfa.compose.screen.settings.DnsSettingsScreen
+import io.nekohasekai.sfa.compose.screen.settings.KillSwitchScreen
 import io.nekohasekai.sfa.compose.screen.settings.SplitTunnelScreen
 import io.nekohasekai.sfa.compose.screen.settings.WatchdogScreen
 import io.nekohasekai.sfa.constant.Status
@@ -327,6 +328,16 @@ fun SFANavHost(
             popExitTransition = slideOutToRight,
         ) {
             AutoConnectScreen(navController = navController)
+        }
+
+        composable(
+            route = "settings/kill_switch",
+            enterTransition = slideInFromRight,
+            exitTransition = slideOutToLeft,
+            popEnterTransition = slideInFromLeft,
+            popExitTransition = slideOutToRight,
+        ) {
+            KillSwitchScreen(navController = navController)
         }
 
         composable(

@@ -90,6 +90,11 @@
     <string name="auto_connect_on_open_summary">Iniciar la VPN automáticamente cada vez que abres la app.</string>
     <string name="auto_start_boot_title">Iniciar al encender el teléfono</string>
     <string name="auto_start_boot_summary">Si la VPN estaba activa antes de reiniciar, se vuelve a activar automáticamente tras encender el dispositivo.</string>
+    <string name="kill_switch_title">Bloquear internet sin VPN</string>
+    <string name="kill_switch_description">Un kill switch corta todo internet si la VPN se cae, para que tu IP y DNS reales nunca queden expuestos por accidente. En Android lo gestiona el sistema para máxima fiabilidad: sigue bloqueando aunque la app falle.</string>
+    <string name="kill_switch_steps">Actívalo en los ajustes del sistema:\n1. Pulsa el botón de abajo.\n2. Junto a Howl, abre la ⚙ rueda.\n3. Activa «VPN siempre activa».\n4. Activa «Bloquear conexiones sin VPN».</string>
+    <string name="kill_switch_open_settings">Abrir ajustes de VPN</string>
+    <string name="kill_switch_warning">Con esto activado, no hay internet mientras la VPN esté apagada. Para navegar sin VPN, vuelve a desactivar «Bloquear conexiones sin VPN».</string>
     <string name="split_tunnel_recognized_none">Todavía no se ha reconocido ningún dominio</string>
     <string name="split_tunnel_recognized_prefix">Reconocidos:</string>
     <string name="split_tunnel_saved_applied">Guardado y aplicado</string>

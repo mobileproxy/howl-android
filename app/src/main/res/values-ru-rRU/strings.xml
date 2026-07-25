@@ -295,6 +295,11 @@
     <string name="auto_connect_on_open_summary">Запускать VPN автоматически каждый раз при открытии приложения.</string>
     <string name="auto_start_boot_title">Запускать при загрузке телефона</string>
     <string name="auto_start_boot_summary">Если VPN был включён до перезагрузки, поднимать его автоматически после включения телефона.</string>
+    <string name="kill_switch_title">Блокировать интернет без VPN</string>
+    <string name="kill_switch_description">Kill switch отключает весь интернет, если VPN вдруг отвалится, — чтобы ваш настоящий IP и DNS случайно не раскрылись. На Android это делает сама система, для максимальной надёжности: блокировка держится, даже если приложение упадёт.</string>
+    <string name="kill_switch_steps">Включите в системных настройках:\n1. Нажмите кнопку ниже.\n2. Рядом с Howl откройте ⚙ шестерёнку.\n3. Включите «Постоянный VPN» (Always-on VPN).\n4. Включите «Блокировать соединения без VPN».</string>
+    <string name="kill_switch_open_settings">Открыть настройки VPN</string>
+    <string name="kill_switch_warning">С этой защитой интернета нет, пока VPN выключен. Чтобы выйти в сеть без VPN, отключите «Блокировать соединения без VPN».</string>
     <string name="per_app_proxy_import">Импорт из буфера обмена</string>
     <string name="per_app_proxy_export">Экспорт в буфер обмена</string>
     <string name="per_app_proxy_scan">Сканирование</string>

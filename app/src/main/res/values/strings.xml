@@ -295,6 +295,11 @@
     <string name="auto_connect_on_open_summary">Start the VPN automatically each time you open the app.</string>
     <string name="auto_start_boot_title">Start on device boot</string>
     <string name="auto_start_boot_summary">If the VPN was on before restart, bring it back up automatically after the phone boots.</string>
+    <string name="kill_switch_title">Block internet without VPN</string>
+    <string name="kill_switch_description">A kill switch stops all internet if the VPN ever drops, so your real IP and DNS are never exposed by accident. On Android this is handled by the system for maximum reliability — it keeps blocking even if the app itself crashes.</string>
+    <string name="kill_switch_steps">Turn it on in system settings:\n1. Tap the button below.\n2. Next to Howl, open the ⚙ gear.\n3. Enable “Always-on VPN”.\n4. Enable “Block connections without VPN”.</string>
+    <string name="kill_switch_open_settings">Open VPN settings</string>
+    <string name="kill_switch_warning">With this on, there is no internet while the VPN is off. To go online without the VPN, turn “Block connections without VPN” back off.</string>
     <string name="per_app_proxy_import">Import from clipboard</string>
     <string name="per_app_proxy_export">Export to clipboard</string>
     <string name="per_app_proxy_scan">Scan</string>
