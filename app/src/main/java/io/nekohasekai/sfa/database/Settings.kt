@@ -88,6 +88,10 @@ object Settings {
     // Сырой пользовательский ввод: домен на строку. Разбирается в SplitTunnel.parseDomains().
     var splitTunnelDomains by dataStore.string(SettingsKey.SPLIT_TUNNEL_DOMAINS) { "" }
 
+    // Выбор DNS. Дефолт "auto" = не вмешиваемся, оставляем DNS от сервиса. См. DnsOverride.
+    var dnsMode by dataStore.string(SettingsKey.DNS_MODE) { io.nekohasekai.sfa.utils.DnsOverride.MODE_AUTO }
+    var dnsCustomServer by dataStore.string(SettingsKey.DNS_CUSTOM_SERVER) { "" }
+
     var watchdogEnabled by dataStore.boolean(SettingsKey.WATCHDOG_ENABLED) { true }
 
     // Журнал сторожа: последние события, по строке на событие (новые сверху).

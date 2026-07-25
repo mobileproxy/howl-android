@@ -27,6 +27,10 @@ object SettingsKey {
     // поэтому переживают обновление удалённого профиля-подписки.
     const val SPLIT_TUNNEL_DOMAINS = "split_tunnel_domains"
 
+    // Выбор DNS-сервера: режим (auto/cloudflare/google/adguard/custom) и адрес для custom.
+    const val DNS_MODE = "dns_mode"
+    const val DNS_CUSTOM_SERVER = "dns_custom_server"
+
     // Сторож соединения: проверяет, что трафик реально идёт, и чинит залипший туннель.
     const val WATCHDOG_ENABLED = "watchdog_enabled"
     const val WATCHDOG_LOG = "watchdog_log"

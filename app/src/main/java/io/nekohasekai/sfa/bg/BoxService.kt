@@ -38,6 +38,7 @@ import io.nekohasekai.sfa.ktx.hasPermission
 import io.nekohasekai.sfa.subscription.ConfigHardening
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.CoreLog
+import io.nekohasekai.sfa.utils.DnsOverride
 import io.nekohasekai.sfa.utils.SplitTunnel
 import io.nekohasekai.sfa.vendor.Vendor
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -132,12 +133,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             // при обновлении подписки, а локальный список должен это пережить.
             // ConfigHardening доводит ЛЮБОЙ профиль (в том числе чужой) до наших требований
             // по бесперебойности — иначе сторонняя подписка работала бы заметно хуже нашей.
-            val content = CoreLog.apply(
-                ConfigHardening.apply(SplitTunnel.apply(rawContent, Settings.splitTunnelDomains)),
-            )
             // Теги групп нужны сторожу для ступени «сменить сервер»: у чужого профиля они
-            // называются иначе, чем у нашего, и зашивать их нельзя.
-            ProfileTags.scan(content)
+            // называются иначе, чем у нашего, и зашивать их нельзя. scan внутри assembleConfig.
+            val content = assembleConfig(rawContent)
 
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {
@@ -194,6 +192,27 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
+    /**
+     * Единая сборка конфига перед запуском ядра. Вынесена в одно место НАМЕРЕННО: и первый
+     * старт, и перезагрузка (serviceReload0) обязаны применять ОДНУ И ТУ ЖЕ цепочку, иначе
+     * после reload часть настроек (закалка, DNS, теги для сторожа) молча пропадала бы до
+     * перезапуска. Порядок: пользовательские правки (обход по доменам, выбор DNS) → закалка
+     * (IPv6) → журнал ядра. Каждый шаг при сбое возвращает вход как есть.
+     */
+    private fun assembleConfig(rawContent: String): String {
+        val content = CoreLog.apply(
+            ConfigHardening.apply(
+                DnsOverride.apply(
+                    SplitTunnel.apply(rawContent, Settings.splitTunnelDomains),
+                    Settings.dnsMode,
+                    Settings.dnsCustomServer,
+                ),
+            ),
+        )
+        ProfileTags.scan(content)
+        return content
+    }
+
     override fun serviceStop() {
         notification.close()
         status.postValue(Status.Starting)
@@ -229,12 +248,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             stopAndAlert(Alert.EmptyConfiguration)
             return
         }
-        // Та же цепочка, что и при первом запуске: перезагрузка конфига не должна терять
-        // ни закалку, ни теги групп — иначе после reload сторож «слепнет» до перезапуска.
-        val content = CoreLog.apply(
-            ConfigHardening.apply(SplitTunnel.apply(rawContent, Settings.splitTunnelDomains)),
-        )
-        ProfileTags.scan(content)
+        // Та же сборка, что и при первом запуске: перезагрузка конфига не должна терять ни
+        // закалку, ни выбор DNS, ни теги групп — иначе после reload сторож «слепнет».
+        val content = assembleConfig(rawContent)
         lastProfileName = profile.name
         try {
             commandServer.startOrReloadService(

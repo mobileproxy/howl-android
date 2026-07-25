@@ -72,6 +72,16 @@
     <string name="split_tunnel_description">Manche Websites sperren ausländische Adressen und öffnen sich über ein VPN nicht — besonders Online-Banking und Behördenseiten. Die hier aufgeführten Websites werden direkt geöffnet, am VPN vorbei. Der gesamte übrige Verkehr läuft weiter durch den Tunnel.</string>
     <string name="split_tunnel_domains_label">Eine Domain pro Zeile</string>
     <string name="split_tunnel_hint">Subdomains sind automatisch enthalten: example.com deckt auch www.example.com ab. Diese Liste ergänzt die aus Ihrem Konto und bleibt bei Abo-Updates erhalten.</string>
+    <string name="dns_settings">DNS-Server</string>
+    <string name="dns_description">Welcher Server Website-Namen auflöst. Er läuft immer innerhalb des Tunnels, sodass Ihr Anbieter nicht sieht, welche Seiten Sie öffnen. Belassen Sie es bei „Automatisch“, sofern nicht anders nötig.</string>
+    <string name="dns_mode_auto">Automatisch (empfohlen)</string>
+    <string name="dns_mode_cloudflare">Cloudflare — 1.1.1.1</string>
+    <string name="dns_mode_google">Google — 8.8.8.8</string>
+    <string name="dns_mode_adguard">AdGuard — blockiert Werbung (94.140.14.14)</string>
+    <string name="dns_mode_custom">Eigener</string>
+    <string name="dns_custom_label">IP des DNS-Servers</string>
+    <string name="dns_custom_invalid">Gültige IP-Adresse eingeben</string>
+    <string name="dns_hint">Ein falscher DNS unterbricht die Namensauflösung und wirkt wie „kein Internet“. Öffnen sich keine Seiten mehr, wechseln Sie zurück auf „Automatisch“.</string>
     <string name="split_tunnel_recognized_none">Noch keine Domains erkannt</string>
     <string name="split_tunnel_recognized_prefix">Erkannt:</string>
     <string name="split_tunnel_saved_applied">Gespeichert und angewendet</string>

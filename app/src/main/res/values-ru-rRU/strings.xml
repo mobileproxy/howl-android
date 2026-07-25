@@ -277,6 +277,16 @@
     <string name="split_tunnel_saved_later">Сохранено. Применится при следующем подключении.</string>
     <string name="split_tunnel_saved_manual">Сохранено, но применить сразу не вышло — переподключитесь вручную.</string>
     <string name="split_tunnel_hint">Поддомены учитываются сами: example.com покроет и www.example.com. Этот список добавляется к списку из личного кабинета и сохраняется при обновлении подписки.</string>
+    <string name="dns_settings">DNS-сервер</string>
+    <string name="dns_description">Какой сервер определяет адреса сайтов по их именам. Всегда работает внутри туннеля, поэтому провайдер не видит, какие сайты вы открываете. Оставьте «Автоматически», если нет причины менять.</string>
+    <string name="dns_mode_auto">Автоматически (рекомендуется)</string>
+    <string name="dns_mode_cloudflare">Cloudflare — 1.1.1.1</string>
+    <string name="dns_mode_google">Google — 8.8.8.8</string>
+    <string name="dns_mode_adguard">AdGuard — блокирует рекламу (94.140.14.14)</string>
+    <string name="dns_mode_custom">Свой</string>
+    <string name="dns_custom_label">IP-адрес DNS-сервера</string>
+    <string name="dns_custom_invalid">Введите корректный IP-адрес</string>
+    <string name="dns_hint">Неверный DNS ломает определение адресов и выглядит как «нет интернета». Если сайты перестали открываться — вернитесь на «Автоматически».</string>
     <string name="per_app_proxy_import">Импорт из буфера обмена</string>
     <string name="per_app_proxy_export">Экспорт в буфер обмена</string>
     <string name="per_app_proxy_scan">Сканирование</string>

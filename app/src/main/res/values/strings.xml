@@ -277,6 +277,16 @@
     <string name="split_tunnel_saved_later">Saved. Takes effect the next time you connect.</string>
     <string name="split_tunnel_saved_manual">Saved, but could not apply right away — reconnect manually.</string>
     <string name="split_tunnel_hint">Subdomains are included automatically: example.com also covers www.example.com. This list adds to the one from your account dashboard and survives subscription updates.</string>
+    <string name="dns_settings">DNS server</string>
+    <string name="dns_description">Which server resolves site names. It always runs inside the tunnel, so your provider cannot see which sites you open. Leave it on Automatic unless you know you need otherwise.</string>
+    <string name="dns_mode_auto">Automatic (recommended)</string>
+    <string name="dns_mode_cloudflare">Cloudflare — 1.1.1.1</string>
+    <string name="dns_mode_google">Google — 8.8.8.8</string>
+    <string name="dns_mode_adguard">AdGuard — blocks ads (94.140.14.14)</string>
+    <string name="dns_mode_custom">Custom</string>
+    <string name="dns_custom_label">DNS server IP</string>
+    <string name="dns_custom_invalid">Enter a valid IP address</string>
+    <string name="dns_hint">A wrong DNS breaks name resolution and looks like “no internet.” If sites stop opening, switch back to Automatic.</string>
     <string name="per_app_proxy_import">Import from clipboard</string>
     <string name="per_app_proxy_export">Export to clipboard</string>
     <string name="per_app_proxy_scan">Scan</string>
