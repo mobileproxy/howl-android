@@ -31,6 +31,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Сторож соединения: ловит состояние «подключено, но трафик не идёт».
@@ -156,7 +157,10 @@ object ConnectivityWatchdog {
 
     // Узлы, на которых уже залипли в текущей сети. Сбрасывается при смене сети (маршруты меняются)
     // и когда перепробованы все (тогда возвращаемся к автоподбору с чистого листа).
-    private val stuckNodes = mutableSetOf<String>()
+    // Потокобезопасный набор: читается из проверок, чистится из onNetworkChanged/start/stop —
+    // это разные потоки, а обычный mutableSet мог бы уронить приложение при совпадении итерации
+    // (filter в switchToFastestServer) и clear.
+    private val stuckNodes: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     // Проверки не должны накладываться: фоновый цикл, смена сети и событийные триггеры могут
     // прийтись на один момент, а каждая занимает до 20 секунд.
