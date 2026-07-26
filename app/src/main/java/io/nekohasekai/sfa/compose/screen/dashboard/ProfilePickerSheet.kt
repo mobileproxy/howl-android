@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -83,6 +86,7 @@ fun ProfilePickerSheet(
     onProfileEdit: (Profile) -> Unit,
     onProfileDelete: (Profile) -> Unit,
     onProfileMove: (Int, Int) -> Unit,
+    onAddProfile: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -160,6 +164,29 @@ fun ProfilePickerSheet(
                         )
                     }
                 }
+            }
+
+            // Кнопка добавления сервера ЗДЕСЬ — потому что это единственное место, где человек с
+            // уже настроенным профилем ищет «добавить ещё один». Раньше добавление было доступно
+            // только в онбординге (когда профилей нет) и в скрытой карточке — второй сервер было
+            // некуда добавить.
+            Spacer(modifier = Modifier.height(12.dp))
+            FilledTonalButton(
+                onClick = {
+                    onDismiss()
+                    onAddProfile()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.add_profile))
             }
         }
     }

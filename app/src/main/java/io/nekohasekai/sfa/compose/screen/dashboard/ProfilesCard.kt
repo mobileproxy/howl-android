@@ -370,6 +370,7 @@ fun ProfilesCard(
             onProfileEdit = onProfileEdit,
             onProfileDelete = onProfileDelete,
             onProfileMove = onProfileMove,
+            onAddProfile = { onOpenNewProfile(NewProfileArgs()) },
             onDismiss = onHideProfilePickerSheet,
         )
     }

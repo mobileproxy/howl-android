@@ -176,6 +176,7 @@ fun DashboardScreen(
             onProfileEdit = viewModel::editProfile,
             onProfileDelete = viewModel::deleteProfile,
             onProfileMove = viewModel::moveProfile,
+            onAddProfile = { onOpenNewProfile(NewProfileArgs()) },
             onDismiss = viewModel::hideProfilePickerSheet,
         )
     }
