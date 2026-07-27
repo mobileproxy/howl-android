@@ -31,6 +31,7 @@ data class NewProfileUiState(
     val remoteUrl: String = "",
     val autoUpdate: Boolean = true,
     val autoUpdateInterval: Int = 60,
+    val autoUpdateIntervalError: String? = null,
     // File import
     val importUri: Uri? = null,
     val importFileName: String? = null,
@@ -121,8 +122,19 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun updateAutoUpdateInterval(interval: String) {
+        // Как в EditProfile: не перезаписываем ввод молча, а показываем ошибку. Раньше New
+        // коэрсил на лету (набрать «5» было нельзя — прыгало на 15), а Edit показывал ошибку —
+        // одно и то же поле вело себя по-разному.
         val intValue = interval.toIntOrNull() ?: 60
-        _uiState.update { it.copy(autoUpdateInterval = intValue.coerceAtLeast(15)) }
+        val error =
+            when {
+                interval.isBlank() ->
+                    getApplication<Application>().getString(io.nekohasekai.sfa.R.string.profile_input_required)
+                intValue < 15 ->
+                    getApplication<Application>().getString(io.nekohasekai.sfa.R.string.profile_auto_update_interval_minimum_hint)
+                else -> null
+            }
+        _uiState.update { it.copy(autoUpdateInterval = intValue, autoUpdateIntervalError = error) }
     }
 
     fun setImportUri(uri: Uri, fileName: String?) {

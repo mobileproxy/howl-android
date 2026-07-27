@@ -537,7 +537,11 @@ fun NewProfileScreen(
                                 value = uiState.autoUpdateInterval.toString(),
                                 onValueChange = viewModel::updateAutoUpdateInterval,
                                 label = { Text(stringResource(R.string.profile_auto_update_interval)) },
-                                supportingText = { Text(stringResource(R.string.profile_auto_update_interval_minimum_hint)) },
+                                isError = uiState.autoUpdateIntervalError != null,
+                                supportingText = {
+                                    uiState.autoUpdateIntervalError?.let { Text(it) }
+                                        ?: Text(stringResource(R.string.profile_auto_update_interval_minimum_hint))
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -566,7 +570,7 @@ fun NewProfileScreen(
                 Button(
                     onClick = { viewModel.validateAndCreateProfile() },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !uiState.isSaving,
+                    enabled = !uiState.isSaving && uiState.autoUpdateIntervalError == null,
                 ) {
                     if (uiState.isSaving) {
                         CircularProgressIndicator(
