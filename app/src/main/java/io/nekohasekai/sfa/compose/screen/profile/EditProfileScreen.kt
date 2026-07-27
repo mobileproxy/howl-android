@@ -28,10 +28,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -329,7 +329,7 @@ fun EditProfileScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Icon(
-                                        Icons.Default.CloudDownload,
+                                        Icons.Outlined.CloudDownload,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.tertiary,
                                         modifier = Modifier.size(20.dp),
@@ -379,7 +379,7 @@ fun EditProfileScreen(
                                         }
                                         else -> {
                                             Icon(
-                                                Icons.Default.Update,
+                                                Icons.Outlined.Update,
                                                 contentDescription = stringResource(R.string.profile_update),
                                                 tint = MaterialTheme.colorScheme.tertiary,
                                             )
@@ -488,7 +488,7 @@ fun EditProfileScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Code,
+                                    imageVector = Icons.Outlined.Code,
                                     contentDescription = null,
                                     modifier = Modifier.size(24.dp),
                                     tint = MaterialTheme.colorScheme.primary,
@@ -547,7 +547,7 @@ fun EditProfileScreen(
                             )
                         } else {
                             Icon(
-                                Icons.Default.Save,
+                                Icons.Outlined.Save,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                             )

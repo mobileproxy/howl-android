@@ -32,11 +32,11 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Error
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -203,7 +203,7 @@ fun EditProfileContentScreen(
                         enabled = uiState.hasUnsavedChanges && !uiState.isLoading,
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Save,
+                            imageVector = Icons.Outlined.Save,
                             contentDescription = stringResource(R.string.save),
                             tint =
                             if (uiState.hasUnsavedChanges) {
@@ -512,7 +512,7 @@ fun EditProfileContentScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Error,
+                                    imageVector = Icons.Outlined.Error,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onErrorContainer,
                                     modifier = Modifier.size(20.dp),
@@ -625,7 +625,7 @@ fun EditProfileContentScreen(
                                 modifier = Modifier.padding(end = 8.dp),
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Code,
+                                    imageVector = Icons.Outlined.Code,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                     tint = MaterialTheme.colorScheme.primary,

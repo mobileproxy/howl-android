@@ -152,6 +152,9 @@
     <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
     <string name="error_check_connection">Не удалось загрузить — проверьте ссылку и интернет.</string>
     <string name="error_not_a_server">Это не похоже на ссылку сервера или конфиг.</string>
+    <string name="settings_section_app">Приложение</string>
+    <string name="settings_section_connection">Соединение</string>
+    <string name="settings_section_advanced">Дополнительно</string>
     <string name="update_profile">Обновить профиль</string>
     <string name="import_remote_profile">Импортировать удалённый профиль</string>
     <string name="import_remote_profile_message">Импортировать удалённый профиль %1$s? Для загрузки конфигурации будет установлено соединение с %2$s.</string>

@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -91,7 +91,7 @@ fun DashboardScreen(
                             text = { Text(stringResource(R.string.dashboard_items)) },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.GridView,
+                                    imageVector = Icons.Outlined.GridView,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                 )

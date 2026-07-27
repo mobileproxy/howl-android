@@ -28,10 +28,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -352,7 +352,7 @@ fun NewProfileScreen(
                                 ),
                             ) {
                                 Icon(
-                                    Icons.Default.CreateNewFolder,
+                                    Icons.Outlined.CreateNewFolder,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -389,7 +389,7 @@ fun NewProfileScreen(
                                 ),
                             ) {
                                 Icon(
-                                    Icons.Default.FileUpload,
+                                    Icons.Outlined.FileUpload,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -426,7 +426,7 @@ fun NewProfileScreen(
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
                                         Icon(
-                                            Icons.Default.FileUpload,
+                                            Icons.Outlined.FileUpload,
                                             contentDescription = null,
                                             tint =
                                             if (uiState.importError != null) {
@@ -486,7 +486,7 @@ fun NewProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Icon(
-                                Icons.Default.CloudDownload,
+                                Icons.Outlined.CloudDownload,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(20.dp),
@@ -580,7 +580,7 @@ fun NewProfileScreen(
                         )
                     } else {
                         Icon(
-                            Icons.Default.Save,
+                            Icons.Outlined.Save,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                         )

@@ -152,6 +152,9 @@
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_check_connection">Couldn\'t load — check the link and your internet connection.</string>
     <string name="error_not_a_server">This doesn\'t look like a server link or config.</string>
+    <string name="settings_section_app">App</string>
+    <string name="settings_section_connection">Connection</string>
+    <string name="settings_section_advanced">Advanced</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>

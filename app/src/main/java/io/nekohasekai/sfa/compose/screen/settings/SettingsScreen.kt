@@ -47,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.component.SectionHeader
 import io.nekohasekai.sfa.compose.theme.WarningOrange
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.Settings
@@ -87,7 +88,7 @@ fun SettingsScreen(navController: NavController) {
             .verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp),
     ) {
-        // General Settings Group
+        SectionHeader(stringResource(R.string.settings_section_app))
         Card(
             modifier =
             Modifier
@@ -121,16 +122,27 @@ fun SettingsScreen(navController: NavController) {
                             NavChevron()
                         }
                     },
-                    modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                        .clickable { navController.navigate("settings/app") },
+                    modifier = Modifier.clickable { navController.navigate("settings/app") },
                     colors =
                     ListItemDefaults.colors(
                         containerColor = Color.Transparent,
                     ),
                 )
+            }
+        }
 
+        SectionHeader(stringResource(R.string.settings_section_connection))
+        Card(
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+        ) {
+            Column {
                 // «Ядро» убрано из меню: версия ядра, размер данных, рабочая директория,
                 // бета-настройки и кнопка «Уничтожить» — отладка, а не пользовательские
                 // настройки. Экран и код на месте, просто не на виду.
@@ -250,7 +262,21 @@ fun SettingsScreen(navController: NavController) {
                         containerColor = Color.Transparent,
                     ),
                 )
+            }
+        }
 
+        SectionHeader(stringResource(R.string.settings_section_advanced))
+        Card(
+            modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+        ) {
+            Column {
                 // Диагностика: логи ядра (экран есть, но убран из таб-бара — доступ отсюда).
                 ListItem(
                     headlineContent = {
@@ -289,19 +315,7 @@ fun SettingsScreen(navController: NavController) {
                         )
                     },
                     trailingContent = { NavChevron() },
-                    modifier =
-                    Modifier
-                        .then(
-                            // Без раздела привилегий этот пункт становится последним в карточке.
-                            if (hasPrivilegeModule) {
-                                Modifier
-                            } else {
-                                Modifier.clip(
-                                    RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
-                                )
-                            },
-                        )
-                        .clickable { navController.navigate("settings/profile_override") },
+                    modifier = Modifier.clickable { navController.navigate("settings/profile_override") },
                     colors =
                     ListItemDefaults.colors(
                         containerColor = Color.Transparent,
@@ -338,10 +352,7 @@ fun SettingsScreen(navController: NavController) {
                                 NavChevron()
                             }
                         },
-                        modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp))
-                            .clickable { navController.navigate("settings/privilege") },
+                        modifier = Modifier.clickable { navController.navigate("settings/privilege") },
                         colors =
                         ListItemDefaults.colors(
                             containerColor = Color.Transparent,

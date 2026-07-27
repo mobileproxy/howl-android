@@ -27,14 +27,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
@@ -437,7 +437,7 @@ private fun ProfilePickerRow(
                             },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.Edit,
+                                    imageVector = Icons.Outlined.Edit,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
@@ -451,7 +451,7 @@ private fun ProfilePickerRow(
                             },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.IosShare,
+                                    imageVector = Icons.Outlined.IosShare,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
@@ -477,7 +477,7 @@ private fun ProfilePickerRow(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.Save,
+                                        imageVector = Icons.Outlined.Save,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(start = 24.dp),
@@ -493,7 +493,7 @@ private fun ProfilePickerRow(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.IosShare,
+                                        imageVector = Icons.Outlined.IosShare,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(start = 24.dp),
@@ -510,7 +510,7 @@ private fun ProfilePickerRow(
                                     },
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Default.QrCode2,
+                                            imageVector = Icons.Outlined.QrCode2,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.padding(start = 24.dp),
@@ -533,7 +533,7 @@ private fun ProfilePickerRow(
                             },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.Delete,
+                                    imageVector = Icons.Outlined.Delete,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error,
                                 )

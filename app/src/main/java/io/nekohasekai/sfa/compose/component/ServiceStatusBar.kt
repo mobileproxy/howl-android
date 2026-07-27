@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Cable
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -128,7 +128,7 @@ fun ServiceStatusBar(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            imageVector = Icons.Default.Folder,
+                            imageVector = Icons.Outlined.Folder,
                             contentDescription = stringResource(R.string.title_groups),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -152,7 +152,7 @@ fun ServiceStatusBar(
                         Spacer(modifier = Modifier.width(4.dp))
                     }
                     Icon(
-                        imageVector = Icons.Default.Stop,
+                        imageVector = Icons.Outlined.Stop,
                         contentDescription = stringResource(R.string.stop),
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,

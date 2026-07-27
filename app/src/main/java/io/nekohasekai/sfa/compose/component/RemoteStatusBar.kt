@@ -16,9 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.outlined.Cable
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -127,7 +127,7 @@ fun RemoteStatusBar(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                imageVector = Icons.Default.Folder,
+                                imageVector = Icons.Outlined.Folder,
                                 contentDescription = stringResource(R.string.title_groups),
                                 modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer,

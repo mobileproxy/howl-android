@@ -28,9 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.outlined.BatteryAlert
+import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -146,7 +146,7 @@ fun HowlConnectButton(status: Status, onClick: () -> Unit, modifier: Modifier = 
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Filled.PowerSettingsNew,
+                imageVector = Icons.Outlined.PowerSettingsNew,
                 contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(84.dp),
@@ -183,7 +183,7 @@ fun HowlServerSelector(serverName: String?, onClick: () -> Unit, label: String, 
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Public,
+                    imageVector = Icons.Outlined.Public,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp),
