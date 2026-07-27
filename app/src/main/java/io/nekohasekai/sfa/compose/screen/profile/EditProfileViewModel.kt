@@ -8,6 +8,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.base.GlobalEventBus
+import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.bg.UpdateProfileWork
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
@@ -232,6 +234,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                         isSaving = false,
                     )
                 }
+                GlobalEventBus.tryEmit(UiEvent.Snackbar(R.string.snackbar_saved))
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(

@@ -863,6 +863,11 @@ class MainActivity :
                     }
 
                     is UiEvent.ApplyServiceChange -> enqueueApplyServiceChange(event.mode)
+
+                    is UiEvent.Snackbar ->
+                        scope.launch {
+                            snackbarHostState.showSnackbar(this@MainActivity.getString(event.messageRes))
+                        }
                 }
             }
         }

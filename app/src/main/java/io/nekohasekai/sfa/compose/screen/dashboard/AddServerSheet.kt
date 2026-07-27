@@ -40,6 +40,7 @@ import io.nekohasekai.sfa.compose.screen.configuration.ProfileImportHandler
 import io.nekohasekai.sfa.compose.screen.qrscan.QRScanResult
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.ktx.errorDialogBuilder
+import io.nekohasekai.sfa.ktx.friendlyImportError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,7 +87,7 @@ fun AddServerSheet(
                     withContext(Dispatchers.Main) { onImported(result.profile) }
                 is ProfileImportHandler.ImportResult.Error ->
                     withContext(Dispatchers.Main) {
-                        context.errorDialogBuilder(Exception(result.message)).show()
+                        context.errorDialogBuilder(context.friendlyImportError(result.message)).show()
                     }
             }
         }
@@ -108,7 +109,7 @@ fun AddServerSheet(
                         }
                         is ProfileImportHandler.UriParseResult.Error -> {
                             withContext(Dispatchers.Main) {
-                                context.errorDialogBuilder(Exception(parseResult.message)).show()
+                                context.errorDialogBuilder(context.friendlyImportError(parseResult.message)).show()
                             }
                         }
                     }
@@ -267,7 +268,7 @@ fun AddServerSheet(
                                         withContext(Dispatchers.Main) { onImported(result.profile) }
                                     is ProfileImportHandler.ImportResult.Error ->
                                         withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(Exception(result.message)).show()
+                                            context.errorDialogBuilder(context.friendlyImportError(result.message)).show()
                                         }
                                 }
                             } else if (importUri != null) {
@@ -276,7 +277,7 @@ fun AddServerSheet(
                                         withContext(Dispatchers.Main) { onImported(result.profile) }
                                     is ProfileImportHandler.ImportResult.Error ->
                                         withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(Exception(result.message)).show()
+                                            context.errorDialogBuilder(context.friendlyImportError(result.message)).show()
                                         }
                                 }
                             }
@@ -319,7 +320,7 @@ fun AddServerSheet(
                                 }
                                 is ProfileImportHandler.QRSParseResult.Error -> {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(Exception(parseResult.message)).show()
+                                        context.errorDialogBuilder(context.friendlyImportError(parseResult.message)).show()
                                     }
                                 }
                             }
@@ -344,13 +345,13 @@ fun AddServerSheet(
                                             withContext(Dispatchers.Main) { onImported(importResult.profile) }
                                         is ProfileImportHandler.ImportResult.Error ->
                                             withContext(Dispatchers.Main) {
-                                                context.errorDialogBuilder(Exception(importResult.message)).show()
+                                                context.errorDialogBuilder(context.friendlyImportError(importResult.message)).show()
                                             }
                                     }
                                 }
                                 is ProfileImportHandler.QRCodeParseResult.Error -> {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(Exception(parseResult.message)).show()
+                                        context.errorDialogBuilder(context.friendlyImportError(parseResult.message)).show()
                                     }
                                 }
                             }

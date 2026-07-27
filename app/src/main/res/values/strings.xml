@@ -147,6 +147,11 @@
     <string name="add_server_imported">Imported</string>
     <string name="delete_profile_confirm_title">Delete server?</string>
     <string name="delete_profile_confirm_message">Server «%1$s» will be permanently removed. This cannot be undone.</string>
+    <string name="snackbar_saved">Saved</string>
+    <string name="snackbar_server_deleted">Server deleted</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_check_connection">Couldn\'t load — check the link and your internet connection.</string>
+    <string name="error_not_a_server">This doesn\'t look like a server link or config.</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>

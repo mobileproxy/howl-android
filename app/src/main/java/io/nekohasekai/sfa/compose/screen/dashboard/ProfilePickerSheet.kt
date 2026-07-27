@@ -72,6 +72,7 @@ import io.nekohasekai.sfa.compose.util.QRCodeGenerator
 import io.nekohasekai.sfa.compose.util.RelativeTimeFormatter
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.ktx.errorDialogBuilder
 import io.nekohasekai.sfa.ktx.shareProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -153,7 +154,12 @@ fun ProfilePickerSheet(
                                 coroutineScope.launch(Dispatchers.IO) {
                                     try {
                                         context.shareProfile(profile)
-                                    } catch (_: Exception) {
+                                    } catch (e: Exception) {
+                                        // Раньше ошибка «Поделиться» глотался молча — пользователь
+                                        // не понимал, почему «ничего не произошло».
+                                        withContext(Dispatchers.Main) {
+                                            context.errorDialogBuilder(e).show()
+                                        }
                                     }
                                 }
                             },

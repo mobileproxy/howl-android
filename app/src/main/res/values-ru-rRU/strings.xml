@@ -147,6 +147,11 @@
     <string name="add_server_imported">Импортированный</string>
     <string name="delete_profile_confirm_title">Удалить сервер?</string>
     <string name="delete_profile_confirm_message">Сервер «%1$s» будет удалён безвозвратно.</string>
+    <string name="snackbar_saved">Сохранено</string>
+    <string name="snackbar_server_deleted">Сервер удалён</string>
+    <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
+    <string name="error_check_connection">Не удалось загрузить — проверьте ссылку и интернет.</string>
+    <string name="error_not_a_server">Это не похоже на ссылку сервера или конфиг.</string>
     <string name="update_profile">Обновить профиль</string>
     <string name="import_remote_profile">Импортировать удалённый профиль</string>
     <string name="import_remote_profile_message">Импортировать удалённый профиль %1$s? Для загрузки конфигурации будет установлено соединение с %2$s.</string>

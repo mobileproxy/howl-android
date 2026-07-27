@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.compose.base
 
+import androidx.annotation.StringRes
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.asSharedFlow
  */
 sealed class UiEvent {
     data class ErrorMessage(val message: String) : UiEvent()
+
+    /** Кратковременное подтверждение действия (успех) — показывается снекбаром. */
+    data class Snackbar(@StringRes val messageRes: Int) : UiEvent()
 
     data class OpenUrl(val url: String) : UiEvent()
 
