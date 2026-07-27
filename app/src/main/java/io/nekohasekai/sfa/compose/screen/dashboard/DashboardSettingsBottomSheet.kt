@@ -76,16 +76,25 @@ fun DashboardSettingsBottomSheet(
     onResetOrder: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // Profiles is not a home-screen widget anymore (replaced by the server selector),
-    // so it never appears in this list.
+    // В списке — только карточки, которые реально рисуются в нашем режиме (VPN). Остальные
+    // из CardGroup сюда не пускаем, иначе «показать всё» включало пункты, которых на экране
+    // нет: Profiles (заменён селектором сервера), ClashMode/SystemProxy (только в clash/proxy-
+    // режиме), Half/Full (это layout-хелперы, не карточки). Оставляем Отправку, Получение,
+    // Диагностику и Соединения.
+    val homeCards = listOf(
+        CardGroup.UploadTraffic,
+        CardGroup.DownloadTraffic,
+        CardGroup.Debug,
+        CardGroup.Connections,
+    )
     var reorderedList by remember(cardOrder) {
-        mutableStateOf(cardOrder.filter { it != CardGroup.Profiles })
+        mutableStateOf(cardOrder.filter { it in homeCards })
     }
     var currentVisibleCards by remember(visibleCards) { mutableStateOf(visibleCards) }
 
     // Update local state when props change (e.g., after reset)
     LaunchedEffect(cardOrder, visibleCards) {
-        reorderedList = cardOrder.filter { it != CardGroup.Profiles }
+        reorderedList = cardOrder.filter { it in homeCards }
         currentVisibleCards = visibleCards
     }
 

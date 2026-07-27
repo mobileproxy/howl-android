@@ -761,7 +761,6 @@ class MainActivity :
                 null
             }
 
-        val showGroupsInNav = dashboardUiState.hasGroups
         val showConnectionsInNav =
             if (isRemote) {
                 remoteConnected
@@ -769,26 +768,15 @@ class MainActivity :
                 currentServiceStatus == Status.Started || currentServiceStatus == Status.Starting
             }
 
-        val railScreens =
-            buildList {
-                add(Screen.Dashboard)
-                if (showGroupsInNav) {
-                    add(Screen.Groups)
-                }
-                if (showConnectionsInNav) {
-                    add(Screen.Connections)
-                }
-                add(Screen.Settings)
-            }
+        // Те же три пункта, что и в вертикальной панели — Главная/Серверы/Настройки.
+        val railScreens = bottomNavigationScreens
 
         val allowedRoutes =
             buildSet {
                 add(Screen.Dashboard.route)
                 add(Screen.Log.route)
                 add(Screen.Settings.route)
-                if (useNavigationRail && showGroupsInNav) {
-                    add(Screen.Groups.route)
-                }
+                add(Screen.Groups.route)
                 if (useNavigationRail && showConnectionsInNav) {
                     add(Screen.Connections.route)
                 }

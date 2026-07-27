@@ -21,7 +21,6 @@ import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -128,27 +127,12 @@ fun SettingsScreen(navController: NavController) {
                 // «Ядро» убрано из меню: версия ядра, размер данных, рабочая директория,
                 // бета-настройки и кнопка «Уничтожить» — отладка, а не пользовательские
                 // настройки. Экран и код на месте, просто не на виду.
-
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(R.string.service),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    },
-                    leadingContent = {
-                        Icon(
-                            imageVector = Icons.Outlined.Tune,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    },
-                    modifier = Modifier.clickable { navController.navigate("settings/service") },
-                    colors =
-                    ListItemDefaults.colors(
-                        containerColor = Color.Transparent,
-                    ),
-                )
+                //
+                // Старый пункт «Работа в фоне» (settings/service) убран из меню: он показывал
+                // только разрешение на фоновую работу, и это полностью перекрыто новым экраном
+                // «Работа в фоне» (settings/background_work) — статус батареи, always-on VPN,
+                // инструкция под производителя. Два одинаковых пункта в меню путали. Route и
+                // экран ServiceSettingsScreen оставлены на месте, просто не на виду.
 
                 ListItem(
                     headlineContent = {

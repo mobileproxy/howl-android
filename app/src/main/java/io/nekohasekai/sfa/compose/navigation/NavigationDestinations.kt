@@ -42,10 +42,12 @@ sealed class Screen(val route: String, @StringRes val titleRes: Int, val icon: I
     )
 }
 
-// Howl keeps the bottom bar to just Home and Settings. Server-location switching
-// lives in the home screen's server selector; Logs/Tools are no longer surfaced.
+// Ровно три пункта при ЛЮБОЙ ориентации: Главная, Серверы, Настройки. «Соединения» и «Логи»
+// из навигации убраны (логи — в «Автопочинке», соединения — на карточке главной). Раньше
+// вертикальная панель показывала два пункта, а горизонтальная — четыре; теперь одинаково три.
 val bottomNavigationScreens =
     listOf(
         Screen.Dashboard,
+        Screen.Groups,
         Screen.Settings,
     )
