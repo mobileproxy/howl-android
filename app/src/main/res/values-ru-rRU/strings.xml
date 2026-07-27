@@ -245,8 +245,8 @@
     <string name="watchdog">Автопочинка соединения</string>
     <string name="watchdog_description">Раз в минуту проверяет, что трафик реально идёт, и восстанавливает связь, если она зависла</string>
     <string name="watchdog_restart_note">Изменение применится при следующем подключении.</string>
-    <string name="core_log">Журнал ядра</string>
-    <string name="core_log_description">Ядро пишет журнал в файл, который сохраняется между переподключениями — в отличие от экрана «Логи», где всё начинается заново при каждом подключении. Пришлите этот файл, если со связью что-то не так.</string>
+    <string name="core_log">Журнал</string>
+    <string name="core_log_description">События приложения (старт, сеть, автопочинка, серверы) и журнал ядра, слитые в одну хронологию, которая переживает переподключения. Поделитесь им, если со связью что-то не так — это самый быстрый способ разобраться.</string>
     <string name="core_log_size">Накоплено: %1$s</string>
     <string name="watchdog_log_recovered">связь восстановилась</string>
     <string name="watchdog_log_captive">Wi-Fi требует входа в систему — VPN не пройдёт, пока не войдёте</string>

@@ -238,6 +238,13 @@ object DefaultNetworkMonitor {
                     Thread.sleep(100)
                     continue
                 }
+                // Отдаём интерфейс ядру. Пишем в журнал только смену — иначе засорим повторами.
+                if (reportedInterface != linkProperties.interfaceName) {
+                    io.nekohasekai.sfa.utils.AppEventLog.log(
+                        "сеть",
+                        "интерфейс → ${linkProperties.interfaceName}",
+                    )
+                }
                 reportedInterface = linkProperties.interfaceName
                 reportedNetwork = target
                 listener.updateDefaultInterface(linkProperties.interfaceName, interfaceIndex, false, false)

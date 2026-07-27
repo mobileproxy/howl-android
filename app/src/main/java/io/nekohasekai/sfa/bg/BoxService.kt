@@ -27,6 +27,7 @@ import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.sfa.Application
+import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.MainActivity
 import io.nekohasekai.sfa.constant.Action
@@ -37,6 +38,7 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
 import io.nekohasekai.sfa.subscription.ConfigHardening
 import io.nekohasekai.sfa.subscription.ProfileTags
+import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CoreLog
 import io.nekohasekai.sfa.utils.DnsOverride
 import io.nekohasekai.sfa.utils.SplitTunnel
@@ -136,6 +138,15 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             // Теги групп нужны сторожу для ступени «сменить сервер»: у чужого профиля они
             // называются иначе, чем у нашего, и зашивать их нельзя. scan внутри assembleConfig.
             val content = assembleConfig(rawContent)
+
+            // Старт-событие с контекстом — чтобы в журнале сразу было видно версию, телефон и
+            // какой профиль запущен. Это первое, что нужно при разборе присланного лога.
+            AppEventLog.log(
+                "старт",
+                "Howl ${BuildConfig.VERSION_NAME} · ${Build.MANUFACTURER} ${Build.MODEL} · " +
+                    "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}) · " +
+                    "профиль «${profile.name}» · автоподбор=${ProfileTags.auto ?: "нет"}",
+            )
 
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {

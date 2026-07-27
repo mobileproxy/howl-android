@@ -48,6 +48,7 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CoreLog
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -75,7 +76,7 @@ fun WatchdogScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(Settings.watchdogEnabled) }
     var log by remember { mutableStateOf(Settings.watchdogLog) }
-    var coreLogSize by remember { mutableStateOf(CoreLog.sizeBytes()) }
+    var coreLogSize by remember { mutableStateOf(CoreLog.sizeBytes() + AppEventLog.sizeBytes()) }
 
     Column(
         modifier = Modifier
@@ -178,7 +179,8 @@ fun WatchdogScreen(navController: NavController) {
                     TextButton(
                         onClick = {
                             CoreLog.clear()
-                            coreLogSize = CoreLog.sizeBytes()
+                            AppEventLog.clear()
+                            coreLogSize = CoreLog.sizeBytes() + AppEventLog.sizeBytes()
                         },
                         enabled = coreLogSize > 0,
                     ) {
@@ -243,12 +245,11 @@ fun WatchdogScreen(navController: NavController) {
 private suspend fun shareCoreLog(context: Context) {
     val prepared = withContext(Dispatchers.IO) {
         runCatching {
-            val target = File(context.cacheDir, "howl-core-log.txt")
-            target.outputStream().use { output ->
-                listOf(CoreLog.previousFile(), CoreLog.file())
-                    .filter { it.exists() }
-                    .forEach { part -> part.inputStream().use { it.copyTo(output) } }
-            }
+            // Единый журнал: события приложения (старт/сеть/сторож/узлы) + журнал ядра, слитые
+            // по времени в одну хронологию — так при разборе видно и что решало приложение, и
+            // что происходило в ядре, в одном потоке.
+            val target = File(context.cacheDir, "howl-log.txt")
+            target.writeText(AppEventLog.merged())
             target
         }.getOrNull()
     } ?: return

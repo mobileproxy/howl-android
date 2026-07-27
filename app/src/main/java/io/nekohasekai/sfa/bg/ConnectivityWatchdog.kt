@@ -9,6 +9,7 @@ import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
+import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CommandClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -505,6 +506,7 @@ object ConnectivityWatchdog {
                 // Принудительно на конкретный рабочий узел — уходим с залипшего.
                 client.selectOutbound(selector, candidate)
                 client.urlTest(selector)
+                AppEventLog.log("узел", "увёл на «$candidate» (был «${current ?: "?"}»)")
             } else {
                 // Узлов не знаем (один сервер / группы ещё не пришли) или все в ящике —
                 // отдаём выбор автоподбору с чистого листа.
@@ -574,5 +576,7 @@ object ConnectivityWatchdog {
         val lines = ("$stamp — $message").lineSequence().toList() +
             Settings.watchdogLog.lineSequence().filter { it.isNotBlank() }
         Settings.watchdogLog = lines.take(MAX_LOG_LINES).joinToString("\n")
+        // Дублируем в единый журнал (события + ядро сливаются на экране «Журнал»).
+        AppEventLog.log("сторож", message)
     }
 }

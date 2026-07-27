@@ -245,8 +245,8 @@
     <string name="watchdog">Connection watchdog</string>
     <string name="watchdog_description">Checks every minute that traffic really flows, and restores the connection if it stalls</string>
     <string name="watchdog_restart_note">The change takes effect the next time you connect.</string>
-    <string name="core_log">Core log</string>
-    <string name="core_log_description">The core writes its log to a file that survives reconnects — unlike the Logs screen, which starts over on every connect. Send this file if the connection misbehaves.</string>
+    <string name="core_log">Log</string>
+    <string name="core_log_description">App events (start, network, watchdog, servers) and the core log merged into one timeline that survives reconnects. Share it if the connection misbehaves — it is the fastest way to diagnose.</string>
     <string name="core_log_size">Collected: %1$s</string>
     <string name="watchdog_log_recovered">connection restored</string>
     <string name="watchdog_log_captive">Wi-Fi needs sign-in — the VPN cannot pass until you log in</string>
