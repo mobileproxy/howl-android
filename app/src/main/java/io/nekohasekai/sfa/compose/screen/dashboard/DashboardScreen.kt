@@ -176,7 +176,12 @@ fun DashboardScreen(
             onProfileEdit = viewModel::editProfile,
             onProfileDelete = viewModel::deleteProfile,
             onProfileMove = viewModel::moveProfile,
-            onAddProfile = { onOpenNewProfile(NewProfileArgs()) },
+            onAddProfile = {
+                // «+» в списке подписок ведёт на понятный универсальный лист «Добавить сервер»
+                // (буфер/ссылка/QR/файл/вручную), а не сразу в технический ручной конструктор.
+                viewModel.hideProfilePickerSheet()
+                viewModel.showAddProfileSheet()
+            },
             onDismiss = viewModel::hideProfilePickerSheet,
         )
     }
@@ -211,6 +216,18 @@ fun DashboardScreen(
         )
         return
     }
+
+    // Универсальное добавление сервера (буфер/ссылка/QR/файл/вручную) — единая точка входа,
+    // доступная прямо с главной. Раньше этот лист жил только внутри карточки «Профили», которой
+    // на главной нет, поэтому пользователь его не видел. Хостим ВСЕГДА (не под `if`), чтобы
+    // файловый launcher и состояние QR пережили закрытие самого листа. На remote-дэшборде лист
+    // по-прежнему рисует ProfilesCard (тот путь возвращается выше), двойного показа нет.
+    AddServerSheet(
+        visible = uiState.showAddProfileSheet,
+        onDismiss = viewModel::hideAddProfileSheet,
+        onOpenManual = onOpenNewProfile,
+        onImported = viewModel::editProfile,
+    )
 
     HowlHomeContent(
         uiState = uiState,

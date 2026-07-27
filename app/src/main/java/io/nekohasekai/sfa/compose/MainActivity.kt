@@ -1153,8 +1153,11 @@ class MainActivity :
             }
         }
 
-        // Groups ModalBottomSheet
-        if (showGroupsSheet && !useNavigationRail) {
+        // Groups ModalBottomSheet.
+        // Показываем и в rail-режиме (планшет/ландшафт): пункт «Серверы» боковой панели ставит
+        // showGroupsSheet=true, и раньше при `!useNavigationRail` лист не рисовался — кнопка была
+        // мёртвой. Тот же лист, что и на телефоне, — единообразно.
+        if (showGroupsSheet) {
             val groupsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val groupsViewModel: GroupsViewModel = viewModel(
                 factory = object : ViewModelProvider.Factory {
@@ -1205,7 +1208,10 @@ class MainActivity :
                                     // находил: этот экран показывает узлы, а не список подписок.
                                     IconButton(onClick = {
                                         showGroupsSheet = false
-                                        openNewProfile(NewProfileArgs())
+                                        // Понятный универсальный лист «Добавить сервер»
+                                        // (буфер/ссылка/QR/файл/вручную) вместо технического
+                                        // ручного конструктора.
+                                        dashboardViewModel.showAddProfileSheet()
                                     }) {
                                         Icon(
                                             imageVector = Icons.Default.Add,
@@ -1238,8 +1244,8 @@ class MainActivity :
             }
         }
 
-        // Connections ModalBottomSheet
-        if (showConnectionsSheet && !useNavigationRail) {
+        // Connections ModalBottomSheet — тоже доступен в rail-режиме (см. коммент к Groups выше).
+        if (showConnectionsSheet) {
             val connectionsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             val connectionsViewModel: ConnectionsViewModel = viewModel()
             val connectionsUiState by connectionsViewModel.uiState.collectAsState()
