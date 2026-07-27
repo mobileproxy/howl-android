@@ -797,7 +797,13 @@ class MainActivity :
         // восстановление состояния и Настройки снова открывались на Логах, из которых
         // пользователь как раз и пытался выйти.
         val onNavigationItemClick: (String) -> Unit = { route ->
-            if (currentRootRoute == route && currentRoute != route) {
+            if (route == Screen.Groups.route) {
+                // «Серверы» открывают ТУ ЖЕ всплывающую панель, что и селектор сервера на
+                // главной — чтобы список серверов везде выглядел одинаково. Раньше пункт вёл на
+                // отдельный полноэкранный экран с другим оформлением (топбар, без кнопки «+»),
+                // и это выглядело как «другой» экран серверов.
+                showGroupsSheet = true
+            } else if (currentRootRoute == route && currentRoute != route) {
                 navController.popBackStack(route, inclusive = false)
             } else {
                 navController.navigate(route) {
