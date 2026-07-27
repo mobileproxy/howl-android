@@ -147,13 +147,16 @@ fun GroupsCard(
         actualViewModel.updateServiceStatus(serviceStatus)
     }
 
-    // Show snackbar when needed
+    // Show snackbar when needed. Строки берём заранее — stringResource нельзя звать внутри
+    // LaunchedEffect (не @Composable), а хардкод «Close all connections?» не переводился.
+    val closeConnectionsMessage = stringResource(R.string.close_connections_confirm)
+    val closeActionLabel = stringResource(R.string.close)
     LaunchedEffect(uiState.showCloseConnectionsSnackbar) {
         if (uiState.showCloseConnectionsSnackbar) {
             val result =
                 snackbarHostState.showSnackbar(
-                    message = "Close all connections?",
-                    actionLabel = "Close",
+                    message = closeConnectionsMessage,
+                    actionLabel = closeActionLabel,
                     duration = androidx.compose.material3.SnackbarDuration.Indefinite,
                     withDismissAction = true,
                 )
@@ -259,7 +262,7 @@ private fun GroupsCardContent(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "No groups available",
+                            text = stringResource(R.string.no_groups),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -389,7 +392,7 @@ private fun ProxyGroupItem(
 
                             Icon(
                                 imageVector = Icons.Default.ExpandMore,
-                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                contentDescription = if (isExpanded) stringResource(R.string.collapse) else stringResource(R.string.expand),
                                 modifier =
                                 Modifier
                                     .size(24.dp)

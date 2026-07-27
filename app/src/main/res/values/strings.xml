@@ -47,15 +47,16 @@
     <string name="default_text">Default</string>
 
     <!-- Navigation Titles -->
-    <string name="title_dashboard">Dashboard</string>
-    <string name="title_configuration">Profiles</string>
+    <string name="title_dashboard">Home</string>
+    <string name="title_configuration">Servers</string>
     <string name="title_log">Logs</string>
     <string name="title_settings">Settings</string>
     <string name="title_app_settings">App</string>
     <string name="title_new_profile">New Profile</string>
     <string name="title_edit_profile">Edit Profile</string>
     <string name="title_edit_configuration">Edit Configuration</string>
-    <string name="title_groups">Servers</string>
+    <string name="title_groups">Locations</string>
+    <string name="no_groups">No locations available</string>
     <string name="title_debug">Debug</string>
     <string name="title_connections">Connections</string>
     <string name="title_others">Others</string>
@@ -126,8 +127,8 @@
     <string name="connection_package_name">Package Name</string>
 
     <!-- Profiles -->
-    <string name="no_profiles">No profiles configured</string>
-    <string name="add_profile">Add Profile</string>
+    <string name="no_profiles">No servers yet</string>
+    <string name="add_profile">Add server</string>
     <string name="add_server_title">Add a server</string>
     <string name="add_server_subtitle">Choose where the server details come from — the app detects the format itself.</string>
     <string name="add_server_paste">Paste from clipboard</string>
@@ -144,8 +145,8 @@
     <string name="add_server_clipboard_empty">Clipboard is empty — copy a server link or config first.</string>
     <string name="add_server_empty">Nothing to import — the text is empty.</string>
     <string name="add_server_imported">Imported</string>
-    <string name="delete_profile_confirm_title">Delete profile?</string>
-    <string name="delete_profile_confirm_message">Profile «%1$s» will be permanently removed. This cannot be undone.</string>
+    <string name="delete_profile_confirm_title">Delete server?</string>
+    <string name="delete_profile_confirm_message">Server «%1$s» will be permanently removed. This cannot be undone.</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>

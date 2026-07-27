@@ -121,7 +121,6 @@ fun DnsSettingsScreen(navController: NavController, serviceStatus: Status = Stat
                                 savedMessage = null
                             },
                         )
-                        Spacer(modifier = Modifier.height(0.dp))
                         Text(
                             text = label,
                             style = MaterialTheme.typography.bodyLarge,

@@ -48,14 +48,15 @@
 
     <!-- Navigation Titles -->
     <string name="title_dashboard">Главная</string>
-    <string name="title_configuration">Профили</string>
+    <string name="title_configuration">Серверы</string>
     <string name="title_log">Логи</string>
     <string name="title_settings">Настройки</string>
     <string name="title_app_settings">Приложение</string>
     <string name="title_new_profile">Новый профиль</string>
     <string name="title_edit_profile">Редактировать профиль</string>
     <string name="title_edit_configuration">Редактировать конфигурацию</string>
-    <string name="title_groups">Серверы</string>
+    <string name="title_groups">Локации</string>
+    <string name="no_groups">Нет доступных локаций</string>
     <string name="title_debug">Отладка</string>
     <string name="title_connections">Соединения</string>
     <string name="title_others">Другое</string>
@@ -126,8 +127,8 @@
     <string name="connection_package_name">Название пакета</string>
 
     <!-- Profiles -->
-    <string name="no_profiles">Профили не настроены</string>
-    <string name="add_profile">Добавить профиль</string>
+    <string name="no_profiles">Серверы не добавлены</string>
+    <string name="add_profile">Добавить сервер</string>
     <string name="add_server_title">Добавить сервер</string>
     <string name="add_server_subtitle">Выберите, откуда взять данные сервера — формат приложение определит само.</string>
     <string name="add_server_paste">Вставить из буфера</string>
@@ -144,8 +145,8 @@
     <string name="add_server_clipboard_empty">Буфер обмена пуст — сначала скопируйте ссылку или конфиг сервера.</string>
     <string name="add_server_empty">Нечего импортировать — текст пуст.</string>
     <string name="add_server_imported">Импортированный</string>
-    <string name="delete_profile_confirm_title">Удалить профиль?</string>
-    <string name="delete_profile_confirm_message">Профиль «%1$s» будет удалён безвозвратно.</string>
+    <string name="delete_profile_confirm_title">Удалить сервер?</string>
+    <string name="delete_profile_confirm_message">Сервер «%1$s» будет удалён безвозвратно.</string>
     <string name="update_profile">Обновить профиль</string>
     <string name="import_remote_profile">Импортировать удалённый профиль</string>
     <string name="import_remote_profile_message">Импортировать удалённый профиль %1$s? Для загрузки конфигурации будет установлено соединение с %2$s.</string>

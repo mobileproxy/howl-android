@@ -69,6 +69,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -423,10 +424,10 @@ class MainActivity :
         }
 
         // Groups Sheet state
-        var showGroupsSheet by remember { mutableStateOf(false) }
+        var showGroupsSheet by rememberSaveable { mutableStateOf(false) }
 
         // Connections Sheet state
-        var showConnectionsSheet by remember { mutableStateOf(false) }
+        var showConnectionsSheet by rememberSaveable { mutableStateOf(false) }
 
         // Error dialog state for UiEvent.ShowError
         val pendingIntentError = pendingIntentErrorMessage
