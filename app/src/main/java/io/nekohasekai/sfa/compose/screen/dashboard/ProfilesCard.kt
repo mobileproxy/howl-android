@@ -34,7 +34,6 @@ import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FileUpload
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -43,8 +42,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,7 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,10 +65,7 @@ import io.nekohasekai.libbox.ProfileContent
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.component.qr.QRCodeDialog
 import io.nekohasekai.sfa.compose.component.qr.QRSDialog
-import io.nekohasekai.sfa.compose.component.qr.QRScanSheet
 import io.nekohasekai.sfa.compose.navigation.NewProfileArgs
-import io.nekohasekai.sfa.compose.screen.configuration.ProfileImportHandler
-import io.nekohasekai.sfa.compose.screen.qrscan.QRScanResult
 import io.nekohasekai.sfa.compose.util.QRCodeGenerator
 import io.nekohasekai.sfa.compose.util.RelativeTimeFormatter
 import io.nekohasekai.sfa.database.Profile
@@ -111,63 +104,12 @@ fun ProfilesCard(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    val importHandler = remember { ProfileImportHandler(context) }
-
     var showQRCodeDialog by remember { mutableStateOf(false) }
     var qrCodeProfile by remember { mutableStateOf<Profile?>(null) }
 
     var showQRSDialog by remember { mutableStateOf(false) }
     var qrsProfile by remember { mutableStateOf<Profile?>(null) }
     var qrsProfileData by remember { mutableStateOf<ByteArray?>(null) }
-
-    var showImportConfirmDialog by remember { mutableStateOf(false) }
-    var pendingImportName by remember { mutableStateOf<String?>(null) }
-    var pendingQrsData by remember { mutableStateOf<ByteArray?>(null) }
-    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
-
-    var showQRScanSheet by remember { mutableStateOf(false) }
-    var showLinkDialog by remember { mutableStateOf(false) }
-    var linkText by remember { mutableStateOf("") }
-    val clipboardManager = LocalClipboardManager.current
-
-    // Импорт из произвольного текста — из буфера или из поля «по ссылке». Тип (подписка/
-    // одиночный сервер/JSON) определяет сам importFromText, пользователю выбирать не нужно.
-    val importText: (String) -> Unit = { text ->
-        coroutineScope.launch {
-            when (val result = importHandler.importFromText(text)) {
-                is ProfileImportHandler.ImportResult.Success ->
-                    withContext(Dispatchers.Main) { onProfileEdit(result.profile) }
-                is ProfileImportHandler.ImportResult.Error ->
-                    withContext(Dispatchers.Main) {
-                        context.errorDialogBuilder(Exception(result.message)).show()
-                    }
-            }
-        }
-    }
-
-    val importFromFileLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.GetContent(),
-        ) { uri ->
-            uri?.let {
-                coroutineScope.launch {
-                    when (val parseResult = importHandler.parseUri(uri)) {
-                        is ProfileImportHandler.UriParseResult.Success -> {
-                            withContext(Dispatchers.Main) {
-                                pendingImportName = parseResult.name
-                                pendingImportUri = uri
-                                showImportConfirmDialog = true
-                            }
-                        }
-                        is ProfileImportHandler.UriParseResult.Error -> {
-                            withContext(Dispatchers.Main) {
-                                context.errorDialogBuilder(Exception(parseResult.message)).show()
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
     val saveFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -393,134 +335,15 @@ fun ProfilesCard(
         )
     }
 
-    if (showAddProfileSheet) {
-        ModalBottomSheet(
-            onDismissRequest = onHideAddProfileSheet,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.add_server_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                )
-                Text(
-                    text = stringResource(R.string.add_server_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp),
-                )
-
-                // ★ Способы ВВОДА, а не технический «тип/источник». Что именно вставлено —
-                // подписка, одиночный сервер или sing-box JSON — определяет importFromText сам.
-                // Порядок по частоте: из буфера (сервис даёт ссылку — скопировал и вставил) и по
-                // ссылке — самые ходовые, поэтому вверху.
-
-                ListItem(
-                    modifier = Modifier.clickable {
-                        onHideAddProfileSheet()
-                        val text = clipboardManager.getText()?.text.orEmpty()
-                        if (text.isBlank()) {
-                            context.errorDialogBuilder(
-                                Exception(context.getString(R.string.add_server_clipboard_empty)),
-                            ).show()
-                        } else {
-                            importText(text)
-                        }
-                    },
-                    leadingContent = {
-                        Icon(Icons.Outlined.ContentPaste, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    headlineContent = { Text(stringResource(R.string.add_server_paste)) },
-                    supportingContent = { Text(stringResource(R.string.add_server_paste_desc)) },
-                )
-
-                ListItem(
-                    modifier = Modifier.clickable {
-                        linkText = ""
-                        showLinkDialog = true
-                    },
-                    leadingContent = {
-                        Icon(Icons.Outlined.Link, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    headlineContent = { Text(stringResource(R.string.add_server_link)) },
-                    supportingContent = { Text(stringResource(R.string.add_server_link_desc)) },
-                )
-
-                ListItem(
-                    modifier = Modifier.clickable {
-                        onHideAddProfileSheet()
-                        showQRScanSheet = true
-                    },
-                    leadingContent = {
-                        Icon(Icons.Outlined.QrCodeScanner, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    headlineContent = { Text(stringResource(R.string.add_server_qr)) },
-                    supportingContent = { Text(stringResource(R.string.add_server_qr_desc)) },
-                )
-
-                ListItem(
-                    modifier = Modifier.clickable {
-                        onHideAddProfileSheet()
-                        importFromFileLauncher.launch("*/*")
-                    },
-                    leadingContent = {
-                        Icon(Icons.Outlined.FileUpload, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    headlineContent = { Text(stringResource(R.string.add_server_file)) },
-                    supportingContent = { Text(stringResource(R.string.add_server_file_desc)) },
-                )
-
-                ListItem(
-                    modifier = Modifier.clickable {
-                        onHideAddProfileSheet()
-                        onOpenNewProfile(NewProfileArgs())
-                    },
-                    leadingContent = {
-                        Icon(Icons.Outlined.CreateNewFolder, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    headlineContent = { Text(stringResource(R.string.add_server_manual)) },
-                    supportingContent = { Text(stringResource(R.string.add_server_manual_desc)) },
-                )
-            }
-        }
-    }
-
-    if (showLinkDialog) {
-        AlertDialog(
-            onDismissRequest = { showLinkDialog = false },
-            title = { Text(stringResource(R.string.add_server_link)) },
-            text = {
-                OutlinedTextField(
-                    value = linkText,
-                    onValueChange = { linkText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.add_server_link_hint)) },
-                    placeholder = { Text("https://…   vless://…") },
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val t = linkText.trim()
-                        showLinkDialog = false
-                        onHideAddProfileSheet()
-                        if (t.isNotEmpty()) importText(t)
-                    },
-                ) { Text(stringResource(R.string.import_action)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLinkDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
+    // Единый лист «Добавить сервер» — тот же AddServerSheet, что и на главной (дедуп: раньше
+    // ProfilesCard держала свою копию ~250 строк). На remote ProfilesCard композится, а host с
+    // главной — нет (тот путь возвращается раньше), поэтому двойного показа нет.
+    AddServerSheet(
+        visible = showAddProfileSheet,
+        onDismiss = onHideAddProfileSheet,
+        onOpenManual = onOpenNewProfile,
+        onImported = onProfileEdit,
+    )
 
     if (showQRCodeDialog && qrCodeProfile != null) {
         val profile = qrCodeProfile!!
@@ -554,137 +377,6 @@ fun ProfilesCard(
         )
     }
 
-    if (showImportConfirmDialog && pendingImportName != null) {
-        AlertDialog(
-            onDismissRequest = {
-                showImportConfirmDialog = false
-                pendingImportName = null
-                pendingQrsData = null
-                pendingImportUri = null
-            },
-            title = { Text(stringResource(R.string.import_profile_confirm_title)) },
-            text = { Text(stringResource(R.string.import_profile_confirm_message, pendingImportName!!)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showImportConfirmDialog = false
-                        val qrsData = pendingQrsData
-                        val importUri = pendingImportUri
-                        pendingImportName = null
-                        pendingQrsData = null
-                        pendingImportUri = null
-                        coroutineScope.launch {
-                            if (qrsData != null) {
-                                when (val result = importHandler.importFromQRSData(qrsData)) {
-                                    is ProfileImportHandler.ImportResult.Success -> {
-                                        withContext(Dispatchers.Main) {
-                                            onProfileEdit(result.profile)
-                                        }
-                                    }
-                                    is ProfileImportHandler.ImportResult.Error -> {
-                                        withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(Exception(result.message)).show()
-                                        }
-                                    }
-                                }
-                            } else if (importUri != null) {
-                                when (val result = importHandler.importFromUri(importUri)) {
-                                    is ProfileImportHandler.ImportResult.Success -> {
-                                        withContext(Dispatchers.Main) {
-                                            onProfileEdit(result.profile)
-                                        }
-                                    }
-                                    is ProfileImportHandler.ImportResult.Error -> {
-                                        withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(Exception(result.message)).show()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                ) {
-                    Text(stringResource(R.string.import_action))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showImportConfirmDialog = false
-                        pendingImportName = null
-                        pendingQrsData = null
-                        pendingImportUri = null
-                    },
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
-    if (showQRScanSheet) {
-        QRScanSheet(
-            onDismiss = { showQRScanSheet = false },
-            onScanResult = { result ->
-                showQRScanSheet = false
-                when (result) {
-                    is QRScanResult.QRSData -> {
-                        coroutineScope.launch {
-                            when (val parseResult = importHandler.parseQRSData(result.data)) {
-                                is ProfileImportHandler.QRSParseResult.Success -> {
-                                    withContext(Dispatchers.Main) {
-                                        pendingImportName = parseResult.name
-                                        pendingQrsData = result.data
-                                        showImportConfirmDialog = true
-                                    }
-                                }
-                                is ProfileImportHandler.QRSParseResult.Error -> {
-                                    withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(Exception(parseResult.message)).show()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    is QRScanResult.RemoteProfile -> {
-                        coroutineScope.launch {
-                            when (val parseResult = importHandler.parseQRCode(result.uri.toString())) {
-                                is ProfileImportHandler.QRCodeParseResult.RemoteProfile -> {
-                                    withContext(Dispatchers.Main) {
-                                        onOpenNewProfile(
-                                            NewProfileArgs(
-                                                importName = parseResult.name,
-                                                importUrl = parseResult.url,
-                                            ),
-                                        )
-                                    }
-                                }
-                                is ProfileImportHandler.QRCodeParseResult.LocalProfile -> {
-                                    when (val importResult = importHandler.importFromQRCode(result.uri.toString())) {
-                                        is ProfileImportHandler.ImportResult.Success -> {
-                                            withContext(Dispatchers.Main) {
-                                                onProfileEdit(importResult.profile)
-                                            }
-                                        }
-                                        is ProfileImportHandler.ImportResult.Error -> {
-                                            withContext(Dispatchers.Main) {
-                                                context.errorDialogBuilder(Exception(importResult.message)).show()
-                                            }
-                                        }
-                                    }
-                                }
-                                is ProfileImportHandler.QRCodeParseResult.Error -> {
-                                    withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(Exception(parseResult.message)).show()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        )
-    }
 }
 
 private suspend fun createProfileContent(profile: Profile): ByteArray {
