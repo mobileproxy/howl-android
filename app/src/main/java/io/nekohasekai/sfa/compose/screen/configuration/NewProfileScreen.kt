@@ -398,6 +398,17 @@ fun NewProfileScreen(
                             }
                         }
 
+                        // Раньше «Создать новый» молча отдавал пустой {} без объяснений — подсказываем.
+                        AnimatedVisibility(
+                            visible = uiState.profileSource == ProfileSource.CreateNew,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.profile_source_create_new_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
                         AnimatedVisibility(
                             visible = uiState.profileSource == ProfileSource.Import,
                         ) {

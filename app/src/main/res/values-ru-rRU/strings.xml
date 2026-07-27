@@ -155,6 +155,7 @@
     <string name="settings_section_app">Приложение</string>
     <string name="settings_section_connection">Соединение</string>
     <string name="settings_section_advanced">Дополнительно</string>
+    <string name="profile_source_create_new_hint">Создастся пустой профиль — откройте редактор JSON и вставьте конфиг sing-box или заполните вручную.</string>
     <string name="update_profile">Обновить профиль</string>
     <string name="import_remote_profile">Импортировать удалённый профиль</string>
     <string name="import_remote_profile_message">Импортировать удалённый профиль %1$s? Для загрузки конфигурации будет установлено соединение с %2$s.</string>
