@@ -2,12 +2,10 @@ package io.nekohasekai.sfa.compose.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
@@ -44,14 +42,6 @@ private val DarkColorScheme =
         inverseOnSurface = Ink,
     )
 
-private val LightColorScheme =
-    lightColorScheme(
-        primary = SingBoxPrimary,
-        onPrimary = Ink,
-        secondary = SingBoxPrimaryDark,
-        tertiary = SingBoxPrimary,
-    )
-
 @Composable
 fun SFATheme(
     darkTheme: Boolean = true, // Howl — всегда тёмная ink-тема (премиум-бренд)
@@ -67,7 +57,9 @@ fun SFATheme(
             }
 
             darkTheme -> DarkColorScheme
-            else -> LightColorScheme
+            // Howl всегда тёмная (ink-бренд). Раньше было `else -> LightColorScheme`, где светлая
+            // схема описана лишь на треть — латентная бомба при случайном включении. Форсим тёмную.
+            else -> DarkColorScheme
         }
 
     val view = LocalView.current

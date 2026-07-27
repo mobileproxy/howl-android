@@ -343,7 +343,7 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
         val statusIconTint =
             when {
                 hasPendingDowngrade -> MaterialTheme.colorScheme.error
-                hasPendingUpdate -> Color(0xFFFFC107)
+                hasPendingUpdate -> io.nekohasekai.sfa.compose.theme.WarningOrange
                 isLsposedActivated -> MaterialTheme.colorScheme.primary
                 else -> MaterialTheme.colorScheme.error
             }
@@ -896,7 +896,7 @@ private fun SelfTestDialog(isRunning: Boolean, result: DetectionResult?, onDismi
                             Text(
                                 text = notDetectedText,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF4CAF50),
+                                color = io.nekohasekai.sfa.compose.theme.SuccessGreen,
                             )
                         } else {
                             Text(
@@ -932,7 +932,7 @@ private fun SelfTestDialog(isRunning: Boolean, result: DetectionResult?, onDismi
                             Text(
                                 text = notDetectedText,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF4CAF50),
+                                color = io.nekohasekai.sfa.compose.theme.SuccessGreen,
                             )
                         } else {
                             Text(

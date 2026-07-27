@@ -35,15 +35,11 @@ fun ProfileSelectorButton(selectedProfile: Profile?, onClick: () -> Unit, modifi
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(48.dp),
         shape = RoundedCornerShape(12.dp),
-        color = if (isSystemInDarkTheme()) {
-            lerp(
-                MaterialTheme.colorScheme.surfaceContainerHighest,
-                MaterialTheme.colorScheme.surfaceContainerHigh,
-                0.5f,
-            )
-        } else {
-            MaterialTheme.colorScheme.surfaceDim
-        },
+        color = lerp(
+            MaterialTheme.colorScheme.surfaceContainerHighest,
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+            0.5f,
+        ),
     ) {
         Row(
             modifier = Modifier

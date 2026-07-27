@@ -47,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.theme.WarningOrange
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.update.UpdateState
@@ -332,7 +333,7 @@ fun SettingsScreen(navController: NavController) {
                                 if (hasPendingPrivilegeDowngrade) {
                                     Badge(containerColor = MaterialTheme.colorScheme.error)
                                 } else if (hasPendingPrivilegeUpdate) {
-                                    Badge(containerColor = Color(0xFFFFC107))
+                                    Badge(containerColor = WarningOrange)
                                 }
                                 NavChevron()
                             }

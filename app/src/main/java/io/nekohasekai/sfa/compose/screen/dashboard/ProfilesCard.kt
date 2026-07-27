@@ -270,15 +270,11 @@ fun ProfilesCard(
                 Surface(
                     onClick = onShowAddProfileSheet,
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isSystemInDarkTheme()) {
-                        lerp(
-                            MaterialTheme.colorScheme.surfaceContainerHighest,
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            0.5f,
-                        )
-                    } else {
-                        MaterialTheme.colorScheme.surfaceDim
-                    },
+                    color = lerp(
+                        MaterialTheme.colorScheme.surfaceContainerHighest,
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        0.5f,
+                    ),
                     modifier = Modifier.size(44.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -829,15 +825,11 @@ private fun ActionButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
-        color = if (isSystemInDarkTheme()) {
-            lerp(
-                MaterialTheme.colorScheme.surfaceContainerHighest,
-                MaterialTheme.colorScheme.surfaceContainerHigh,
-                0.5f,
-            )
-        } else {
-            MaterialTheme.colorScheme.surfaceDim
-        },
+        color = lerp(
+            MaterialTheme.colorScheme.surfaceContainerHighest,
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+            0.5f,
+        ),
         modifier = Modifier.size(44.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {

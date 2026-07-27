@@ -128,11 +128,7 @@ private fun ModeDropdown(modes: List<String>, selectedMode: String, onModeSelect
         Surface(
             onClick = { expanded = true },
             shape = RoundedCornerShape(12.dp),
-            color = if (isSystemInDarkTheme()) {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.surfaceDim
-            },
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(

@@ -333,24 +333,16 @@ private fun ProfilePickerRow(
         shape = RoundedCornerShape(8.dp),
         color = when {
             isDragging -> MaterialTheme.colorScheme.tertiaryContainer
-            isSelected -> if (isSystemInDarkTheme()) {
-                lerp(
-                    MaterialTheme.colorScheme.surfaceContainerLow,
-                    MaterialTheme.colorScheme.surfaceContainerHigh,
-                    0.5f,
-                )
-            } else {
-                MaterialTheme.colorScheme.surfaceDim
-            }
-            else -> if (isSystemInDarkTheme()) {
-                lerp(
-                    MaterialTheme.colorScheme.surfaceContainerLow,
-                    MaterialTheme.colorScheme.surfaceContainerHigh,
-                    0.35f,
-                )
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-            }
+            isSelected -> lerp(
+                MaterialTheme.colorScheme.surfaceContainerLow,
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                0.5f,
+            )
+            else -> lerp(
+                MaterialTheme.colorScheme.surfaceContainerLow,
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                0.35f,
+            )
         },
         tonalElevation = animatedElevation.dp,
     ) {
