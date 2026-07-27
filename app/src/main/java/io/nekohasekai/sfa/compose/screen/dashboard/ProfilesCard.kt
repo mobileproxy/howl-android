@@ -26,8 +26,8 @@ import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.CreateNewFolder
@@ -462,7 +462,7 @@ fun ProfilesCard(
                         showQRScanSheet = true
                     },
                     leadingContent = {
-                        Icon(Icons.Default.QrCodeScanner, null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Outlined.QrCodeScanner, null, tint = MaterialTheme.colorScheme.primary)
                     },
                     headlineContent = { Text(stringResource(R.string.add_server_qr)) },
                     supportingContent = { Text(stringResource(R.string.add_server_qr_desc)) },

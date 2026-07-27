@@ -144,6 +144,8 @@
     <string name="add_server_clipboard_empty">Буфер обмена пуст — сначала скопируйте ссылку или конфиг сервера.</string>
     <string name="add_server_empty">Нечего импортировать — текст пуст.</string>
     <string name="add_server_imported">Импортированный</string>
+    <string name="delete_profile_confirm_title">Удалить профиль?</string>
+    <string name="delete_profile_confirm_message">Профиль «%1$s» будет удалён безвозвратно.</string>
     <string name="update_profile">Обновить профиль</string>
     <string name="import_remote_profile">Импортировать удалённый профиль</string>
     <string name="import_remote_profile_message">Импортировать удалённый профиль %1$s? Для загрузки конфигурации будет установлено соединение с %2$s.</string>

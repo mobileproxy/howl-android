@@ -37,8 +37,10 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -246,8 +248,38 @@ private fun ProfilePickerRow(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var expandedShareSubmenu by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Удаление профиля безвозвратно (стирает настроенную подписку/сервер), поэтому спрашиваем
+    // подтверждение. Раньше тап по «Удалить» в меню (рядом с «Изменить»/«Поделиться») стирал
+    // сразу — промах пальцем терял сервер.
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.delete_profile_confirm_title)) },
+            text = { Text(stringResource(R.string.delete_profile_confirm_message, profile.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.menu_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 
     val animatedElevation by animateFloatAsState(
         targetValue = when {
@@ -499,7 +531,7 @@ private fun ProfilePickerRow(
                             },
                             onClick = {
                                 showMenu = false
-                                onDelete()
+                                showDeleteConfirm = true
                             },
                             leadingIcon = {
                                 Icon(

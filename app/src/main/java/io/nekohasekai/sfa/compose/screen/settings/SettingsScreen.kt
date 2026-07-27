@@ -3,6 +3,7 @@ package io.nekohasekai.sfa.compose.screen.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Description
@@ -36,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -110,8 +113,11 @@ fun SettingsScreen(navController: NavController) {
                         )
                     },
                     trailingContent = {
-                        if (hasUpdate) {
-                            Badge(containerColor = MaterialTheme.colorScheme.primary)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (hasUpdate) {
+                                Badge(containerColor = MaterialTheme.colorScheme.primary)
+                            }
+                            NavChevron()
                         }
                     },
                     modifier =
@@ -148,6 +154,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier = Modifier.clickable { navController.navigate("settings/watchdog") },
                     colors =
                     ListItemDefaults.colors(
@@ -169,6 +176,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier = Modifier.clickable { navController.navigate("settings/dns") },
                     colors =
                     ListItemDefaults.colors(
@@ -190,6 +198,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier = Modifier.clickable { navController.navigate("settings/auto_connect") },
                     colors =
                     ListItemDefaults.colors(
@@ -211,6 +220,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier = Modifier.clickable { navController.navigate("settings/background_work") },
                     colors =
                     ListItemDefaults.colors(
@@ -232,6 +242,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier = Modifier.clickable { navController.navigate("settings/kill_switch") },
                     colors =
                     ListItemDefaults.colors(
@@ -254,6 +265,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier = Modifier.clickable { navController.navigate("log") },
                     colors =
                     ListItemDefaults.colors(
@@ -275,6 +287,7 @@ fun SettingsScreen(navController: NavController) {
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     },
+                    trailingContent = { NavChevron() },
                     modifier =
                     Modifier
                         .then(
@@ -315,10 +328,13 @@ fun SettingsScreen(navController: NavController) {
                             )
                         },
                         trailingContent = {
-                            if (hasPendingPrivilegeDowngrade) {
-                                Badge(containerColor = MaterialTheme.colorScheme.error)
-                            } else if (hasPendingPrivilegeUpdate) {
-                                Badge(containerColor = Color(0xFFFFC107))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (hasPendingPrivilegeDowngrade) {
+                                    Badge(containerColor = MaterialTheme.colorScheme.error)
+                                } else if (hasPendingPrivilegeUpdate) {
+                                    Badge(containerColor = Color(0xFFFFC107))
+                                }
+                                NavChevron()
                             }
                         },
                         modifier =
@@ -336,4 +352,15 @@ fun SettingsScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+// Единый шеврон «›» для строк-настроек, которые ведут на отдельный экран. Раньше в главном меню
+// настроек его не было, а на под-экранах был — подсказка «тапни → перейдёшь» выглядела случайной.
+@Composable
+private fun NavChevron() {
+    Icon(
+        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

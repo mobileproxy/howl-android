@@ -144,6 +144,8 @@
     <string name="add_server_clipboard_empty">Clipboard is empty — copy a server link or config first.</string>
     <string name="add_server_empty">Nothing to import — the text is empty.</string>
     <string name="add_server_imported">Imported</string>
+    <string name="delete_profile_confirm_title">Delete profile?</string>
+    <string name="delete_profile_confirm_message">Profile «%1$s» will be permanently removed. This cannot be undone.</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>
