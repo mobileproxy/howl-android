@@ -37,6 +37,7 @@ import io.nekohasekai.sfa.compose.screen.settings.RemoteControlScreen
 import io.nekohasekai.sfa.compose.screen.settings.ServiceSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.SettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.AutoConnectScreen
+import io.nekohasekai.sfa.compose.screen.settings.BackgroundWorkScreen
 import io.nekohasekai.sfa.compose.screen.settings.DnsSettingsScreen
 import io.nekohasekai.sfa.compose.screen.settings.KillSwitchScreen
 import io.nekohasekai.sfa.compose.screen.settings.SplitTunnelScreen
@@ -328,6 +329,16 @@ fun SFANavHost(
             popExitTransition = slideOutToRight,
         ) {
             AutoConnectScreen(navController = navController)
+        }
+
+        composable(
+            route = "settings/background_work",
+            enterTransition = slideInFromRight,
+            exitTransition = slideOutToLeft,
+            popEnterTransition = slideInFromLeft,
+            popExitTransition = slideOutToRight,
+        ) {
+            BackgroundWorkScreen(navController = navController)
         }
 
         composable(

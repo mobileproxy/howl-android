@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.AlertDialog
@@ -1203,20 +1204,35 @@ class MainActivity :
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                if (groupsUiState.groups.isNotEmpty()) {
-                                    IconButton(onClick = { groupsViewModel.toggleAllGroups() }) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // «+» — добавить сторонний профиль/подписку прямо отсюда.
+                                    // Раньше добавление было доступно только в списке профилей
+                                    // (при отключённом VPN), и подключённый пользователь его не
+                                    // находил: этот экран показывает узлы, а не список подписок.
+                                    IconButton(onClick = {
+                                        showGroupsSheet = false
+                                        openNewProfile(NewProfileArgs())
+                                    }) {
                                         Icon(
-                                            imageVector = if (allCollapsed) {
-                                                Icons.Default.UnfoldMore
-                                            } else {
-                                                Icons.Default.UnfoldLess
-                                            },
-                                            contentDescription = if (allCollapsed) {
-                                                stringResource(R.string.expand_all)
-                                            } else {
-                                                stringResource(R.string.collapse_all)
-                                            },
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = stringResource(R.string.add_profile),
                                         )
+                                    }
+                                    if (groupsUiState.groups.isNotEmpty()) {
+                                        IconButton(onClick = { groupsViewModel.toggleAllGroups() }) {
+                                            Icon(
+                                                imageVector = if (allCollapsed) {
+                                                    Icons.Default.UnfoldMore
+                                                } else {
+                                                    Icons.Default.UnfoldLess
+                                                },
+                                                contentDescription = if (allCollapsed) {
+                                                    stringResource(R.string.expand_all)
+                                                } else {
+                                                    stringResource(R.string.collapse_all)
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
