@@ -345,6 +345,28 @@ class ProfileImportHandler(private val context: Context) {
         }
     }
 
+    /**
+     * Универсальный импорт из произвольного текста — то, что человек вставил из буфера или ввёл
+     * в поле «по ссылке». Тип определяем САМИ, чтобы не заставлять выбирать:
+     *   • http(s)-ссылка → удалённый профиль (подписка, будет обновляться);
+     *   • всё остальное (vless://…, base64-список, sing-box JSON) → локальный, через конвертер.
+     */
+    suspend fun importFromText(rawText: String): ImportResult = withContext(Dispatchers.IO) {
+        val text = rawText.trim()
+        if (text.isEmpty()) {
+            return@withContext ImportResult.Error(context.getString(R.string.add_server_empty))
+        }
+        if (text.startsWith("http://", true) || text.startsWith("https://", true)) {
+            val name = extractProfileNameFromUrl(text)
+            return@withContext importRemoteProfile(name, text)
+        }
+        // Имя профиля — из #фрагмента первой ссылки, иначе общее. Имена локаций внутри всё равно
+        // проставит конвертер, здесь важно лишь имя самого профиля.
+        val name = text.substringAfterLast('#', "").trim()
+            .ifEmpty { context.getString(R.string.add_server_imported) }
+        importJsonConfiguration(text, name)
+    }
+
     private suspend fun importJsonConfiguration(jsonContent: String, profileName: String): ImportResult {
         return try {
             // Валидация ядром + разбор подписки-списка ссылок, если это не sing-box JSON.

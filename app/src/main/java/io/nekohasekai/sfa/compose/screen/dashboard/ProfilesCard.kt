@@ -29,7 +29,9 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material3.AlertDialog
@@ -42,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -122,6 +126,24 @@ fun ProfilesCard(
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
 
     var showQRScanSheet by remember { mutableStateOf(false) }
+    var showLinkDialog by remember { mutableStateOf(false) }
+    var linkText by remember { mutableStateOf("") }
+    val clipboardManager = LocalClipboardManager.current
+
+    // Импорт из произвольного текста — из буфера или из поля «по ссылке». Тип (подписка/
+    // одиночный сервер/JSON) определяет сам importFromText, пользователю выбирать не нужно.
+    val importText: (String) -> Unit = { text ->
+        coroutineScope.launch {
+            when (val result = importHandler.importFromText(text)) {
+                is ProfileImportHandler.ImportResult.Success ->
+                    withContext(Dispatchers.Main) { onProfileEdit(result.profile) }
+                is ProfileImportHandler.ImportResult.Error ->
+                    withContext(Dispatchers.Main) {
+                        context.errorDialogBuilder(Exception(result.message)).show()
+                    }
+            }
+        }
+    }
 
     val importFromFileLauncher =
         rememberLauncherForActivityResult(
@@ -387,29 +409,51 @@ fun ProfilesCard(
                     .padding(bottom = 32.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.add_profile),
+                    text = stringResource(R.string.add_server_title),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                 )
+                Text(
+                    text = stringResource(R.string.add_server_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 8.dp),
+                )
+
+                // ★ Способы ВВОДА, а не технический «тип/источник». Что именно вставлено —
+                // подписка, одиночный сервер или sing-box JSON — определяет importFromText сам.
+                // Порядок по частоте: из буфера (сервис даёт ссылку — скопировал и вставил) и по
+                // ссылке — самые ходовые, поэтому вверху.
 
                 ListItem(
                     modifier = Modifier.clickable {
                         onHideAddProfileSheet()
-                        importFromFileLauncher.launch("*/*")
+                        val text = clipboardManager.getText()?.text.orEmpty()
+                        if (text.isBlank()) {
+                            context.errorDialogBuilder(
+                                Exception(context.getString(R.string.add_server_clipboard_empty)),
+                            ).show()
+                        } else {
+                            importText(text)
+                        }
                     },
                     leadingContent = {
-                        Icon(
-                            imageVector = Icons.Outlined.FileUpload,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                        Icon(Icons.Outlined.ContentPaste, null, tint = MaterialTheme.colorScheme.primary)
                     },
-                    headlineContent = {
-                        Text(stringResource(R.string.profile_add_import_file))
+                    headlineContent = { Text(stringResource(R.string.add_server_paste)) },
+                    supportingContent = { Text(stringResource(R.string.add_server_paste_desc)) },
+                )
+
+                ListItem(
+                    modifier = Modifier.clickable {
+                        linkText = ""
+                        showLinkDialog = true
                     },
-                    supportingContent = {
-                        Text(stringResource(R.string.import_from_file_description))
+                    leadingContent = {
+                        Icon(Icons.Outlined.Link, null, tint = MaterialTheme.colorScheme.primary)
                     },
+                    headlineContent = { Text(stringResource(R.string.add_server_link)) },
+                    supportingContent = { Text(stringResource(R.string.add_server_link_desc)) },
                 )
 
                 ListItem(
@@ -418,18 +462,22 @@ fun ProfilesCard(
                         showQRScanSheet = true
                     },
                     leadingContent = {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                        Icon(Icons.Default.QrCodeScanner, null, tint = MaterialTheme.colorScheme.primary)
                     },
-                    headlineContent = {
-                        Text(stringResource(R.string.profile_add_scan_qr_code))
+                    headlineContent = { Text(stringResource(R.string.add_server_qr)) },
+                    supportingContent = { Text(stringResource(R.string.add_server_qr_desc)) },
+                )
+
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onHideAddProfileSheet()
+                        importFromFileLauncher.launch("*/*")
                     },
-                    supportingContent = {
-                        Text(stringResource(R.string.scan_qr_code_description))
+                    leadingContent = {
+                        Icon(Icons.Outlined.FileUpload, null, tint = MaterialTheme.colorScheme.primary)
                     },
+                    headlineContent = { Text(stringResource(R.string.add_server_file)) },
+                    supportingContent = { Text(stringResource(R.string.add_server_file_desc)) },
                 )
 
                 ListItem(
@@ -438,21 +486,44 @@ fun ProfilesCard(
                         onOpenNewProfile(NewProfileArgs())
                     },
                     leadingContent = {
-                        Icon(
-                            imageVector = Icons.Outlined.CreateNewFolder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+                        Icon(Icons.Outlined.CreateNewFolder, null, tint = MaterialTheme.colorScheme.primary)
                     },
-                    headlineContent = {
-                        Text(stringResource(R.string.profile_add_create_manually))
-                    },
-                    supportingContent = {
-                        Text(stringResource(R.string.create_new_profile_description))
-                    },
+                    headlineContent = { Text(stringResource(R.string.add_server_manual)) },
+                    supportingContent = { Text(stringResource(R.string.add_server_manual_desc)) },
                 )
             }
         }
+    }
+
+    if (showLinkDialog) {
+        AlertDialog(
+            onDismissRequest = { showLinkDialog = false },
+            title = { Text(stringResource(R.string.add_server_link)) },
+            text = {
+                OutlinedTextField(
+                    value = linkText,
+                    onValueChange = { linkText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.add_server_link_hint)) },
+                    placeholder = { Text("https://…   vless://…") },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val t = linkText.trim()
+                        showLinkDialog = false
+                        onHideAddProfileSheet()
+                        if (t.isNotEmpty()) importText(t)
+                    },
+                ) { Text(stringResource(R.string.import_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLinkDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 
     if (showQRCodeDialog && qrCodeProfile != null) {

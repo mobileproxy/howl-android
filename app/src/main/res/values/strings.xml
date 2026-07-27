@@ -128,6 +128,22 @@
     <!-- Profiles -->
     <string name="no_profiles">No profiles configured</string>
     <string name="add_profile">Add Profile</string>
+    <string name="add_server_title">Add a server</string>
+    <string name="add_server_subtitle">Choose where the server details come from — the app detects the format itself.</string>
+    <string name="add_server_paste">Paste from clipboard</string>
+    <string name="add_server_paste_desc">A link or config you copied from a service</string>
+    <string name="add_server_link">By link</string>
+    <string name="add_server_link_desc">Subscription URL or a server link (vless://, vmess://…)</string>
+    <string name="add_server_link_hint">Link or config</string>
+    <string name="add_server_qr">Scan QR code</string>
+    <string name="add_server_qr_desc">Point the camera at a server QR code</string>
+    <string name="add_server_file">From a file</string>
+    <string name="add_server_file_desc">A .json config or .bpf profile file</string>
+    <string name="add_server_manual">Enter manually</string>
+    <string name="add_server_manual_desc">Type the server settings yourself</string>
+    <string name="add_server_clipboard_empty">Clipboard is empty — copy a server link or config first.</string>
+    <string name="add_server_empty">Nothing to import — the text is empty.</string>
+    <string name="add_server_imported">Imported</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>
