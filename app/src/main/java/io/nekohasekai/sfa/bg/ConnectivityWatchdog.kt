@@ -407,26 +407,33 @@ object ConnectivityWatchdog {
         // Лестница починки: сначала дёшево, потом радикальнее.
         //   1) переподключение — лечит залипшие сокеты после смены сети;
         //   2) другая СЕТЬ телефона — лечит «держимся за мёртвый Wi-Fi, а рядом живая мобильная»;
-        //   3) другой СЕРВЕР — лечит деградацию узла.
-        // Ступень выбираем по ПРИЧИНЕ, а не только по счётчику: когда сеть телефона мертва,
-        // переподключение заведомо бесполезно — залипшие сокеты ни при чём, менять надо сеть.
+        //   3) другой СЕРВЕР — лечит недоступность узла (DPI режет порт 443 к его IP и т.п.).
+        // Ступень выбираем по ПРИЧИНЕ, а не только по счётчику.
+        //
+        // ★ Туннель мёртв (TCP-проба к 1.1.1.1 не прошла), а сеть телефона рабочая — значит
+        // виноват УЗЕЛ, а не сеть и не залипшие сокеты. Смену сети тут пропускаем (сеть-то
+        // живая) и после одного переподключения сразу идём на смену сервера. Иначе, как было в
+        // журнале 26.07: DPI режет 443 к части узлов, а сторож тратил цикл на бесполезную смену
+        // сети, растягивая простой.
+        val tunnelDead = !tunnelOk
         when {
-            networkDead || healAttempts == 1 -> {
-                // Порядок важен: сначала штраф текущей сети, иначе перевыбор вернёт её же.
-                DefaultNetworkMonitor.markCurrentNetworkBad()
-                DefaultNetworkMonitor.requestCellularBackup()
-                DefaultNetworkMonitor.reevaluate(preferAlternative = true)
-                val via = DefaultNetworkMonitor.reportedInterface
-                appendLog(
-                    if (via != null) str(R.string.watchdog_log_switch_network_via, what, via)
-                    else str(R.string.watchdog_log_switch_network, what),
-                )
-                runHeal(str(R.string.watchdog_act_switch_network))
+            networkDead -> {
+                switchPhoneNetwork(what)
+            }
+
+            tunnelDead && healAttempts >= 1 -> {
+                appendLog(str(R.string.watchdog_log_switch_server, what))
+                switchToFastestServer()
+                runHeal(str(R.string.watchdog_act_switch_server))
             }
 
             healAttempts == 0 -> {
                 appendLog(str(R.string.watchdog_log_reconnect, what))
                 runHeal(str(R.string.watchdog_act_reconnect))
+            }
+
+            healAttempts == 1 -> {
+                switchPhoneNetwork(what)
             }
 
             else -> {
@@ -447,6 +454,20 @@ object ConnectivityWatchdog {
     /** Строки журнала берём из ресурсов: журнал видит пользователь, а языков у приложения пять. */
     private fun str(id: Int, vararg args: Any): String =
         runCatching { Application.application.getString(id, *args) }.getOrDefault("")
+
+    /** Ступень «уйти на другую сеть телефона» — вынесена, т.к. зовётся из двух веток лестницы. */
+    private suspend fun switchPhoneNetwork(what: String) {
+        // Порядок важен: сначала штраф текущей сети, иначе перевыбор вернёт её же.
+        DefaultNetworkMonitor.markCurrentNetworkBad()
+        DefaultNetworkMonitor.requestCellularBackup()
+        DefaultNetworkMonitor.reevaluate(preferAlternative = true)
+        val via = DefaultNetworkMonitor.reportedInterface
+        appendLog(
+            if (via != null) str(R.string.watchdog_log_switch_network_via, what, via)
+            else str(R.string.watchdog_log_switch_network, what),
+        )
+        runHeal(str(R.string.watchdog_act_switch_network))
+    }
 
     private suspend fun runHeal(what: String) {
         val failure = runCatching { heal?.invoke() }.exceptionOrNull()
