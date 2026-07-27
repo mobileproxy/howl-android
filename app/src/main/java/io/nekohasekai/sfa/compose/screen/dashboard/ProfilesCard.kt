@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.ProfileContent
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.base.GlobalEventBus
+import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.component.qr.QRCodeDialog
 import io.nekohasekai.sfa.compose.component.qr.QRSDialog
 import io.nekohasekai.sfa.compose.navigation.NewProfileArgs
@@ -70,7 +72,6 @@ import io.nekohasekai.sfa.compose.util.QRCodeGenerator
 import io.nekohasekai.sfa.compose.util.RelativeTimeFormatter
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.TypedProfile
-import io.nekohasekai.sfa.ktx.errorDialogBuilder
 import io.nekohasekai.sfa.ktx.shareProfile
 import io.nekohasekai.sfa.ktx.shareProfileAsJson
 import kotlinx.coroutines.Dispatchers
@@ -264,7 +265,7 @@ fun ProfilesCard(
                                     context.shareProfile(it)
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(e).show()
+                                        GlobalEventBus.tryEmit(UiEvent.ErrorMessage(e.localizedMessage ?: e.toString()))
                                     }
                                 }
                             }
@@ -287,7 +288,7 @@ fun ProfilesCard(
                                     context.shareProfileAsJson(it)
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(e).show()
+                                        GlobalEventBus.tryEmit(UiEvent.ErrorMessage(e.localizedMessage ?: e.toString()))
                                     }
                                 }
                             }
@@ -311,7 +312,7 @@ fun ProfilesCard(
                                     }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(e).show()
+                                        GlobalEventBus.tryEmit(UiEvent.ErrorMessage(e.localizedMessage ?: e.toString()))
                                     }
                                 }
                             }

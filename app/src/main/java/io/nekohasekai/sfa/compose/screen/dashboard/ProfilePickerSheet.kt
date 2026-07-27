@@ -66,13 +66,14 @@ import androidx.compose.ui.unit.dp
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.ProfileContent
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.base.GlobalEventBus
+import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.component.qr.QRCodeDialog
 import io.nekohasekai.sfa.compose.util.ProfileIcons
 import io.nekohasekai.sfa.compose.util.QRCodeGenerator
 import io.nekohasekai.sfa.compose.util.RelativeTimeFormatter
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.TypedProfile
-import io.nekohasekai.sfa.ktx.errorDialogBuilder
 import io.nekohasekai.sfa.ktx.shareProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -157,9 +158,9 @@ fun ProfilePickerSheet(
                                     } catch (e: Exception) {
                                         // Раньше ошибка «Поделиться» глотался молча — пользователь
                                         // не понимал, почему «ничего не произошло».
-                                        withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(e).show()
-                                        }
+                                        GlobalEventBus.tryEmit(
+                                            UiEvent.ErrorMessage(e.localizedMessage ?: e.toString()),
+                                        )
                                     }
                                 }
                             },

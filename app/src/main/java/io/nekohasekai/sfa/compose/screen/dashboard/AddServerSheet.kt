@@ -34,12 +34,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.base.GlobalEventBus
+import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.component.qr.QRScanSheet
 import io.nekohasekai.sfa.compose.navigation.NewProfileArgs
 import io.nekohasekai.sfa.compose.screen.configuration.ProfileImportHandler
 import io.nekohasekai.sfa.compose.screen.qrscan.QRScanResult
 import io.nekohasekai.sfa.database.Profile
-import io.nekohasekai.sfa.ktx.errorDialogBuilder
 import io.nekohasekai.sfa.ktx.friendlyImportError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -87,7 +88,7 @@ fun AddServerSheet(
                     withContext(Dispatchers.Main) { onImported(result.profile) }
                 is ProfileImportHandler.ImportResult.Error ->
                     withContext(Dispatchers.Main) {
-                        context.errorDialogBuilder(context.friendlyImportError(result.message)).show()
+                        GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(result.message)))
                     }
             }
         }
@@ -109,7 +110,7 @@ fun AddServerSheet(
                         }
                         is ProfileImportHandler.UriParseResult.Error -> {
                             withContext(Dispatchers.Main) {
-                                context.errorDialogBuilder(context.friendlyImportError(parseResult.message)).show()
+                                GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(parseResult.message)))
                             }
                         }
                     }
@@ -146,9 +147,9 @@ fun AddServerSheet(
                         onDismiss()
                         val text = clipboardManager.getText()?.text.orEmpty()
                         if (text.isBlank()) {
-                            context.errorDialogBuilder(
-                                Exception(context.getString(R.string.add_server_clipboard_empty)),
-                            ).show()
+                            GlobalEventBus.tryEmit(
+                                UiEvent.ErrorMessage(context.getString(R.string.add_server_clipboard_empty)),
+                            )
                         } else {
                             importText(text)
                         }
@@ -268,7 +269,7 @@ fun AddServerSheet(
                                         withContext(Dispatchers.Main) { onImported(result.profile) }
                                     is ProfileImportHandler.ImportResult.Error ->
                                         withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(context.friendlyImportError(result.message)).show()
+                                            GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(result.message)))
                                         }
                                 }
                             } else if (importUri != null) {
@@ -277,7 +278,7 @@ fun AddServerSheet(
                                         withContext(Dispatchers.Main) { onImported(result.profile) }
                                     is ProfileImportHandler.ImportResult.Error ->
                                         withContext(Dispatchers.Main) {
-                                            context.errorDialogBuilder(context.friendlyImportError(result.message)).show()
+                                            GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(result.message)))
                                         }
                                 }
                             }
@@ -320,7 +321,7 @@ fun AddServerSheet(
                                 }
                                 is ProfileImportHandler.QRSParseResult.Error -> {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(context.friendlyImportError(parseResult.message)).show()
+                                        GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(parseResult.message)))
                                     }
                                 }
                             }
@@ -345,13 +346,13 @@ fun AddServerSheet(
                                             withContext(Dispatchers.Main) { onImported(importResult.profile) }
                                         is ProfileImportHandler.ImportResult.Error ->
                                             withContext(Dispatchers.Main) {
-                                                context.errorDialogBuilder(context.friendlyImportError(importResult.message)).show()
+                                                GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(importResult.message)))
                                             }
                                     }
                                 }
                                 is ProfileImportHandler.QRCodeParseResult.Error -> {
                                     withContext(Dispatchers.Main) {
-                                        context.errorDialogBuilder(context.friendlyImportError(parseResult.message)).show()
+                                        GlobalEventBus.tryEmit(UiEvent.ErrorMessage(context.friendlyImportError(parseResult.message)))
                                     }
                                 }
                             }
