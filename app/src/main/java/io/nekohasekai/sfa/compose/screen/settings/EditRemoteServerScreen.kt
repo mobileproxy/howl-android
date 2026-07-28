@@ -47,6 +47,7 @@ import io.nekohasekai.libbox.RemoteConnectionOptions
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.theme.ServiceError
 import io.nekohasekai.sfa.compose.theme.ServiceRunning
+import io.nekohasekai.sfa.compose.component.SaveBar
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.RemoteServer
 import io.nekohasekai.sfa.database.RemoteServerManager
@@ -259,31 +260,29 @@ fun EditRemoteServerScreen(navController: NavController, serverId: Long = -1L) {
             }
         }
 
-        Button(
-            onClick = {
+        SaveBar(
+            savedMessage = null,
+            onSave = {
                 val validatedURL = RemoteServer.validateURL(url)
                 if (validatedURL == null) {
                     urlError = true
-                    return@Button
-                }
-                scope.launch(Dispatchers.IO) {
-                    val server = origin ?: RemoteServer()
-                    server.name = name.trim()
-                    server.url = validatedURL
-                    server.secret = secret
-                    if (origin != null) {
-                        RemoteServerManager.update(server)
-                    } else {
-                        RemoteServerManager.create(server)
-                    }
-                    withContext(Dispatchers.Main) {
-                        navController.navigateUp()
+                } else {
+                    scope.launch(Dispatchers.IO) {
+                        val server = origin ?: RemoteServer()
+                        server.name = name.trim()
+                        server.url = validatedURL
+                        server.secret = secret
+                        if (origin != null) {
+                            RemoteServerManager.update(server)
+                        } else {
+                            RemoteServerManager.create(server)
+                        }
+                        withContext(Dispatchers.Main) {
+                            navController.navigateUp()
+                        }
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.save))
-        }
+        )
     }
 }
