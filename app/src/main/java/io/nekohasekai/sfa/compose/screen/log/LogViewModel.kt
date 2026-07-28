@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import io.nekohasekai.libbox.LogEntry
 import io.nekohasekai.sfa.compose.util.AnsiColorUtils
 import io.nekohasekai.sfa.constant.Status
+import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.CommandClient
 import io.nekohasekai.sfa.utils.CommandTarget
@@ -55,7 +56,28 @@ class LogViewModel :
                 }
             }
         }
+
+        // События приложения (старт, смена сети, решения сторожа, выбор узла) — в ТОТ ЖЕ журнал:
+        // сперва история из файла, затем живая трансляция. Раньше они жили только в «Автопочинке»
+        // и в выгрузке «Поделиться», поэтому журнал на экране фактически оставался раздвоенным:
+        // ядро отдельно, действия приложения отдельно.
+        viewModelScope.launch {
+            val history = withContext(Dispatchers.IO) { AppEventLog.history() }
+            if (history.isNotEmpty()) {
+                addProcessed(history.map(::eventEntry))
+            }
+            AppEventLog.stream.collect { line ->
+                addProcessed(listOf(eventEntry(line)))
+            }
+        }
     }
+
+    /** Строка события приложения в виде записи журнала (уровень Info — это не ошибки ядра). */
+    private fun eventEntry(line: String): ProcessedLogEntry = ProcessedLogEntry(
+        id = logIdGenerator.incrementAndGet(),
+        entry = LogEntryData(level = LogLevel.INFO, message = line),
+        annotatedString = AnsiColorUtils.ansiToAnnotatedString(line),
+    )
 
     private data class SessionTarget(val connect: Boolean, val remoteServerId: Long?)
 
@@ -127,7 +149,11 @@ class LogViewModel :
     }
 
     override fun appendLogs(message: List<LogEntry>) {
-        val processedLogs = message.map { processLogEntry(it) }
+        addProcessed(message.map { processLogEntry(it) })
+    }
+
+    /** Общий путь добавления записей (ядро и события приложения): пауза, лимит строк, автоскролл. */
+    private fun addProcessed(processedLogs: List<ProcessedLogEntry>) {
         viewModelScope.launch(Dispatchers.Main) {
             if (_uiState.value.isPaused) {
                 bufferedLogs.addAll(processedLogs)

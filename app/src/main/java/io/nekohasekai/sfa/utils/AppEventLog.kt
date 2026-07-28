@@ -1,6 +1,9 @@
 package io.nekohasekai.sfa.utils
 
 import io.nekohasekai.sfa.Application
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -35,6 +38,12 @@ object AppEventLog {
     private fun file(): File = File(Application.application.filesDir, FILE_NAME)
     private fun previousFile(): File = File(Application.application.filesDir, PREV_NAME)
 
+    // Живая трансляция новых событий: экран «Логи» показывает их сразу, вместе со строками ядра.
+    // Событий единицы в минуту, поэтому небольшого буфера с запасом достаточно; tryEmit не
+    // блокирует и безопасен из любого потока (log() зовут и из сервиса, и из сторожа).
+    private val _stream = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 64)
+    val stream: SharedFlow<String> = _stream.asSharedFlow()
+
     /**
      * Записать событие. category — короткая метка источника («старт», «сеть», «сторож», «узел»),
      * попадает в строку, чтобы в общем журнале было видно, откуда событие.
@@ -43,9 +52,14 @@ object AppEventLog {
     fun log(category: String, message: String) {
         runCatching {
             rotateIfNeeded()
-            file().appendText("${stampFormat.format(Date())} EVENT [$category] $message\n")
+            val line = "${stampFormat.format(Date())} EVENT [$category] $message"
+            file().appendText("$line\n")
+            _stream.tryEmit(line)
         }
     }
+
+    /** Уже записанные события (обе генерации файла) — история для экрана «Логи». */
+    fun history(): List<String> = readAll().lineSequence().filter { it.isNotBlank() }.toList()
 
     private fun rotateIfNeeded() {
         runCatching {
