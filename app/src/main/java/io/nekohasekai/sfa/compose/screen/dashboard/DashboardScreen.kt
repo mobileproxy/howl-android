@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -289,12 +291,23 @@ private fun HowlHomeContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
     ) {
-        Box(
+        // Кнопка со статусом и карточки прокручиваются вместе. Раньше блок кнопки жил в Box с
+        // weight(1f): при включённых карточках (Отправка/Получение и др.) он переставал влезать
+        // в отведённую высоту, и подпись «Подключено · нажмите чтобы отключить» обрезалась.
+        // Селектор сервера остаётся закреплённым внизу.
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center,
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 300.dp)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -354,6 +367,7 @@ private fun HowlHomeContent(
                     .heightIn(max = 320.dp),
             )
             Spacer(modifier = Modifier.height(12.dp))
+        }
         }
 
         HowlServerSelector(

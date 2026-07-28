@@ -362,7 +362,9 @@ fun SettingsScreen(navController: NavController) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Запас снизу под плавающую строку состояния («Запущена · соединения · локации · таймер»),
+        // которая рисуется поверх контента. Без него последний пункт меню не долистывался.
+        Spacer(modifier = Modifier.height(96.dp))
     }
 }
 

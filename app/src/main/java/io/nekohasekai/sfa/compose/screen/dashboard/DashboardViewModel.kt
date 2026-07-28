@@ -57,7 +57,9 @@ data class DashboardUiState(
     val selectedProfileName: String? = null,
     val isLoading: Boolean = false,
     val hasGroups: Boolean = false,
-    val groupsCount: Int = 0,
+    // Число ЛОКАЦИЙ (узлов), а не outbound-групп: кнопка в строке состояния открывает «Локации»,
+    // а «2» (селектор + авто) читалось как «2 профиля».
+    val locationsCount: Int = 0,
     // Current server/location shown in the home selector (from the outbound group).
     val selectedServerName: String = "",
     val selectedServerAuto: Boolean = false,
@@ -498,7 +500,7 @@ class DashboardViewModel :
                 updateState {
                     copy(
                         hasGroups = false,
-                        groupsCount = 0,
+                        locationsCount = 0,
                         selectedServerName = "",
                         selectedServerAuto = false,
                         connectionsCount = 0,
@@ -692,10 +694,23 @@ class DashboardViewModel :
                 serverName = selectedTag
             }
 
+            // Считаем именно ЛОКАЦИИ: узлы внутри группы автоподбора (а если её нет — внутри
+            // основного селектора). Раньше показывали newGroups.size, т.е. число групп конфига:
+            // при одной подписке это «2» (селектор + авто), что читалось как «2 профиля».
+            val countSource = autoGroup ?: primary
+            var locations = 0
+            if (countSource != null) {
+                val groupItems = countSource.items
+                while (groupItems.hasNext()) {
+                    groupItems.next()
+                    locations++
+                }
+            }
+
             updateState {
                 copy(
                     hasGroups = hasGroups,
-                    groupsCount = newGroups.size,
+                    locationsCount = locations,
                     selectedServerName = serverName,
                     selectedServerAuto = serverAuto,
                 )

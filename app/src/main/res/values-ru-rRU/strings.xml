@@ -178,7 +178,7 @@
     <string name="profile_type_local">Локальный</string>
     <string name="profile_type_remote">Удалённый</string>
     <string name="profile_type_remote_updated">Удалённый • %s</string>
-    <string name="profile_source_create_new">Создать новый</string>
+    <string name="profile_source_create_new">Создать</string>
     <string name="profile_source_import">Импорт</string>
     <string name="profile_add_import_file">Импорт из файла</string>
     <string name="profile_add_scan_qr_code">Сканировать QR-код</string>

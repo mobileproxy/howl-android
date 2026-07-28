@@ -265,7 +265,7 @@
     <string name="profile_type_local">Local</string>
     <string name="profile_type_remote">Remoto</string>
     <string name="profile_type_remote_updated">Remoto • %s</string>
-    <string name="profile_source_create_new">Crear nuevo</string>
+    <string name="profile_source_create_new">Crear</string>
     <string name="profile_source_import">Importar</string>
     <string name="profile_add_import_file">Importar desde archivo</string>
     <string name="profile_add_scan_qr_code">Escanear código QR</string>
