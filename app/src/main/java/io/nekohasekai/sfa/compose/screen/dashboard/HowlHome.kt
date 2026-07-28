@@ -205,7 +205,7 @@ fun HowlServerSelector(serverName: String?, onClick: () -> Unit, label: String, 
                     Text(
                         text = serverName,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -214,7 +214,7 @@ fun HowlServerSelector(serverName: String?, onClick: () -> Unit, label: String, 
                     Text(
                         text = emptyTitle,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
