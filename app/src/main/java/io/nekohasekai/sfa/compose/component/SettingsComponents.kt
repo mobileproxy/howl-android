@@ -2,15 +2,20 @@ package io.nekohasekai.sfa.compose.component
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.nekohasekai.sfa.R
 
 /**
  * Единый заголовок секции настроек. Раньше по экранам было 2+ стиля заголовков и разный padding
@@ -44,5 +49,34 @@ fun SettingsCard(
         ),
     ) {
         Column(content = content)
+    }
+}
+
+/**
+ * Единая нижняя кнопка «Сохранить» + инлайн-подтверждение для экранов настроек с текстовым
+ * ВВОДОМ (DNS, split-tunnel и т.п.). Раньше каждый такой экран рисовал свой Button+статус —
+ * разъезжались отступы/цвета. Тумблеры/выбор применяются мгновенно и SaveBar не используют.
+ */
+@Composable
+fun SaveBar(
+    savedMessage: String?,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+    saveLabel: String = stringResource(R.string.save),
+) {
+    Spacer(modifier = Modifier.height(16.dp))
+    Button(
+        onClick = onSave,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Text(saveLabel)
+    }
+    if (savedMessage != null) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = savedMessage,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }

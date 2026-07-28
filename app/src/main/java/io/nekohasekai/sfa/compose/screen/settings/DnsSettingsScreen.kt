@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.component.SaveBar
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
@@ -144,49 +145,36 @@ fun DnsSettingsScreen(navController: NavController, serviceStatus: Status = Stat
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
+                SaveBar(
+                    savedMessage = savedMessage,
+                    onSave = {
                         // Неверный IP в custom не сохраняем: с ним резолв встал бы, а это «нет
                         // интернета». Показываем ошибку и оставляем прежний рабочий DNS.
                         if (mode == DnsOverride.MODE_CUSTOM && !DnsOverride.isIpLiteral(custom)) {
                             savedMessage = msgBadIp
-                            return@Button
-                        }
-                        scope.launch {
-                            withContext(Dispatchers.IO) {
-                                Settings.dnsMode = mode
-                                Settings.dnsCustomServer = custom.trim()
-                            }
-                            savedMessage = if (serviceStatus == Status.Started) {
-                                val failure = withContext(Dispatchers.IO) {
-                                    try {
-                                        Libbox.newStandaloneCommandClient().serviceReload()
-                                        null
-                                    } catch (e: Exception) {
-                                        e
-                                    }
+                        } else {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    Settings.dnsMode = mode
+                                    Settings.dnsCustomServer = custom.trim()
                                 }
-                                if (failure == null) msgApplied else msgManual
-                            } else {
-                                msgLater
+                                savedMessage = if (serviceStatus == Status.Started) {
+                                    val failure = withContext(Dispatchers.IO) {
+                                        try {
+                                            Libbox.newStandaloneCommandClient().serviceReload()
+                                            null
+                                        } catch (e: Exception) {
+                                            e
+                                        }
+                                    }
+                                    if (failure == null) msgApplied else msgManual
+                                } else {
+                                    msgLater
+                                }
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.save))
-                }
-
-                val message = savedMessage
-                if (message != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+                )
             }
         }
 

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.component.SaveBar
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
@@ -170,9 +171,9 @@ fun SplitTunnelScreen(navController: NavController, serviceStatus: Status = Stat
                         MaterialTheme.colorScheme.primary
                     },
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
+                SaveBar(
+                    savedMessage = savedMessage,
+                    onSave = {
                         scope.launch {
                             withContext(Dispatchers.IO) {
                                 Settings.splitTunnelDomains = text
@@ -196,19 +197,7 @@ fun SplitTunnelScreen(navController: NavController, serviceStatus: Status = Stat
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.save))
-                }
-                val message = savedMessage
-                if (message != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+                )
             }
         }
 
