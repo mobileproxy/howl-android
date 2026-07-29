@@ -100,7 +100,17 @@ object ConnectivityWatchdog {
     // иначе ступени не успевают отработать. Полный откат к длинным паузам — только когда
     // лестница пройдена и ясно, что дело в качестве канала.
     private const val MIN_HEAL_INTERVAL_MS = 30_000L
-    private const val BACKOFF_HEAL_INTERVAL_MS = 15 * 60_000L // канал плох — чиним реже
+
+    // ★ Было 15 минут — и это оказалось второй по величине дырой. По журналу 29.07: 06:49:30 →
+    // 07:03:26 сторож 53 раза подряд написал «чинил недавно, жду» и не сделал НИЧЕГО, пока туннель
+    // был мёртв. Пауза уместна только когда канал в принципе плох и частые перезапуски лишь рвут
+    // то, что ещё проходит; две минуты для этого достаточно. При мёртвом туннеле пауза не
+    // применяется вовсе (см. waitBeforeHeal).
+    private const val BACKOFF_HEAL_INTERVAL_MS = 2 * 60_000L
+
+    // Проверки приходят из трёх источников (будильник, фоновый цикл, события). Совпали по времени —
+    // вторую пропускаем: пробы занимают до ~16 с, дублировать их незачем.
+    private const val MIN_CHECK_SPACING_MS = 5_000L
     private const val SETTLE_AFTER_HEAL_MS = 20_000L
     private const val MAX_LOG_LINES = 30
 
@@ -123,6 +133,11 @@ object ConnectivityWatchdog {
     private var scope: CoroutineScope? = null
     private var consecutiveFailures = 0
     private var lastHealAt = 0L
+
+    // Когда последний раз реально прогнали пробы — чтобы будильник и фоновый цикл, сойдясь в одну
+    // секунду, не делали двойную работу.
+    @Volatile
+    private var lastCheckAt = 0L
     // Сколько раз чинили подряд, не добившись успеха. 0 — свежий сбой, лечим мягко
     // (просто переподключением); ≥1 — прошлый reload не помог, значит дело не в залипших
     // сокетах, а в самом узле → уводим на автоподбор, как при ручной смене сервера.
@@ -181,14 +196,37 @@ object ConnectivityWatchdog {
         stuckNodes.clear()
         autoNodes = emptyList()
         autoSelected = null
+        lastCheckAt = 0L
         newScope.launch { loop() }
         newScope.launch { watchUserPresence() }
         DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
         startTrafficMonitor(newScope)
         startGroupsMonitor(newScope)
+        // ★ Будильник — то, что заставляет сторожа работать при спящем экране. Фоновый цикл выше
+        // остаётся, но он тикает только пока устройство не спит; на сон полагаемся на будильник.
+        WatchdogAlarm.start { onAlarmTick() }
+        WatchdogAlarm.schedule(FIRST_CHECK_DELAY_MS)
+    }
+
+    /**
+     * Сработал будильник (устройство разбужено системой, CPU удержан). Проверяем связь и тут же
+     * ставим следующий будильник: интервал зависит от того, идёт ли сейчас сбой.
+     */
+    private fun onAlarmTick() {
+        val currentScope = scope ?: return
+        currentScope.launch {
+            runCatching { checkOnce() }
+            scheduleNextAlarm()
+        }
+    }
+
+    private fun scheduleNextAlarm() {
+        val failing = consecutiveFailures > 0 || healAttempts > 0
+        WatchdogAlarm.schedule(if (failing) CHECK_INTERVAL_FAILING_MS else CHECK_INTERVAL_MS)
     }
 
     fun stop() {
+        WatchdogAlarm.stop()
         DefaultNetworkMonitor.onNetworkChanged = null
         // Модем поднимали только ради починки — держать его дальше незачем.
         DefaultNetworkMonitor.releaseCellularBackup()
@@ -314,6 +352,9 @@ object ConnectivityWatchdog {
         val currentScope = scope ?: return
         while (currentScope.isActive) {
             runCatching { checkOnce() }
+            // Держим будильник в согласии с циклом: если устройство сейчас заснёт, следующая
+            // проверка всё равно состоится — уже по будильнику.
+            scheduleNextAlarm()
             // Всё хорошо — проверяем раз в минуту; идёт сбой — каждые 15 секунд, чтобы пройти
             // лестницу починки быстро, а не растягивать простой на минуты.
             val failing = consecutiveFailures > 0 || healAttempts > 0
@@ -322,6 +363,11 @@ object ConnectivityWatchdog {
     }
 
     private suspend fun checkOnce() = checkMutex.withLock {
+        // Только что проверяли (сошлись будильник и цикл) — второй прогон ничего не добавит.
+        val startedAt = System.currentTimeMillis()
+        if (startedAt - lastCheckAt < MIN_CHECK_SPACING_MS) return@withLock
+        lastCheckAt = startedAt
+
         // Нет сети вообще (самолётный режим, нет сигнала) — не наша беда, чинить нечего.
         if (DefaultNetworkMonitor.defaultNetwork == null) {
             consecutiveFailures = 0
@@ -369,7 +415,12 @@ object ConnectivityWatchdog {
         // починки никогда не доходила до смены сети ровно в том случае, ради которого её и
         // делали. Журнал ядра 24.07: сотни `dial wlan0 (27): no route to host` подряд с 17:20
         // до 18:03, смены сети так и не случилось, помогло только ручное переподключение.
-        val networkDead = state == UnderlyingNetwork.NO_INTERNET
+        // ★ Вердикт системы обновляется редко и врёт. Журнал 29.07, окно 06:50–07:04: Wi-Fi
+        // числился валидным, а прямые соединения через wlan0 отваливались по таймауту — сторож
+        // считал сеть телефона исправной и потому уходил в долгую паузу вместо смены сети.
+        // Поэтому при мёртвом туннеле дополнительно проверяем САМУ сеть телефона, минуя туннель.
+        val networkDead = state == UnderlyingNetwork.NO_INTERNET ||
+            (!tunnelOk && !probe { underlyingReachable() })
         if (networkDead) {
             // Пока телефон держится за Wi-Fi, Android гасит модем — и уходить физически некуда.
             // Просим систему поднять мобильную заранее: к следующей проверке она уже поднимется.
@@ -393,10 +444,16 @@ object ConnectivityWatchdog {
         // перезапуски только рвут те соединения, что ещё проходят.
         // Лестницу (0→1→2) проходим быстро; дальше, если ничего не помогло, — редкие попытки.
         val now = System.currentTimeMillis()
-        // Долгие паузы уместны, только когда лестница пройдена и дело в качестве канала.
-        // Мёртвая сеть под это не подпадает: уходить есть куда, тянуть четверть часа незачем.
+        val tunnelDead = !tunnelOk
+        // Пауза уместна ТОЛЬКО когда туннель жив, а сыплется что-то одно (например DNS) — там
+        // частые перезапуски рвут работающие соединения. Мёртвый туннель и мёртвая сеть под это
+        // не подпадают: связи нет вообще, ждать нечего — чиним на каждой проверке.
         val waitBeforeHeal =
-            if (healAttempts > 2 && !networkDead) BACKOFF_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
+            if (healAttempts > 2 && !networkDead && !tunnelDead) {
+                BACKOFF_HEAL_INTERVAL_MS
+            } else {
+                MIN_HEAL_INTERVAL_MS
+            }
         if (now - lastHealAt < waitBeforeHeal) {
             appendLog(str(R.string.watchdog_log_wait, what))
             return@withLock
@@ -416,16 +473,29 @@ object ConnectivityWatchdog {
         // живая) и после одного переподключения сразу идём на смену сервера. Иначе, как было в
         // журнале 26.07: DPI режет 443 к части узлов, а сторож тратил цикл на бесполезную смену
         // сети, растягивая простой.
-        val tunnelDead = !tunnelOk
         when {
             networkDead -> {
                 switchPhoneNetwork(what)
             }
 
-            tunnelDead && healAttempts >= 1 -> {
+            // ★ Туннель мёртв, сеть телефона жива → виноват УЗЕЛ. Начинаем с самого дешёвого:
+            // перевыбрать узел внутри работающего ядра. Это доли секунды и НЕ рвёт ядро, тогда
+            // как перезагрузка стоит ~35 секунд простоя (в журнале — событие «старт» после каждой).
+            // Делаем так, только если знаем узлы: иначе шаг был бы пустым.
+            tunnelDead && healAttempts == 0 && autoNodes.isNotEmpty() -> {
+                appendLog(str(R.string.watchdog_log_switch_server, what))
+                switchToFastestServer()
+            }
+
+            tunnelDead && healAttempts >= 2 -> {
                 appendLog(str(R.string.watchdog_log_switch_server, what))
                 switchToFastestServer()
                 runHeal(str(R.string.watchdog_act_switch_server))
+            }
+
+            tunnelDead -> {
+                appendLog(str(R.string.watchdog_log_reconnect, what))
+                runHeal(str(R.string.watchdog_act_reconnect))
             }
 
             healAttempts == 0 -> {
@@ -549,6 +619,26 @@ object ConnectivityWatchdog {
         withTimeoutOrNull(PROBE_TIMEOUT_MS.toLong() + 2_000L) {
             runCatching { block() }.getOrDefault(false)
         } ?: false
+
+    /**
+     * Работает ли САМА сеть телефона, минуя туннель. Сокет создаём фабрикой конкретной сети
+     * (`Network.socketFactory`) — тогда пакет уходит через физический интерфейс, а не в tun.
+     *
+     * Зачем, если есть вердикт системы: он обновляется редко и запаздывает. По журналу 29.07
+     * Android держал Wi-Fi «валидным», пока прямые соединения через wlan0 отваливались по
+     * таймауту. Своя проба отвечает на вопрос «а сеть-то живая прямо сейчас» и включает ступень
+     * «уйти на мобильную» тогда, когда она и нужна.
+     */
+    private fun underlyingReachable(): Boolean {
+        val network = DefaultNetworkMonitor.defaultNetwork ?: return false
+        return network.socketFactory.createSocket().use { socket ->
+            socket.connect(
+                InetSocketAddress(InetAddress.getByName(PROBE_IP), PROBE_PORT),
+                PROBE_TIMEOUT_MS,
+            )
+            socket.isConnected
+        }
+    }
 
     /** Туннель без DNS: обычный TCP до литерального адреса. */
     private fun tcpReachable(): Boolean = Socket().use { socket ->

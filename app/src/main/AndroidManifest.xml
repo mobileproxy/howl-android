@@ -15,6 +15,12 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Сторож соединения должен проверять связь и при спящем экране. Корутинный delay() в этот
+         момент не тикает: CPU спит, таймеры замирают (по журналу 28-29.07 паузы между проверками
+         доходили до 65 минут вместо 90 секунд). Поэтому следующую проверку планируем системным
+         будильником, а на время самой проверки коротко держим CPU. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Обновление внутри приложения. Без этого разрешения система не открывает окно установки:
          сессия установщика коммитилась, но подтверждение не всплывало — со стороны выглядело как
          «нажал Обновить, и ничего не произошло». -->
