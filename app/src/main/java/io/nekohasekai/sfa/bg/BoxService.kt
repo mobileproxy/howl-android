@@ -41,6 +41,7 @@ import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CoreLog
 import io.nekohasekai.sfa.utils.DnsOverride
+import io.nekohasekai.sfa.utils.RussiaList
 import io.nekohasekai.sfa.utils.RussiaMode
 import io.nekohasekai.sfa.utils.SplitTunnel
 import io.nekohasekai.sfa.vendor.Vendor
@@ -198,6 +199,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             notification.start()
             // Ядро не замечает «подключено, но трафик не идёт» — за этим следит сторож.
             ConnectivityWatchdog.start { serviceReload0() }
+            // Тихо подтягиваем свежий список «Режима Россия» (раз в сутки, неудача ни на что не
+            // влияет — останемся на кэше или встроенном). Применится при следующей сборке конфига.
+            if (Settings.russiaModeEnabled) {
+                GlobalScope.launch(Dispatchers.IO) { runCatching { RussiaList.refresh() } }
+            }
         } catch (e: Exception) {
             stopAndAlert(Alert.StartService, e.message)
             return

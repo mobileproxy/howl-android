@@ -32,64 +32,8 @@ import org.json.JSONObject
  */
 object RussiaMode {
 
-    /**
-     * Российские зоны целиком. С ведущей точкой: `domain_suffix` сравнивает окончание строки, и
-     * суффикс без точки («ru») поймал бы заодно «peru» и подобное.
-     */
-    private val ZONE_SUFFIXES = listOf(
-        ".ru",
-        ".su",
-        ".xn--p1ai", // .рф в punycode — именно так домен приходит из SNI
-        ".moscow",
-        ".tatar",
-    )
-
-    /**
-     * Российские сервисы на НЕ российских зонах — их зонами не покрыть. Отдельно перечислены и
-     * домены раздачи контента: без них у ВК и Одноклассников не грузятся фото и видео.
-     */
-    private val EXTRA_DOMAINS = listOf(
-        "vk.com",
-        "vk.me",
-        "userapi.com",
-        "vk-cdn.net",
-        "vkuservideo.net",
-        "mycdn.me",
-        "yandex.net",
-        "yandex.com",
-        "yastatic.net",
-        "sberbank.com",
-        "sberdevices.ru",
-        "gosuslugi.ru",
-        "tbank.ru",
-        "t-bank.ru",
-    )
-
-    /**
-     * Приложения. Подавляющее большинство российских приложений живёт на префиксе `ru.` —
-     * Госуслуги (ru.rostel), Госключ (ru.gosuslugi.goskey), РЖД (ru.rzd.pass), Сбербанк
-     * (ru.sberbankmobile), Альфа (ru.alfabank.*), ВТБ (ru.vtb24.*), СБПэй и Mir Pay (ru.nspk.*),
-     * Ozon (ru.ozon.*), Мос.ру (ru.mos.*). Префикс покрывает и те приложения, которые человек
-     * поставит в будущем, — список не придётся догонять.
-     */
-    private val APP_PREFIXES = listOf(
-        "ru.",
-        "com.yandex.",
-    )
-
-    /** Те, кто не на `ru.`: перечисляем поимённо. */
-    private val APP_PACKAGES = setOf(
-        "com.octopod.russianpost.client.android", // Почта России
-        "com.idamob.tinkoff.android", // Т-Банк (Тинькофф)
-        "com.gnivts.selfemployed", // Мой налог (ФНС)
-        "com.vkontakte.android", // ВКонтакте
-        "com.avito.android", // Авито
-        "com.wildberries.ru", // Wildberries
-        "com.dodopizza.app", // Додо Пицца
-        "net.megafon.lk", // МегаФон
-        "com.gazprombank.android.mobilebank.app", // Газпромбанк
-        "com.sberbank.sbol", // Сбербанк (альтернативный пакет)
-    )
+    // Сами списки живут в RussiaList: там же кэш и обновление с сервера, чтобы состав можно было
+    // править без выпуска новой версии приложения. Здесь — только логика применения.
 
     /** Наш собственный пакет и системные — в обход не отправляем. */
     private val SKIP_PREFIXES = listOf(
@@ -116,8 +60,9 @@ object RussiaMode {
         val root = JSONObject(content)
         val route = root.optJSONObject("route") ?: return content
 
-        val domains = EXTRA_DOMAINS
-        val suffixes = ZONE_SUFFIXES + EXTRA_DOMAINS.map { ".$it" }
+        val lists = RussiaList.current()
+        val domains = lists.domains
+        val suffixes = lists.zoneSuffixes + lists.domains.map { ".$it" }
 
         // В КОНЕЦ массива: раньше нас должны отработать sniff (без него домен ещё не извлечён из
         // TLS SNI и совпадения не будет) и hijack-dns.
@@ -157,8 +102,9 @@ object RussiaMode {
     fun isRussianApp(packageName: String, ownPackage: String): Boolean {
         if (packageName == ownPackage) return false
         if (SKIP_PREFIXES.any { packageName.startsWith(it) }) return false
-        if (packageName in APP_PACKAGES) return true
-        return APP_PREFIXES.any { packageName.startsWith(it) }
+        val lists = RussiaList.current()
+        if (packageName in lists.appPackages) return true
+        return lists.appPrefixes.any { packageName.startsWith(it) }
     }
 
     /** Отобрать российские приложения среди установленных. */
