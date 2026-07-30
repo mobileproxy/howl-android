@@ -99,6 +99,7 @@ object Settings {
     // (ровно так выглядела история с Hiddify). Спрашиваем явно при первом запуске.
     var russiaModeEnabled by dataStore.boolean(SettingsKey.RUSSIA_MODE_ENABLED) { false }
     var russiaModeAsked by dataStore.boolean(SettingsKey.RUSSIA_MODE_ASKED) { false }
+    var russiaModeAddedApps by dataStore.stringSet(SettingsKey.RUSSIA_MODE_ADDED_APPS) { emptySet() }
 
     // Подключаться при открытии приложения. Дефолт off — новое поведение не навязываем.
     var autoConnectOnAppOpen by dataStore.boolean(SettingsKey.AUTO_CONNECT_ON_APP_OPEN) { false }

@@ -8,6 +8,7 @@ import android.widget.Toast
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.screen.profileoverride.PerAppProxyScanner
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.utils.RussiaModeController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,6 +23,24 @@ class AppChangeReceiver : BroadcastReceiver() {
         Log.d(TAG, "onReceive: ${intent.action}")
         if (!Settings.perAppProxyEnabled) {
             Log.d(TAG, "per app proxy disabled")
+            return
+        }
+        // «Режим Россия»: поставили новое российское приложение — сразу отправляем его мимо VPN,
+        // чтобы человеку не пришлось вспоминать про настройку после установки нового банка.
+        if (Settings.russiaModeEnabled) {
+            val installed = intent.data?.schemeSpecificPart
+            if (installed != null) {
+                val pendingResult = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        RussiaModeController.onAppInstalled(installed, context.packageName)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to add $installed", e)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
+            }
             return
         }
         if (!Settings.perAppProxyManagedMode) {
@@ -45,14 +64,8 @@ class AppChangeReceiver : BroadcastReceiver() {
 
     private suspend fun rescanAllApps() {
         Log.d(TAG, "rescanning all apps")
-        // Управляемый список ведёт либо «Режим Россия», либо апстримный китайский набор. Без этой
-        // развилки установка любого приложения затирала бы российский список китайским.
-        val apps = if (Settings.russiaModeEnabled) {
-            PerAppProxyScanner.scanAllRussianApps()
-        } else {
-            PerAppProxyScanner.scanAllChinaApps()
-        }
-        Settings.perAppProxyManagedList = apps
-        Log.d(TAG, "rescan complete, found ${apps.size} apps")
+        val chinaApps = PerAppProxyScanner.scanAllChinaApps()
+        Settings.perAppProxyManagedList = chinaApps
+        Log.d(TAG, "rescan complete, found ${chinaApps.size} china apps")
     }
 }

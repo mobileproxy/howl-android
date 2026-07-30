@@ -162,6 +162,7 @@
     <string name="russia_mode_ask_message">Banks, government services and marketplaces often block foreign addresses. Howl can send them past the VPN so they keep working — everything else still goes through the tunnel.\n\nThose sites will see your real address. You can change this any time in Settings → Routing.</string>
     <string name="russia_mode_ask_enable">Turn on</string>
     <string name="russia_mode_ask_skip">Not now</string>
+    <string name="russia_mode_apps_count">%1$d apps go direct — see and edit them in Apps below</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>

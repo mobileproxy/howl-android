@@ -6,13 +6,20 @@ import io.nekohasekai.sfa.database.Settings
 /**
  * Включение/выключение «Режима Россия» одним вызовом — из настроек и из вопроса при первом запуске.
  *
- * Режим состоит из двух слоёв, и оба должны переключаться вместе, иначе получится полурабочее
- * состояние (домены идут напрямую, а банковское приложение — через VPN, и перевод не проходит):
+ * Режим состоит из двух слоёв, и оба переключаются вместе: полурежим хуже выключенного (домены
+ * идут напрямую, а банковское приложение — через VPN, и перевод всё равно не проходит).
  *   • домены — правило в конфиге, применяется при сборке (см. [RussiaMode.apply]);
- *   • приложения — управляемый список per-app обхода.
+ *   • приложения — пакеты в списке per-app обхода.
  *
- * Свой список приложений пользователя НЕ трогаем: управляемый режим хранится отдельной парой
- * ключей, поэтому при выключении режима прежние ручные настройки возвращаются сами.
+ * ★ Почему ОБЫЧНЫЙ список, а не «управляемый режим» апстрима (как сделано для Китая). Во-первых,
+ * управляемый список НЕ ВИДЕН пользователю: экран «Управление» при нём блокируется, и человек не
+ * может ни посмотреть, что уходит мимо VPN, ни поправить. Во-вторых, на экране «Маршрутизация»
+ * живёт старая уборка, которая выключает управляемый режим при открытии экрана, — режим тихо
+ * ломался бы ровно там, где стоит его переключатель. Обычный список решает оба: всё видно и
+ * правится галочками, ничего не конфликтует.
+ *
+ * Свои отметки пользователя не трогаем: запоминаем в [Settings.russiaModeAddedApps], что добавили
+ * именно мы, и при выключении убираем ровно это.
  */
 object RussiaModeController {
 
@@ -20,15 +27,32 @@ object RussiaModeController {
         Settings.russiaModeEnabled = enabled
         Settings.russiaModeAsked = true
         if (enabled) {
+            // Не смогли перечислить пакеты (на части устройств нужен Shizuku) — не беда:
+            // доменный слой работает в любом случае, список просто останется пустым.
+            val russian = runCatching { PerAppProxyScanner.scanAllRussianApps() }
+                .getOrDefault(emptySet())
             Settings.perAppProxyEnabled = true
-            Settings.perAppProxyManagedMode = true
-            // Не смогли перечислить пакеты (нужен Shizuku на части устройств) — не беда:
-            // доменный слой всё равно работает, список просто останется пустым.
-            Settings.perAppProxyManagedList = runCatching {
-                PerAppProxyScanner.scanAllRussianApps()
-            }.getOrDefault(emptySet())
+            Settings.perAppProxyMode = Settings.PER_APP_PROXY_EXCLUDE
+            Settings.perAppProxyList = Settings.perAppProxyList + russian
+            Settings.russiaModeAddedApps = russian
         } else {
-            Settings.perAppProxyManagedMode = false
+            val added = Settings.russiaModeAddedApps
+            if (added.isNotEmpty()) {
+                Settings.perAppProxyList = Settings.perAppProxyList - added
+                Settings.russiaModeAddedApps = emptySet()
+            }
         }
+    }
+
+    /**
+     * Поставили новое приложение — если оно российское, добавляем в обход сразу. Иначе человеку
+     * пришлось бы вспоминать про настройку каждый раз после установки нового банка.
+     */
+    suspend fun onAppInstalled(packageName: String, ownPackage: String) {
+        if (!Settings.russiaModeEnabled) return
+        if (!RussiaMode.isRussianApp(packageName, ownPackage)) return
+        if (packageName in Settings.perAppProxyList) return
+        Settings.perAppProxyList = Settings.perAppProxyList + packageName
+        Settings.russiaModeAddedApps = Settings.russiaModeAddedApps + packageName
     }
 }

@@ -37,6 +37,10 @@ object SettingsKey {
     const val RUSSIA_MODE_ENABLED = "russia_mode_enabled"
     const val RUSSIA_MODE_ASKED = "russia_mode_asked"
 
+    // Какие пакеты в список обхода добавил именно «Режим Россия». Нужно, чтобы при выключении
+    // убрать ровно их и не тронуть то, что пользователь отметил сам.
+    const val RUSSIA_MODE_ADDED_APPS = "russia_mode_added_apps"
+
     // Автоподключение: при открытии приложения и при загрузке телефона.
     const val AUTO_CONNECT_ON_APP_OPEN = "auto_connect_on_app_open"
     const val AUTO_START_ON_BOOT = "auto_start_on_boot"

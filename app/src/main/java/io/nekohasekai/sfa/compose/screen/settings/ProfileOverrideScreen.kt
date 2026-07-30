@@ -92,6 +92,7 @@ fun ProfileOverrideScreen(
     val scope = rememberCoroutineScope()
 
     var russiaModeEnabled by remember { mutableStateOf(Settings.russiaModeEnabled) }
+    var russiaAppsCount by remember { mutableStateOf(Settings.russiaModeAddedApps.size) }
     var perAppProxyEnabled by remember { mutableStateOf(Settings.perAppProxyEnabled) }
     var managedModeEnabled by remember { mutableStateOf(Settings.perAppProxyManagedMode) }
     var isScanning by remember { mutableStateOf(false) }
@@ -226,12 +227,23 @@ fun ProfileOverrideScreen(
                     )
                 },
                 supportingContent = {
-                    Text(
-                        stringResource(R.string.russia_mode_summary),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+                    Column(modifier = Modifier.padding(top = 4.dp)) {
+                        Text(
+                            stringResource(R.string.russia_mode_summary),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        // Сколько приложений реально ушло мимо VPN — иначе режим выглядит как
+                        // «чёрный ящик»: непонятно, сработал ли он и что именно затронул.
+                        if (russiaModeEnabled && russiaAppsCount > 0) {
+                            Text(
+                                stringResource(R.string.russia_mode_apps_count, russiaAppsCount),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
                 },
                 leadingContent = {
                     Icon(
@@ -247,6 +259,10 @@ fun ProfileOverrideScreen(
                             russiaModeEnabled = checked
                             scope.launch(Dispatchers.IO) {
                                 RussiaModeController.setEnabled(checked)
+                                withContext(Dispatchers.Main) {
+                                    russiaAppsCount = Settings.russiaModeAddedApps.size
+                                    perAppProxyEnabled = Settings.perAppProxyEnabled
+                                }
                                 runCatching { Libbox.newStandaloneCommandClient().serviceReload() }
                             }
                         },
