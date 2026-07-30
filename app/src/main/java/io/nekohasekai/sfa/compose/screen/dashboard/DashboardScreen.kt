@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +53,10 @@ import io.nekohasekai.sfa.compose.component.rememberRemoteServers
 import io.nekohasekai.sfa.compose.navigation.NewProfileArgs
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
+import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.utils.RemoteControlManager
+import io.nekohasekai.sfa.utils.RussiaModeController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 data class CardRenderItem(val cards: List<CardGroup>, val isRow: Boolean)
@@ -291,7 +295,33 @@ private fun HowlHomeContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
     ) {
-        // Кнопка со статусом и карточки прокручиваются вместе. Раньше блок кнопки жил в Box с
+        // ★ Разовый вопрос про «Режим Россия». Показываем один раз и только когда сервер уже
+    // добавлен: до этого человеку нечего настраивать, а вопрос без контекста только пугает.
+    // Молча включать нельзя — обход показывает сайтам настоящий адрес, и это выглядело бы как
+    // «VPN не работает, IP не меняется» (ровно эта путаница была с Hiddify).
+    var askRussiaMode by rememberSaveable { mutableStateOf(!Settings.russiaModeAsked) }
+    if (askRussiaMode) {
+        val askScope = rememberCoroutineScope()
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text(stringResource(R.string.russia_mode_ask_title)) },
+            text = { Text(stringResource(R.string.russia_mode_ask_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    askRussiaMode = false
+                    askScope.launch(Dispatchers.IO) { RussiaModeController.setEnabled(true) }
+                }) { Text(stringResource(R.string.russia_mode_ask_enable)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    askRussiaMode = false
+                    askScope.launch(Dispatchers.IO) { RussiaModeController.setEnabled(false) }
+                }) { Text(stringResource(R.string.russia_mode_ask_skip)) }
+            },
+        )
+    }
+
+    // Кнопка со статусом и карточки прокручиваются вместе. Раньше блок кнопки жил в Box с
         // weight(1f): при включённых карточках (Отправка/Получение и др.) он переставал влезать
         // в отведённую высоту, и подпись «Подключено · нажмите чтобы отключить» обрезалась.
         // Селектор сервера остаётся закреплённым внизу.

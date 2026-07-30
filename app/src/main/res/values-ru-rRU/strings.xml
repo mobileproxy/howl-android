@@ -156,6 +156,12 @@
     <string name="settings_section_connection">Соединение</string>
     <string name="settings_section_advanced">Дополнительно</string>
     <string name="profile_source_create_new_hint">Создастся пустой профиль — откройте редактор JSON и вставьте конфиг sing-box или заполните вручную.</string>
+    <string name="russia_mode_title">Российские сайты напрямую</string>
+    <string name="russia_mode_summary">Российские сайты, банки и госуслуги открываются без VPN — работают как обычно и видят ваш настоящий адрес. Всё остальное идёт через VPN.</string>
+    <string name="russia_mode_ask_title">Российские сайты — напрямую?</string>
+    <string name="russia_mode_ask_message">Банки, госуслуги и маркетплейсы часто блокируют иностранные адреса. Howl может пускать их мимо VPN, чтобы они работали как обычно, — всё остальное продолжит идти через туннель.\n\nЭти сайты будут видеть ваш настоящий адрес. Настройку можно изменить в любой момент: Настройки → Маршрутизация.</string>
+    <string name="russia_mode_ask_enable">Включить</string>
+    <string name="russia_mode_ask_skip">Не сейчас</string>
     <string name="update_profile">Обновить профиль</string>
     <string name="import_remote_profile">Импортировать удалённый профиль</string>
     <string name="import_remote_profile_message">Импортировать удалённый профиль %1$s? Для загрузки конфигурации будет установлено соединение с %2$s.</string>

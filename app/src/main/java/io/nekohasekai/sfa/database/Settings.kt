@@ -94,6 +94,12 @@ object Settings {
     var dnsMode by dataStore.string(SettingsKey.DNS_MODE) { io.nekohasekai.sfa.utils.DnsOverride.MODE_AUTO }
     var dnsCustomServer by dataStore.string(SettingsKey.DNS_CUSTOM_SERVER) { "" }
 
+    // «Режим Россия». Выключен по умолчанию НАМЕРЕННО: обход показывает российским сайтам
+    // настоящий адрес, и включать это молча нельзя — человек решит, что VPN не работает
+    // (ровно так выглядела история с Hiddify). Спрашиваем явно при первом запуске.
+    var russiaModeEnabled by dataStore.boolean(SettingsKey.RUSSIA_MODE_ENABLED) { false }
+    var russiaModeAsked by dataStore.boolean(SettingsKey.RUSSIA_MODE_ASKED) { false }
+
     // Подключаться при открытии приложения. Дефолт off — новое поведение не навязываем.
     var autoConnectOnAppOpen by dataStore.boolean(SettingsKey.AUTO_CONNECT_ON_APP_OPEN) { false }
     // Запускать при загрузке телефона. Дефолт on = сохраняем прежнее поведение BootReceiver

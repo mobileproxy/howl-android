@@ -45,8 +45,14 @@ class AppChangeReceiver : BroadcastReceiver() {
 
     private suspend fun rescanAllApps() {
         Log.d(TAG, "rescanning all apps")
-        val chinaApps = PerAppProxyScanner.scanAllChinaApps()
-        Settings.perAppProxyManagedList = chinaApps
-        Log.d(TAG, "rescan complete, found ${chinaApps.size} china apps")
+        // Управляемый список ведёт либо «Режим Россия», либо апстримный китайский набор. Без этой
+        // развилки установка любого приложения затирала бы российский список китайским.
+        val apps = if (Settings.russiaModeEnabled) {
+            PerAppProxyScanner.scanAllRussianApps()
+        } else {
+            PerAppProxyScanner.scanAllChinaApps()
+        }
+        Settings.perAppProxyManagedList = apps
+        Log.d(TAG, "rescan complete, found ${apps.size} apps")
     }
 }

@@ -76,6 +76,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import io.nekohasekai.sfa.Application
+import io.nekohasekai.sfa.utils.RussiaMode
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.base.rememberApplyServiceChangeNotifier
@@ -1318,6 +1319,23 @@ object PerAppProxyScanner {
             }
         }.awaitAll()
         chinaApps.toSet()
+    }
+
+    /**
+     * Российские приложения для «Режима Россия» — банки, госсервисы, маркетплейсы. В отличие от
+     * китайского сканера здесь достаточно имени пакета: там префиксы ищут ВСТРОЕННЫЕ рекламные
+     * SDK внутри любых приложений, а нам нужны сами российские приложения, и они живут на `ru.`.
+     * Заодно это на порядок быстрее — не разбираем активити и сервисы каждого пакета.
+     */
+    suspend fun scanAllRussianApps(): Set<String> = withContext(Dispatchers.Default) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            PackageManager.MATCH_UNINSTALLED_PACKAGES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_UNINSTALLED_PACKAGES
+        }
+        val installed = PackageQueryManager.getInstalledPackages(flags, flags)
+        RussiaMode.scanInstalled(installed, Application.application.packageName)
     }
 
     fun scanChinaPackage(packageInfo: PackageInfo): Boolean {

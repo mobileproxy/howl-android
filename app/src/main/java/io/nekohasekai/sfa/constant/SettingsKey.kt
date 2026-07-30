@@ -32,6 +32,11 @@ object SettingsKey {
     const val DNS_MODE = "dns_mode"
     const val DNS_CUSTOM_SERVER = "dns_custom_server"
 
+    // «Режим Россия»: российские сайты и приложения идут мимо VPN. ASKED — вопрос при первом
+    // запуске уже задавали (чтобы не спрашивать повторно, каким бы ни был ответ).
+    const val RUSSIA_MODE_ENABLED = "russia_mode_enabled"
+    const val RUSSIA_MODE_ASKED = "russia_mode_asked"
+
     // Автоподключение: при открытии приложения и при загрузке телефона.
     const val AUTO_CONNECT_ON_APP_OPEN = "auto_connect_on_app_open"
     const val AUTO_START_ON_BOOT = "auto_start_on_boot"

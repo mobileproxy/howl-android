@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AppShortcut
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.base.rememberApplyServiceChangeNotifier
@@ -60,6 +62,7 @@ import io.nekohasekai.sfa.compose.screen.profileoverride.PerAppProxyScanner
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.utils.RussiaModeController
 import io.nekohasekai.sfa.vendor.PackageQueryManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -88,6 +91,7 @@ fun ProfileOverrideScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var russiaModeEnabled by remember { mutableStateOf(Settings.russiaModeEnabled) }
     var perAppProxyEnabled by remember { mutableStateOf(Settings.perAppProxyEnabled) }
     var managedModeEnabled by remember { mutableStateOf(Settings.perAppProxyManagedMode) }
     var isScanning by remember { mutableStateOf(false) }
@@ -202,6 +206,57 @@ fun ProfileOverrideScreen(
             .verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp),
     ) {
+        // ★ «Режим Россия» — самым первым: для клиента из РФ это главный переключатель на экране.
+        // Он одним движением делает то, ради чего иначе пришлось бы вручную вписывать домены и
+        // отмечать приложения: российские сайты, банки и госсервисы идут напрямую, остальное — в
+        // туннель. Без него человек вынужден выключать VPN ради каждого перевода в банке.
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ),
+        ) {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        stringResource(R.string.russia_mode_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        stringResource(R.string.russia_mode_summary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.Public,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = russiaModeEnabled,
+                        onCheckedChange = { checked ->
+                            russiaModeEnabled = checked
+                            scope.launch(Dispatchers.IO) {
+                                RussiaModeController.setEnabled(checked)
+                                runCatching { Libbox.newStandaloneCommandClient().serviceReload() }
+                            }
+                        },
+                    )
+                },
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)),
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            )
+        }
+
         // Сайты в обход VPN — ставим первым: это то, за чем сюда приходят пользователи,
         // в отличие от технического auto-redirect ниже.
         Card(

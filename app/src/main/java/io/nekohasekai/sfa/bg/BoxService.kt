@@ -41,6 +41,7 @@ import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CoreLog
 import io.nekohasekai.sfa.utils.DnsOverride
+import io.nekohasekai.sfa.utils.RussiaMode
 import io.nekohasekai.sfa.utils.SplitTunnel
 import io.nekohasekai.sfa.vendor.Vendor
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -214,7 +215,10 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         val content = CoreLog.apply(
             ConfigHardening.apply(
                 DnsOverride.apply(
-                    SplitTunnel.apply(rawContent, Settings.splitTunnelDomains, Settings.splitTunnelMode),
+                    RussiaMode.apply(
+                        SplitTunnel.apply(rawContent, Settings.splitTunnelDomains, Settings.splitTunnelMode),
+                        Settings.russiaModeEnabled,
+                    ),
                     Settings.dnsMode,
                     Settings.dnsCustomServer,
                 ),

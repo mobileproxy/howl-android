@@ -156,6 +156,12 @@
     <string name="settings_section_connection">Connection</string>
     <string name="settings_section_advanced">Advanced</string>
     <string name="profile_source_create_new_hint">You\'ll get an empty profile — open the JSON editor and paste a sing-box config, or fill it in manually.</string>
+    <string name="russia_mode_title">Russian sites directly</string>
+    <string name="russia_mode_summary">Russian sites, banks and government services open without the VPN — they work as usual and see your real address. Everything else goes through the VPN.</string>
+    <string name="russia_mode_ask_title">Russian sites directly?</string>
+    <string name="russia_mode_ask_message">Banks, government services and marketplaces often block foreign addresses. Howl can send them past the VPN so they keep working — everything else still goes through the tunnel.\n\nThose sites will see your real address. You can change this any time in Settings → Routing.</string>
+    <string name="russia_mode_ask_enable">Turn on</string>
+    <string name="russia_mode_ask_skip">Not now</string>
     <string name="update_profile">Update profile</string>
     <string name="import_remote_profile">Import remote profile</string>
     <string name="import_remote_profile_message">Are you sure to import remote profile %1$s? You will connect to %2$s to download the configuration.</string>
