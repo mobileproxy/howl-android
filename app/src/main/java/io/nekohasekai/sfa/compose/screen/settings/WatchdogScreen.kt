@@ -75,7 +75,6 @@ fun WatchdogScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var enabled by remember { mutableStateOf(Settings.watchdogEnabled) }
-    var log by remember { mutableStateOf(Settings.watchdogLog) }
     var coreLogSize by remember { mutableStateOf(CoreLog.sizeBytes() + AppEventLog.sizeBytes()) }
 
     Column(
@@ -190,46 +189,10 @@ fun WatchdogScreen(navController: NavController) {
             }
         }
 
-        Text(
-            text = stringResource(R.string.watchdog_log),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 32.dp, top = 16.dp, bottom = 8.dp),
-        )
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = log.ifBlank { stringResource(R.string.watchdog_log_empty) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (log.isBlank()) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
-                if (log.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = {
-                            log = ""
-                            scope.launch(Dispatchers.IO) {
-                                Settings.watchdogLog = ""
-                            }
-                        },
-                    ) {
-                        Text(stringResource(R.string.clear))
-                    }
-                }
-            }
-        }
+        // Отдельный журнал событий отсюда УБРАН намеренно. Все события сторожа и без того попадают
+        // в общий журнал (Настройки → Логи) — там же, вперемешку с сообщениями ядра и в одной
+        // хронологии. Два журнала в интерфейсе только путали: непонятно, какой из них «настоящий»
+        // и почему в одном есть строки, которых нет в другом.
 
         Spacer(modifier = Modifier.height(16.dp))
     }

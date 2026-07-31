@@ -29,10 +29,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
-import java.text.SimpleDateFormat
 import java.util.Collections
-import java.util.Date
-import java.util.Locale
 
 /**
  * Сторож соединения: ловит состояние «подключено, но трафик не идёт».
@@ -112,7 +109,13 @@ object ConnectivityWatchdog {
     // вторую пропускаем: пробы занимают до ~16 с, дублировать их незачем.
     private const val MIN_CHECK_SPACING_MS = 5_000L
     private const val SETTLE_AFTER_HEAL_MS = 20_000L
-    private const val MAX_LOG_LINES = 30
+
+    // Цели для проверки САМОЙ сети телефона (мимо туннеля). 1.1.1.1 у части РФ-провайдеров
+    // недоступен, поэтому нужен запасной путь — Яндекс-DNS в России доступен практически всегда.
+    private val UNDERLYING_PROBE_IPS = listOf("1.1.1.1", "77.88.8.8", "8.8.8.8")
+
+    // Каждая цель со своим коротким таймаутом: три попытки по 8 с подвесили бы проверку на 24 с.
+    private const val UNDERLYING_PROBE_TIMEOUT_MS = 3_000
 
     private const val PROBE_IP = "1.1.1.1"
     private const val PROBE_PORT = 443
@@ -167,9 +170,14 @@ object ConnectivityWatchdog {
     @Volatile
     private var autoNodes: List<Pair<String, Int>> = emptyList()
 
-    // Что автоподбор выбрал прямо сейчас — с этого узла и уводим при залипании.
+    // Что автоподбор выбрал прямо сейчас.
     @Volatile
     private var autoSelected: String? = null
+
+    // На что указывает селектор — узел, через который ФАКТИЧЕСКИ идёт трафик. Именно с него
+    // уводим при залипании (см. комментарий в GroupsHandler о зацикливании карусели).
+    @Volatile
+    private var selectorSelected: String? = null
 
     // Узлы, на которых уже залипли в текущей сети. Сбрасывается при смене сети (маршруты меняются)
     // и когда перепробованы все (тогда возвращаемся к автоподбору с чистого листа).
@@ -196,6 +204,7 @@ object ConnectivityWatchdog {
         stuckNodes.clear()
         autoNodes = emptyList()
         autoSelected = null
+        selectorSelected = null
         lastCheckAt = 0L
         newScope.launch { loop() }
         newScope.launch { watchUserPresence() }
@@ -299,6 +308,18 @@ object ConnectivityWatchdog {
 
     private object GroupsHandler : CommandClient.Handler {
         override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
+            // ★ На что реально указывает СЕЛЕКТОР — это и есть узел, через который идёт трафик.
+            // Раньше карусель считала текущим узлом выбор ГРУППЫ АВТОПОДБОРА, а это разные вещи:
+            // после первого же принудительного увода селектор смотрит на конкретный узел, а
+            // автоподбор продолжает показывать свой (самый быстрый по пробе). В журнале 30.07 это
+            // дало 25 одинаковых записей «увёл на NL (был DE)»: мы каждый раз «уводили» с DE, уже
+            // находясь на NL, — то есть НЕ УХОДИЛИ НИКУДА, и мёртвое соединение так и оставалось
+            // мёртвым до ручного переподключения.
+            ProfileTags.selector?.let { selectorTag ->
+                selectorSelected = newGroups.firstOrNull { it.tag == selectorTag }
+                    ?.selected?.takeIf { it.isNotBlank() }
+            }
+
             // Группа автоподбора — по тегу из конфига (у чужого профиля он другой).
             val autoTag = ProfileTags.auto ?: return
             val auto = newGroups.firstOrNull { it.tag == autoTag } ?: return
@@ -563,7 +584,11 @@ object ConnectivityWatchdog {
         // проекта — connect/close не нужны.
         runCatching {
             val client = Libbox.newStandaloneCommandClient()
-            val current = autoSelected
+            // Текущий узел — тот, на который смотрит СЕЛЕКТОР (через него и идёт трафик). Если он
+            // указывает на саму группу автоподбора, значит фактический узел выбирает она.
+            val current = selectorSelected
+                ?.takeIf { it != ProfileTags.auto }
+                ?: autoSelected
             if (current != null) stuckNodes.add(current)
 
             // Кандидат: узел с ИЗМЕРЕННОЙ разумной задержкой, не в штрафном ящике.
@@ -631,13 +656,23 @@ object ConnectivityWatchdog {
      */
     private fun underlyingReachable(): Boolean {
         val network = DefaultNetworkMonitor.defaultNetwork ?: return false
-        return network.socketFactory.createSocket().use { socket ->
-            socket.connect(
-                InetSocketAddress(InetAddress.getByName(PROBE_IP), PROBE_PORT),
-                PROBE_TIMEOUT_MS,
-            )
-            socket.isConnected
+        // ★ Несколько целей, а не одна. Проверять только 1.1.1.1 нельзя: в РФ его у многих
+        // провайдеров режут, и «сеть телефона мертва» получалось на живой сети — сторож писал
+        // «нет интернета, перезапуск не поможет» и НЕ ЧИНИЛ (в журнале 30.07 — 14 раз против 3
+        // до правки). Считаем сеть мёртвой, только если недоступны ВСЕ, включая российский DNS.
+        for (host in UNDERLYING_PROBE_IPS) {
+            val ok = runCatching {
+                network.socketFactory.createSocket().use { socket ->
+                    socket.connect(
+                        InetSocketAddress(InetAddress.getByName(host), PROBE_PORT),
+                        UNDERLYING_PROBE_TIMEOUT_MS,
+                    )
+                    socket.isConnected
+                }
+            }.getOrDefault(false)
+            if (ok) return true
         }
+        return false
     }
 
     /** Туннель без DNS: обычный TCP до литерального адреса. */
@@ -661,12 +696,12 @@ object ConnectivityWatchdog {
         }
     }
 
+    /**
+     * Событие сторожа — в ЕДИНЫЙ журнал (Настройки → Логи), где оно ложится в общую хронологию
+     * с сообщениями ядра. Отдельный 30-строчный журнальчик в настройках убран: два журнала в
+     * интерфейсе только путали, а этот вдобавок обрезался и жил в SharedPreferences.
+     */
     private fun appendLog(message: String) {
-        val stamp = SimpleDateFormat("dd.MM HH:mm", Locale.US).format(Date())
-        val lines = ("$stamp — $message").lineSequence().toList() +
-            Settings.watchdogLog.lineSequence().filter { it.isNotBlank() }
-        Settings.watchdogLog = lines.take(MAX_LOG_LINES).joinToString("\n")
-        // Дублируем в единый журнал (события + ядро сливаются на экране «Журнал»).
         AppEventLog.log("сторож", message)
     }
 }
