@@ -147,7 +147,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 "старт",
                 "Howl ${BuildConfig.VERSION_NAME} · ${Build.MANUFACTURER} ${Build.MODEL} · " +
                     "Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}) · " +
-                    "профиль «${profile.name}» · автоподбор=${ProfileTags.auto ?: "нет"}",
+                    "профиль «${profile.name}» · автоподбор=${ProfileTags.auto ?: "нет"} · " +
+                    // ★ Энергосбережение — ключ к «сторож молчал несколько часов»: без исключения
+                    // система душит будильники, и фоновые проверки просто не выполняются. Раньше
+                    // это приходилось только предполагать, теперь видно прямо в журнале.
+                    "энергосбережение=${if (isIgnoringBatteryOptimizations()) "отключено (хорошо)" else "ВКЛЮЧЕНО (будильники душатся)"}",
             )
 
             lastProfileName = profile.name
@@ -235,6 +239,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     override fun serviceStop() {
+        // Конец работы службы в журнале раньше не отмечался: между «[старт]» и следующим
+        // «[старт]» нельзя было понять, VPN работал всё это время или был выключён.
+        AppEventLog.log("стоп", "служба остановлена")
         notification.close()
         status.postValue(Status.Starting)
         val pfd = fileDescriptor
@@ -321,7 +328,27 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
+    /**
+     * Исключено ли приложение из энергосбережения. Именно от этого зависит, будут ли работать
+     * фоновые проверки сторожа: без исключения система откладывает будильники, и в журнале
+     * появляются многочасовые паузы между проверками.
+     */
+    private fun isIgnoringBatteryOptimizations(): Boolean = runCatching {
+        Application.powerManager.isIgnoringBatteryOptimizations(packageName)
+    }.getOrDefault(false)
+
     private fun serviceUpdateIdleMode() {
+        // ★ Вход/выход из Doze — в журнал. Это единственный способ отличить «сторож сломался» от
+        // «система усыпила телефон и придержала будильники»: паузы между проверками должны
+        // совпадать именно с окнами Doze.
+        AppEventLog.log(
+            "питание",
+            if (Application.powerManager.isDeviceIdleMode) {
+                "телефон уснул (Doze) — система придерживает фоновые проверки"
+            } else {
+                "телефон проснулся (вышли из Doze)"
+            },
+        )
         if (Application.powerManager.isDeviceIdleMode) {
             commandServer.pause()
         } else {

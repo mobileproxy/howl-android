@@ -108,6 +108,10 @@ object ConnectivityWatchdog {
     // Проверки приходят из трёх источников (будильник, фоновый цикл, события). Совпали по времени —
     // вторую пропускаем: пробы занимают до ~16 с, дублировать их незачем.
     private const val MIN_CHECK_SPACING_MS = 5_000L
+
+    // Как часто подтверждать в журнале, что сторож жив и всё в порядке. Реже — снова появится
+    // двусмысленная тишина; чаще — журнал утонет в однотипных строках.
+    private const val HEARTBEAT_INTERVAL_MS = 15 * 60_000L
     private const val SETTLE_AFTER_HEAL_MS = 20_000L
 
     // Цели для проверки САМОЙ сети телефона (мимо туннеля). 1.1.1.1 у части РФ-провайдеров
@@ -141,6 +145,10 @@ object ConnectivityWatchdog {
     // секунду, не делали двойную работу.
     @Volatile
     private var lastCheckAt = 0L
+
+    // Когда последний раз писали «всё в порядке» — см. HEARTBEAT_INTERVAL_MS.
+    @Volatile
+    private var lastHeartbeatAt = 0L
     // Сколько раз чинили подряд, не добившись успеха. 0 — свежий сбой, лечим мягко
     // (просто переподключением); ≥1 — прошлый reload не помог, значит дело не в залипших
     // сокетах, а в самом узле → уводим на автоподбор, как при ручной смене сервера.
@@ -206,6 +214,12 @@ object ConnectivityWatchdog {
         autoSelected = null
         selectorSelected = null
         lastCheckAt = 0L
+        lastHeartbeatAt = 0L
+        // ★ Явно фиксируем перезапуск сторожа и сброс счётчиков. Без этой строки в журнале после
+        // «[старт]» просто пропадали сообщения о починке — счётчики обнулены, прошлый сбой уже не
+        // «продолжается», и «связь восстановилась» больше не печаталось. Со стороны выглядело как
+        // многочасовой обрыв, которого не было.
+        appendLog("сторож запущен, счётчики сброшены")
         newScope.launch { loop() }
         newScope.launch { watchUserPresence() }
         DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
@@ -224,7 +238,7 @@ object ConnectivityWatchdog {
     private fun onAlarmTick() {
         val currentScope = scope ?: return
         currentScope.launch {
-            runCatching { checkOnce() }
+            runCatching { checkOnce("будильник") }
             scheduleNextAlarm()
         }
     }
@@ -262,7 +276,7 @@ object ConnectivityWatchdog {
         merge(
             AppLifecycleObserver.isScreenOn.filter { it },
             AppLifecycleObserver.isForeground.filter { it },
-        ).collect { triggerImmediateCheck() }
+        ).collect { triggerImmediateCheck("экран/приложение") }
     }
 
     /**
@@ -286,7 +300,7 @@ object ConnectivityWatchdog {
                 if (trafficStalledSince == 0L) {
                     trafficStalledSince = now
                 } else if (now - trafficStalledSince >= TRAFFIC_STALL_MS) {
-                    triggerImmediateCheck()
+                    triggerImmediateCheck("залипание трафика")
                 }
             } else {
                 // Пришёл хоть один ответный байт (или перестали слать) — тишины нет.
@@ -343,12 +357,12 @@ object ConnectivityWatchdog {
      * если проба реально провалилась. Поэтому ложная тревога безвредна, и сигналы можно держать
      * чувствительными.
      */
-    private fun triggerImmediateCheck() {
+    private fun triggerImmediateCheck(trigger: String = "событие") {
         val currentScope = scope ?: return
         val now = System.currentTimeMillis()
         if (now - lastTriggerAt < MIN_TRIGGER_INTERVAL_MS) return
         lastTriggerAt = now
-        currentScope.launch { runCatching { checkOnce() } }
+        currentScope.launch { runCatching { checkOnce(trigger) } }
     }
 
     /**
@@ -364,7 +378,7 @@ object ConnectivityWatchdog {
         networkJob = currentScope.launch {
             delay(SETTLE_AFTER_NETWORK_MS)
             appendLog(str(R.string.watchdog_log_network_changed))
-            runCatching { checkOnce() }
+            runCatching { checkOnce("смена сети") }
         }
     }
 
@@ -383,7 +397,18 @@ object ConnectivityWatchdog {
         }
     }
 
-    private suspend fun checkOnce() = checkMutex.withLock {
+    /**
+     * Короткая сводка обстановки для журнала: через какой узел идём и по какой сети. Раньше это
+     * приходилось восстанавливать по ошибкам ядра, а при разборе журнала именно этих двух фактов
+     * не хватало, чтобы понять «узел плохой» или «сеть плохая».
+     */
+    private fun context(trigger: String): String {
+        val node = selectorSelected?.takeIf { it != ProfileTags.auto } ?: autoSelected
+        val net = DefaultNetworkMonitor.reportedInterface
+        return "узел «${node ?: "?"}» · сеть ${net ?: "?"} · проверка: $trigger"
+    }
+
+    private suspend fun checkOnce(trigger: String = "цикл") = checkMutex.withLock {
         // Только что проверяли (сошлись будильник и цикл) — второй прогон ничего не добавит.
         val startedAt = System.currentTimeMillis()
         if (startedAt - lastCheckAt < MIN_CHECK_SPACING_MS) return@withLock
@@ -399,6 +424,16 @@ object ConnectivityWatchdog {
         val domainOk = probe { domainReachable() }
 
         if (tunnelOk && domainOk) {
+            // ★ «Пульс»: раз в HEARTBEAT_INTERVAL_MS подтверждаем, что сторож жив и всё в порядке.
+            // Без него УСПЕШНЫЕ проверки в журнал не попадали, и тишина читалась двояко: то ли
+            // связь была в порядке, то ли сторож вообще не работал (телефон спал). При разборе
+            // журнала 31.07–02.08 это дало фантомные «обрывы» на 194 и 491 минуту, которых на
+            // деле не было. Раз в 15 минут — 4 строки в час, журнал не раздувают.
+            val now = System.currentTimeMillis()
+            if (now - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
+                lastHeartbeatAt = now
+                appendLog("всё в порядке · ${context(trigger)}")
+            }
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog(str(R.string.watchdog_log_recovered))
                 // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
@@ -415,6 +450,11 @@ object ConnectivityWatchdog {
         }
 
         consecutiveFailures++
+        // Обстановка в начале каждого сбоя — отдельной строкой, чтобы не переписывать
+        // локализованные сообщения ниже: сразу видно узел, сеть и чем вызвана проверка.
+        if (consecutiveFailures == 1) {
+            appendLog("сбой · ${context(trigger)}")
+        }
         val what = when {
             !tunnelOk && !domainOk -> str(R.string.watchdog_reason_tunnel)
             tunnelOk && !domainOk -> str(R.string.watchdog_reason_dns)
