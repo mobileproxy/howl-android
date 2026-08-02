@@ -327,16 +327,17 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         serviceReload()
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     /**
      * Исключено ли приложение из энергосбережения. Именно от этого зависит, будут ли работать
      * фоновые проверки сторожа: без исключения система откладывает будильники, и в журнале
      * появляются многочасовые паузы между проверками.
      */
+    @RequiresApi(Build.VERSION_CODES.M)
     private fun isIgnoringBatteryOptimizations(): Boolean = runCatching {
-        Application.powerManager.isIgnoringBatteryOptimizations(packageName)
+        Application.powerManager.isIgnoringBatteryOptimizations(Application.application.packageName)
     }.getOrDefault(false)
 
+    @RequiresApi(Build.VERSION_CODES.M)
     private fun serviceUpdateIdleMode() {
         // ★ Вход/выход из Doze — в журнал. Это единственный способ отличить «сторож сломался» от
         // «система усыпила телефон и придержала будильники»: паузы между проверками должны
