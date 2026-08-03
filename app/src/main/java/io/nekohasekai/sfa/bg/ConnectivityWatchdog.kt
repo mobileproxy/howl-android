@@ -187,6 +187,11 @@ object ConnectivityWatchdog {
     @Volatile
     private var selectorSelected: String? = null
 
+    // Все узлы селектора (VLESS, Hysteria2, AmneziaWG) с измеренными задержками — запасной пул
+    // карусели, когда узлы автоподбора закончились.
+    @Volatile
+    private var selectorNodes: List<Pair<String, Int>> = emptyList()
+
     // Узлы, на которых уже залипли в текущей сети. Сбрасывается при смене сети (маршруты меняются)
     // и когда перепробованы все (тогда возвращаемся к автоподбору с чистого листа).
     // synchronizedSet: пишется из проверок, чистится из onNetworkChanged/start/stop — разные
@@ -330,8 +335,25 @@ object ConnectivityWatchdog {
             // находясь на NL, — то есть НЕ УХОДИЛИ НИКУДА, и мёртвое соединение так и оставалось
             // мёртвым до ручного переподключения.
             ProfileTags.selector?.let { selectorTag ->
-                selectorSelected = newGroups.firstOrNull { it.tag == selectorTag }
-                    ?.selected?.takeIf { it.isNotBlank() }
+                val selector = newGroups.firstOrNull { it.tag == selectorTag }
+                selectorSelected = selector?.selected?.takeIf { it.isNotBlank() }
+
+                // ★ Узлы ВСЕХ протоколов. В нашей подписке группа автоподбора состоит только из
+                // AmneziaWG (это осознанный приоритет против DPI), а VLESS и Hysteria2 лежат
+                // отдельно в селекторе — то есть доступны лишь вручную. Из-за этого карусель не
+                // могла уйти с ломающегося WG в принципе: в журнале 02–03.08 все 12 переключений
+                // были между тремя WG-узлами, и трижды сторож увёл ЧЕЛОВЕКА С РАБОТАЮЩЕГО VLESS
+                // на WG. Собираем полный список, чтобы было куда отступать.
+                val all = mutableListOf<Pair<String, Int>>()
+                if (selector != null) {
+                    val selectorItems = selector.items
+                    while (selectorItems.hasNext()) {
+                        val item = selectorItems.next()
+                        // Сама группа автоподбора — не узел, на неё уводить бессмысленно.
+                        if (item.tag != ProfileTags.auto) all.add(item.tag to item.urlTestDelay)
+                    }
+                }
+                selectorNodes = all
             }
 
             // Группа автоподбора — по тегу из конфига (у чужого профиля он другой).
@@ -631,11 +653,43 @@ object ConnectivityWatchdog {
                 ?: autoSelected
             if (current != null) stuckNodes.add(current)
 
-            // Кандидат: узел с ИЗМЕРЕННОЙ разумной задержкой, не в штрафном ящике.
-            val candidate = autoNodes
+            // Протокол узла различаем по первому символу тега — у нас это значок (🐺 AmneziaWG,
+            // 🛡 VLESS, ⚡ Hysteria2). У чужого профиля значков нет, тогда признак просто не
+            // сработает и выбор пойдёт как обычно, по задержке.
+            val currentKind = current?.firstOrNull()
+
+            /**
+             * Кандидат: узел с ИЗМЕРЕННОЙ разумной задержкой, не в штрафном ящике. При равных
+             * условиях предпочитаем ДРУГОЙ протокол: если текущий не работает, чаще всего дело в
+             * протоколе целиком (UDP режут — падает весь AmneziaWG; TCP 443 режут — падает весь
+             * VLESS), и перебор соседних узлов того же типа только тратит время. Журнал 02–03.08:
+             * VLESS отваливался по `i/o timeout`, AmneziaWG — по `network is unreachable`,
+             * то есть у каждого свои периоды, и смена типа реально помогает.
+             */
+            // ★ Единый пул: узлы автоподбора И остальные узлы селектора. Раньше карусель знала
+            // только про автоподбор, а он у нас состоит ИСКЛЮЧИТЕЛЬНО из AmneziaWG — VLESS и
+            // Hysteria2 лежат в селекторе и были доступны лишь вручную. Поэтому при поломке WG
+            // сторож бесконечно крутил три мёртвых узла и трижды за сутки стаскивал человека с
+            // РАБОТАЮЩЕГО VLESS обратно на WG (журнал 02–03.08, все 12 переключений — на 🐺).
+            val pool = (autoNodes + selectorNodes).distinctBy { it.first }
+
+            val candidate = pool
                 .filter { (tag, delay) -> tag !in stuckNodes && delay in 1..MAX_NODE_DELAY_MS }
-                .minByOrNull { it.second }
+                .sortedWith(
+                    compareBy(
+                        // Другой протокол — вперёд (см. выше: обычно ложится протокол целиком).
+                        { if (currentKind != null && it.first.firstOrNull() == currentKind) 1 else 0 },
+                        { it.second },
+                    ),
+                )
+                .firstOrNull()
                 ?.first
+                // Последний рубеж: узел, задержка которого ещё НЕ измерена (0). У членов селектора
+                // это обычное дело — задержки там появляются только после urlTest (ручное
+                // «обновить пинги» или наше переключение). Сидеть на заведомо мёртвом узле хуже,
+                // чем попробовать неизвестный: не поднимется — следующая проверка через 15 секунд
+                // отправит дальше.
+                ?: pool.firstOrNull { (tag, delay) -> tag !in stuckNodes && delay <= 0 }?.first
 
             if (candidate != null) {
                 // Принудительно на конкретный рабочий узел — уходим с залипшего.
