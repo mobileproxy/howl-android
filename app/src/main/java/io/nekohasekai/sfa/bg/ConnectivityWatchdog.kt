@@ -30,6 +30,8 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
 import java.util.Collections
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.SSLSocketFactory
 
 /**
  * Сторож соединения: ловит состояние «подключено, но трафик не идёт».
@@ -672,36 +674,57 @@ object ConnectivityWatchdog {
             // сторож бесконечно крутил три мёртвых узла и трижды за сутки стаскивал человека с
             // РАБОТАЮЩЕГО VLESS обратно на WG (журнал 02–03.08, все 12 переключений — на 🐺).
             val pool = (autoNodes + selectorNodes).distinctBy { it.first }
+            val fresh = pool.filter { it.first !in stuckNodes }
+            val measured = fresh.filter { it.second in 1..MAX_NODE_DELAY_MS }
 
-            val candidate = pool
-                .filter { (tag, delay) -> tag !in stuckNodes && delay in 1..MAX_NODE_DELAY_MS }
-                .sortedWith(
+            // Локацию узнаём по тексту после значка: «🛡 BG София» → «BG София».
+            val currentPlace = current?.substringAfter(' ')
+
+            val candidate = if (measured.isNotEmpty()) {
+                measured.sortedWith(
                     compareBy(
                         // Другой протокол — вперёд (см. выше: обычно ложится протокол целиком).
                         { if (currentKind != null && it.first.firstOrNull() == currentKind) 1 else 0 },
                         { it.second },
                     ),
-                )
-                .firstOrNull()
-                ?.first
-            // ★ Узлы с задержкой 0 сюда НЕ попадают намеренно. Ноль — это не «ещё не измерили»,
-            // а чаще всего «проба провалилась»: недоступный узел даёт ровно ноль. В прошлой версии
-            // я разрешил их выбирать как «последний рубеж» — и сторож пять раз увёл человека на
-            // узел, который его сеть режет напрочь (журнал 03–06.08: `no route to host` к
-            // 195.133.14.217 двести раз). Если валидных кандидатов нет, ниже отрабатывает ветка
-            // «отдать выбор автоподбору и перемерить» — это честнее, чем гадать.
+                ).first().first
+            } else {
+                // ★ ЗАПАСНОЙ ХОД: замеров нет вообще — идём вслепую, по кругу.
+                //
+                // Ноль в замере значит «проба провалилась», и в 794 я запретил такие узлы совсем.
+                // Это оказалось хуже болезни: когда узел, через который идёт ВЕСЬ трафик, умирает,
+                // проба не может даже разрезолвить своё имя — и ноль становится у всех девяти
+                // разом. Кандидатов нет, сторож не делает ничего, человек залипает намертво:
+                // журнал 06.08 — шесть раз «меняю сервер» и НИ ОДНОГО переключения за четыре часа.
+                //
+                // Поэтому пробуем вслепую, но не наугад: текущий узел уже в штрафном ящике, так что
+                // каждый заход берёт СЛЕДУЮЩИЙ — получается перебор по кругу, а не топтание на
+                // одном месте (в 793 «последний рубеж» именно топтался и пять раз возвращал
+                // человека на 195.133.14.217). Сначала другая локация: умерший узел чаще всего
+                // тянет за собой все свои протоколы, ведь адрес у них общий.
+                fresh.sortedWith(
+                    compareBy(
+                        { if (currentPlace != null && it.first.substringAfter(' ') == currentPlace) 1 else 0 },
+                        { if (currentKind != null && it.first.firstOrNull() == currentKind) 1 else 0 },
+                    ),
+                ).firstOrNull()?.first
+            }
 
             if (candidate != null) {
                 // Принудительно на конкретный рабочий узел — уходим с залипшего.
                 client.selectOutbound(selector, candidate)
                 client.urlTest(selector)
-                AppEventLog.log("узел", "увёл на «$candidate» (был «${current ?: "?"}»)")
+                // Помечаем слепой выбор: при разборе журнала это главный признак того, что замеры
+                // встали, — иначе «увёл на …» выглядит одинаково в обоих случаях.
+                val how = if (measured.isEmpty()) " · вслепую, замеров нет" else ""
+                AppEventLog.log("узел", "увёл на «$candidate» (был «${current ?: "?"}»)$how")
             } else {
-                // Узлов не знаем (один сервер / группы ещё не пришли) или все в ящике —
-                // отдаём выбор автоподбору с чистого листа.
+                // Узлов не знаем (один сервер / группы ещё не пришли) или все перепробованы —
+                // чистим ящик и отдаём выбор автоподбору с чистого листа.
                 stuckNodes.clear()
                 ProfileTags.auto?.let { client.selectOutbound(selector, it) }
                 client.urlTest(selector)
+                AppEventLog.log("узел", "все узлы перепробованы — начинаю круг заново")
             }
         }
     }
@@ -769,10 +792,26 @@ object ConnectivityWatchdog {
         return false
     }
 
-    /** Туннель без DNS: обычный TCP до литерального адреса. */
+    /**
+     * Туннель без DNS: соединение до литерального адреса И настоящий обмен пакетами с той стороной.
+     *
+     * ★ Одного connect() мало. В режиме tun рукопожатие подтверждает САМ sing-box внутри телефона,
+     * ещё до того как выяснится, что наружу не ушло ничего. Проба возвращала «туннель жив» на
+     * узле, который не пропускал вообще ни байта, — и лестница лечения сворачивала на мягкую
+     * ветку «шалит DNS» вместо смены сервера (журнал 06.08: семь часов «DNS не отвечает (туннель
+     * жив)» на мёртвом узле). Поэтому доводим до TLS-рукопожатия: оно требует ответа удалённой
+     * стороны, локально его подделать нечем.
+     */
     private fun tcpReachable(): Boolean = Socket().use { socket ->
         socket.connect(InetSocketAddress(InetAddress.getByName(PROBE_IP), PROBE_PORT), PROBE_TIMEOUT_MS)
-        socket.isConnected
+        socket.soTimeout = PROBE_TIMEOUT_MS
+        // autoClose = false: внешний use() и так закроет сокет, двойное закрытие ни к чему.
+        val ssl = (SSLSocketFactory.getDefault() as SSLSocketFactory)
+            .createSocket(socket, PROBE_IP, PROBE_PORT, false) as SSLSocket
+        ssl.use {
+            it.startHandshake()
+            true
+        }
     }
 
     /** Полный путь: резолв имени + реальный запрос. */
