@@ -447,7 +447,14 @@ object ConnectivityWatchdog {
         val tunnelOk = probe { tcpReachable() }
         val domainOk = probe { domainReachable() }
 
-        if (tunnelOk && domainOk) {
+        // ★ Успех определяет ТОЛЬКО domainOk. Это полный путь: резолв имени плюс живой
+        // HTTPS-запрос НАСКВОЗЬ через туннель. Если он прошёл — туннель работает по
+        // определению, спорить не о чем. Раньше здесь стояло `tunnelOk && domainOk`, и
+        // сбой объявлялся даже когда запрос доходил: достаточно было споткнуться более
+        // грубой пробе туннеля. В журнале 07–09.08 это два десятка ложных тревог, каждая
+        // из которых запускала лишний цикл лечения — переподключения на ровном месте.
+        // tunnelOk ниже остаётся, но уже только чтобы назвать ПРИЧИНУ настоящего сбоя.
+        if (domainOk) {
             // ★ «Пульс»: раз в HEARTBEAT_INTERVAL_MS подтверждаем, что сторож жив и всё в порядке.
             // Без него УСПЕШНЫЕ проверки в журнал не попадали, и тишина читалась двояко: то ли
             // связь была в порядке, то ли сторож вообще не работал (телефон спал). При разборе
@@ -479,11 +486,11 @@ object ConnectivityWatchdog {
         if (consecutiveFailures == 1) {
             appendLog("сбой · ${context(trigger)}")
         }
-        val what = when {
-            !tunnelOk && !domainOk -> str(R.string.watchdog_reason_tunnel)
-            tunnelOk && !domainOk -> str(R.string.watchdog_reason_dns)
-            else -> str(R.string.watchdog_reason_direct)
-        }
+        // Сюда попадаем только при domainOk == false, так что вариантов ровно два:
+        // не отвечает вообще ничего — или туннель жив, а имя не резолвится.
+        val what =
+            if (tunnelOk) str(R.string.watchdog_reason_dns)
+            else str(R.string.watchdog_reason_tunnel)
 
         // ★ Выясняем, ЧЬЯ это беда. Перезапуск лечит только зависший туннель; если у самого
         // телефона нет рабочего интернета, перезапуск бесполезен и вреден — он рвёт и те
@@ -676,6 +683,19 @@ object ConnectivityWatchdog {
             val pool = (autoNodes + selectorNodes).distinctBy { it.first }
             val fresh = pool.filter { it.first !in stuckNodes }
             val measured = fresh.filter { it.second in 1..MAX_NODE_DELAY_MS }
+
+            // ★ Сами ЗАМЕРЫ в журнал. Без них по строке «вслепую» не отличить две разные
+            // болезни: замеры не приходят вовсе (сломан канал до ядра) или приходят, но
+            // все нули (проба не может резолвить имя — тот самый замкнутый круг). Лечатся
+            // они по-разному, а выглядят в журнале одинаково: в разборе 07–09.08 из 196
+            // переключений 155 были вслепую, и понять причину было нечем.
+            // Ноль печатаем как «—»: это не «быстро», это «проба провалилась».
+            appendLog(
+                "замеры: " + pool.joinToString(" ") { (tag, delay) ->
+                    val mark = if (tag in stuckNodes) "✗" else ""
+                    "$mark$tag=" + (if (delay > 0) "$delay" else "—")
+                },
+            )
 
             // Локацию узнаём по тексту после значка: «🛡 BG София» → «BG София».
             val currentPlace = current?.substringAfter(' ')

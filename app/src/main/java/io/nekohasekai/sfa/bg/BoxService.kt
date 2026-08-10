@@ -241,7 +241,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     override fun serviceStop() {
         // Конец работы службы в журнале раньше не отмечался: между «[старт]» и следующим
         // «[старт]» нельзя было понять, VPN работал всё это время или был выключён.
-        AppEventLog.log("стоп", "служба остановлена")
+        // Формулировка отличается от штатного выключения (см. stopService) намеренно:
+        // сюда приходит запрос ОТ ЯДРА, и в журнале эти два случая надо различать.
+        AppEventLog.log("стоп", "остановлено ядром (перезагрузка конфигурации или сбой)")
         notification.close()
         status.postValue(Status.Starting)
         val pfd = fileDescriptor
@@ -360,6 +362,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     @OptIn(DelicateCoroutinesApi::class)
     private fun stopService() {
         if (status.value != Status.Started) return
+        // ★ ШТАТНАЯ остановка — это ИМЕННО ЭТОТ путь: кнопка в приложении, действие в шторке,
+        // отзыв разрешения VPN системой. Событие «[стоп]» писалось только в serviceStop(),
+        // куда приходит запрос ОТ ЯДРА, — а он при обычном выключении не срабатывает. Из-за
+        // этого журнал 07–09.08 показал 30 запусков и НИ ОДНОЙ остановки, и отличить
+        // «человек выключил VPN на ночь» от «система убила службу» было нечем: 43% времени
+        // простоя остались без объяснения. Теперь у каждого выключения есть своя строка,
+        // и молчание журнала однозначно значит «службу убили, она не прощалась».
+        AppEventLog.log("стоп", "выключено из приложения или системой")
         status.value = Status.Stopping
         if (receiverRegistered) {
             service.unregisterReceiver(receiver)
