@@ -130,6 +130,18 @@ object ConnectivityWatchdog {
 
     private const val SETTLE_AFTER_NETWORK_MS = 5_000L
 
+    /**
+     * Сколько после смены сети НЕ винить узлы в сбоях.
+     *
+     * Смена интерфейса — это несколько десятков секунд, когда маршрутов ещё нет, старые сокеты
+     * привязаны к исчезнувшему интерфейсу, а новые дают `network is unreachable`. Виноват в этом
+     * телефон, а не сервер, но выглядит одинаково — и штрафной ящик набивался ИСПРАВНЫМИ узлами.
+     * Журнал 10.08, 15:10–16:43: телефон 12 раз сменил интерфейс, сторож сделал 14 переключений
+     * подряд и забраковал почти весь парк. В замерах прямо видно `✗🛡 BG София=370` — узел
+     * измерился нормально и через час прекрасно работал, но был отвергнут.
+     */
+    private const val BLAME_NODE_AFTER_NETWORK_MS = 90_000L
+
     // Узел считаем пригодным для принудительного увода, только если автоподбор ИЗМЕРИЛ его
     // задержку и она разумная. 0 = не измерен/недоступен, слишком большая = мёртвый.
     private const val MAX_NODE_DELAY_MS = 3_000
@@ -142,6 +154,10 @@ object ConnectivityWatchdog {
     private var scope: CoroutineScope? = null
     private var consecutiveFailures = 0
     private var lastHealAt = 0L
+
+    /** Когда последний раз менялся интерфейс — см. BLAME_NODE_AFTER_NETWORK_MS. */
+    @Volatile
+    private var lastNetworkChangeAt = 0L
 
     // Когда последний раз реально прогнали пробы — чтобы будильник и фоновый цикл, сойдясь в одну
     // секунду, не делали двойную работу.
@@ -398,6 +414,7 @@ object ConnectivityWatchdog {
         // Сеть сменилась — маршруты к узлам стали другими, прошлые «плохие узлы» больше не
         // приговор. Чистим штрафной ящик, чтобы карусель могла снова пробовать любой узел.
         stuckNodes.clear()
+        lastNetworkChangeAt = System.currentTimeMillis()
         networkJob?.cancel()
         networkJob = currentScope.launch {
             delay(SETTLE_AFTER_NETWORK_MS)
@@ -660,7 +677,14 @@ object ConnectivityWatchdog {
             val current = selectorSelected
                 ?.takeIf { it != ProfileTags.auto }
                 ?: autoSelected
-            if (current != null) stuckNodes.add(current)
+
+            // ★ Штрафуем узел, только когда сеть телефона успела устояться. Сразу после смены
+            // интерфейса сбой почти наверняка местный (маршрутов ещё нет), и клеймить за него
+            // сервер — значит выбрасывать из выбора исправные узлы: см. BLAME_NODE_AFTER_NETWORK_MS.
+            // Узел при этом всё равно меняем — уйти с проблемного места полезно в любом случае,
+            // но дорогу назад не перекрываем.
+            val settled = System.currentTimeMillis() - lastNetworkChangeAt >= BLAME_NODE_AFTER_NETWORK_MS
+            if (current != null && settled) stuckNodes.add(current)
 
             // Протокол узла различаем по первому символу тега — у нас это значок (🐺 AmneziaWG,
             // 🛡 VLESS, ⚡ Hysteria2). У чужого профиля значков нет, тогда признак просто не
@@ -681,7 +705,10 @@ object ConnectivityWatchdog {
             // сторож бесконечно крутил три мёртвых узла и трижды за сутки стаскивал человека с
             // РАБОТАЮЩЕГО VLESS обратно на WG (журнал 02–03.08, все 12 переключений — на 🐺).
             val pool = (autoNodes + selectorNodes).distinctBy { it.first }
-            val fresh = pool.filter { it.first !in stuckNodes }
+            // Текущий узел исключаем ВСЕГДА, даже когда не штрафуем его: смысл вызова — уйти
+            // с проблемного места. Без этого при пропущенном штрафе он остался бы кандидатом
+            // и слепой перебор мог бы вернуть нас на то же самое.
+            val fresh = pool.filter { it.first !in stuckNodes && it.first != current }
             val measured = fresh.filter { it.second in 1..MAX_NODE_DELAY_MS }
 
             // ★ Сами ЗАМЕРЫ в журнал. Без них по строке «вслепую» не отличить две разные
@@ -737,7 +764,10 @@ object ConnectivityWatchdog {
                 // Помечаем слепой выбор: при разборе журнала это главный признак того, что замеры
                 // встали, — иначе «увёл на …» выглядит одинаково в обоих случаях.
                 val how = if (measured.isEmpty()) " · вслепую, замеров нет" else ""
-                AppEventLog.log("узел", "увёл на «$candidate» (был «${current ?: "?"}»)$how")
+                // Отдельно помечаем случай «сеть только что менялась»: иначе при разборе журнала
+                // непонятно, почему прежний узел остался доступен для выбора.
+                val blame = if (settled) "" else " · сеть менялась, узел не штрафуем"
+                AppEventLog.log("узел", "увёл на «$candidate» (был «${current ?: "?"}»)$how$blame")
             } else {
                 // Узлов не знаем (один сервер / группы ещё не пришли) или все перепробованы —
                 // чистим ящик и отдаём выбор автоподбору с чистого листа.
