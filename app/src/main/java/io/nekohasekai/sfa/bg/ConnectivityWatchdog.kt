@@ -146,6 +146,20 @@ object ConnectivityWatchdog {
     // задержку и она разумная. 0 = не измерен/недоступен, слишком большая = мёртвый.
     private const val MAX_NODE_DELAY_MS = 3_000
 
+    /**
+     * Сколько раз надо БЕЗУСПЕШНО обойти весь парк узлов, чтобы признать: дело не в узлах.
+     *
+     * Ночь 14–15.08: с 23:00 до 08:30 мобильная сеть `rmnet_data1` не пропускала ни один узел и
+     * ни один протокол — все девять с пустыми замерами. Сторож девять часов подряд менял сервер
+     * примерно раз в минуту: около 560 переключений, ноль шансов помочь, зато разряженная за ночь
+     * батарея и забитый журнал (события двух суток вытеснены). Когда круг пройден целиком и ничего
+     * не помогло, менять узлы дальше бессмысленно — надо ждать, изредка проверяя.
+     */
+    private const val POOL_CYCLES_BEFORE_SLOWDOWN = 2
+
+    /** Интервал между попытками, когда весь парк уже перепробован без толку. */
+    private const val EXHAUSTED_HEAL_INTERVAL_MS = 5 * 60_000L
+
     // Теги групп НЕ зашиты: «Howl»/«auto» — это имена из нашего sub.php, а у профиля от
     // стороннего сервиса они другие. С зашитыми именами ступень «сменить сервер» на чужом
     // профиле молча ничего не делала: ошибки нет, починки тоже. Читаем их из самого конфига
@@ -158,6 +172,14 @@ object ConnectivityWatchdog {
     /** Когда последний раз менялся интерфейс — см. BLAME_NODE_AFTER_NETWORK_MS. */
     @Volatile
     private var lastNetworkChangeAt = 0L
+
+    /** Сколько полных кругов по парку прошли без успеха — см. POOL_CYCLES_BEFORE_SLOWDOWN. */
+    @Volatile
+    private var poolCyclesWithoutSuccess = 0
+
+    /** Уже сообщили в журнал, что ушли в редкий режим: строку пишем один раз на аварию. */
+    @Volatile
+    private var slowdownAnnounced = false
 
     // Когда последний раз реально прогнали пробы — чтобы будильник и фоновый цикл, сойдясь в одну
     // секунду, не делали двойную работу.
@@ -481,7 +503,16 @@ object ConnectivityWatchdog {
             if (now - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
                 lastHeartbeatAt = now
                 appendLog("всё в порядке · ${context(trigger)}")
+                // ★ Замеры пишем ВМЕСТЕ С ПУЛЬСОМ, а не только при переключении. Иначе видно
+                // исключительно аварийную картину: за 16–17.08 строк с замерами набралось 14 штук,
+                // все — из моментов сбоя. По ним нельзя понять, как автоподбор выбирает в норме и
+                // какие протоколы вообще доходят до замера. Раз в 15 минут одна строка — дёшево.
+                measurementsLine()?.let { appendLog(it) }
             }
+            // Связь есть — значит парк не при чём: обнуляем счётчик кругов и разрешаем снова
+            // сообщить о переходе в редкий режим, если авария повторится.
+            poolCyclesWithoutSuccess = 0
+            slowdownAnnounced = false
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog(str(R.string.watchdog_log_recovered))
                 // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
@@ -557,12 +588,22 @@ object ConnectivityWatchdog {
         // Пауза уместна ТОЛЬКО когда туннель жив, а сыплется что-то одно (например DNS) — там
         // частые перезапуски рвут работающие соединения. Мёртвый туннель и мёртвая сеть под это
         // не подпадают: связи нет вообще, ждать нечего — чиним на каждой проверке.
-        val waitBeforeHeal =
-            if (healAttempts > 2 && !networkDead && !tunnelDead) {
-                BACKOFF_HEAL_INTERVAL_MS
-            } else {
-                MIN_HEAL_INTERVAL_MS
-            }
+        val waitBeforeHeal = when {
+            // ★ Весь парк уже перепробован по кругу и не помог — значит дело не в узлах, а во
+            // внешних обстоятельствах (ночь 14–15.08: мобильная сеть не пропускала НИЧЕГО девять
+            // часов). Дальше долбиться раз в минуту бессмысленно и вредно: это только жжёт батарею
+            // и вымывает журнал. Ждём и изредка проверяем — вернётся связь, счётчик обнулится.
+            poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN -> EXHAUSTED_HEAL_INTERVAL_MS
+            healAttempts > 2 && !networkDead && !tunnelDead -> BACKOFF_HEAL_INTERVAL_MS
+            else -> MIN_HEAL_INTERVAL_MS
+        }
+        if (waitBeforeHeal == EXHAUSTED_HEAL_INTERVAL_MS && !slowdownAnnounced) {
+            slowdownAnnounced = true
+            appendLog(
+                "весь парк перепробован без толку — перехожу на редкие проверки " +
+                    "(раз в ${EXHAUSTED_HEAL_INTERVAL_MS / 60_000} мин), похоже режут снаружи",
+            )
+        }
         if (now - lastHealAt < waitBeforeHeal) {
             appendLog(str(R.string.watchdog_log_wait, what))
             return@withLock
@@ -711,18 +752,7 @@ object ConnectivityWatchdog {
             val fresh = pool.filter { it.first !in stuckNodes && it.first != current }
             val measured = fresh.filter { it.second in 1..MAX_NODE_DELAY_MS }
 
-            // ★ Сами ЗАМЕРЫ в журнал. Без них по строке «вслепую» не отличить две разные
-            // болезни: замеры не приходят вовсе (сломан канал до ядра) или приходят, но
-            // все нули (проба не может резолвить имя — тот самый замкнутый круг). Лечатся
-            // они по-разному, а выглядят в журнале одинаково: в разборе 07–09.08 из 196
-            // переключений 155 были вслепую, и понять причину было нечем.
-            // Ноль печатаем как «—»: это не «быстро», это «проба провалилась».
-            appendLog(
-                "замеры: " + pool.joinToString(" ") { (tag, delay) ->
-                    val mark = if (tag in stuckNodes) "✗" else ""
-                    "$mark$tag=" + (if (delay > 0) "$delay" else "—")
-                },
-            )
+            measurementsLine()?.let { appendLog(it) }
 
             // Локацию узнаём по тексту после значка: «🛡 BG София» → «BG София».
             val currentPlace = current?.substringAfter(' ')
@@ -774,8 +804,31 @@ object ConnectivityWatchdog {
                 stuckNodes.clear()
                 ProfileTags.auto?.let { client.selectOutbound(selector, it) }
                 client.urlTest(selector)
-                AppEventLog.log("узел", "все узлы перепробованы — начинаю круг заново")
+                // Круг пройден целиком и не помог. Считаем такие круги: после второго переходим
+                // на редкие попытки — см. POOL_CYCLES_BEFORE_SLOWDOWN.
+                poolCyclesWithoutSuccess++
+                AppEventLog.log(
+                    "узел",
+                    "все узлы перепробованы (круг $poolCyclesWithoutSuccess) — начинаю заново",
+                )
             }
+        }
+    }
+
+    /**
+     * Строка с задержками всех известных узлов, или null — если узлов ещё не знаем.
+     *
+     * Без неё по строке «вслепую» не отличить две разные болезни: замеры не приходят вовсе
+     * (сломан канал до ядра) или приходят, но все нули (проба не может достучаться — тот самый
+     * замкнутый круг). Лечатся они по-разному, а в журнале выглядели одинаково.
+     * Ноль печатаем как «—»: это не «быстро», это «проба провалилась». Крест — штрафной ящик.
+     */
+    private fun measurementsLine(): String? {
+        val pool = (autoNodes + selectorNodes).distinctBy { it.first }
+        if (pool.isEmpty()) return null
+        return "замеры: " + pool.joinToString(" ") { (tag, delay) ->
+            val mark = if (tag in stuckNodes) "✗" else ""
+            "$mark$tag=" + (if (delay > 0) "$delay" else "—")
         }
     }
 
