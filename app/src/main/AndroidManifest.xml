@@ -165,6 +165,20 @@
             </intent-filter>
         </receiver>
 
+        <!--
+            Сторож службы. Объявлен ЗДЕСЬ, а не регистрируется на ходу, — в этом весь смысл:
+            приёмник из манифеста переживает смерть процесса, и система создаёт процесс заново,
+            чтобы доставить будильник. Регистрация на ходу (как у будильника сторожа связи)
+            умирает вместе со службой и воскресить её не может.
+        -->
+        <receiver
+            android:name=".bg.ServiceGuardReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="io.nekohasekai.sfa.SERVICE_GUARD" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="io.github.libxposed.service.XposedProvider"
             android:authorities="${applicationId}.XposedService"

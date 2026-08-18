@@ -58,6 +58,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         private const val PROFILE_UPDATE_INTERVAL = 15L * 60 * 1000 // 15 minutes in milliseconds
         private const val TAG = "BoxService"
 
+        /**
+         * Жива ли служба В ЭТОМ процессе. Нужен [ServiceGuard]: в процессе, только что созданном
+         * ради доставки будильника, флаг false по определению — это и есть надёжный признак
+         * «нас убили». Через [status] так не проверишь: он приватный и у нового процесса свой.
+         */
+        @Volatile
+        var running = false
+
         fun start() {
             val intent =
                 runBlocking {
@@ -197,6 +205,10 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
 
             status.postValue(Status.Started)
+            // Служба поднялась — с этого момента сторож службы видит нас живыми, а его будильник
+            // должен тикать: он и воскресит нас, если оболочка телефона убьёт процесс.
+            running = true
+            ServiceGuard.schedule()
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_started)
             }
@@ -370,6 +382,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         // простоя остались без объяснения. Теперь у каждого выключения есть своя строка,
         // и молчание журнала однозначно значит «службу убили, она не прощалась».
         AppEventLog.log("стоп", "выключено из приложения или системой")
+        // Осознанная остановка: воскрешать не надо, будильник сторожа службы снимаем.
+        running = false
+        ServiceGuard.cancel()
         status.value = Status.Stopping
         if (receiverRegistered) {
             service.unregisterReceiver(receiver)
@@ -406,6 +421,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     private suspend fun stopAndAlert(type: Alert, message: String? = null) {
+        // ★ Этот путь останавливал службу МОЛЧА: ни строки в журнале, только всплывающее
+        // предупреждение в приложении, которого человек не видит, если оно свёрнуто. Снаружи
+        // это неотличимо от убийства системой — «VPN сам выключился». Сюда попадают неудачный
+        // перезапуск конфигурации, отказ создать туннель, пустой профиль: всё то, что стоит
+        // разбирать по журналу, а не гадать.
+        AppEventLog.log("стоп", "остановлено из-за ошибки: $type${message?.let { " — $it" } ?: ""}")
+        running = false
+        ServiceGuard.cancel()
         Settings.startedByUser = false
         ConnectivityWatchdog.stop()
         val pfd = fileDescriptor
@@ -434,9 +457,13 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
     @OptIn(DelicateCoroutinesApi::class)
     @Suppress("SameReturnValue")
-    internal fun onStartCommand(): Int {
-        if (status.value != Status.Stopped) return Service.START_NOT_STICKY
+    internal fun onStartCommand(intent: Intent? = null): Int {
+        if (status.value != Status.Stopped) return Service.START_STICKY
         status.value = Status.Starting
+        // ★ Перезапуск после убийства системой: Android отдаёт intent == null. Отличать важно —
+        // при таком старте нельзя слепо считать, что VPN хочет человек: он мог выключить его
+        // раньше. Флаг startedByUser читаем ДО того, как перезапишем его ниже.
+        val restartedBySystem = intent == null
 
         if (!receiverRegistered) {
             ContextCompat.registerReceiver(
@@ -454,6 +481,18 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
 
         GlobalScope.launch(Dispatchers.IO) {
+            if (restartedBySystem) {
+                if (!Settings.startedByUser) {
+                    // VPN был выключен человеком — система просто восстанавливает службу по
+                    // инерции. Тихо уходим, не навязываясь.
+                    withContext(Dispatchers.Main) {
+                        status.value = Status.Stopped
+                        service.stopSelf()
+                    }
+                    return@launch
+                }
+                AppEventLog.log("старт", "перезапуск службы системой после остановки")
+            }
             Settings.startedByUser = true
             try {
                 startCommandServer()
@@ -463,7 +502,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
             startService()
         }
-        return Service.START_NOT_STICKY
+        // ★ START_STICKY, а не NOT_STICKY. Прежде система, убив службу, просто забывала о ней —
+        // и VPN оставался выключенным, пока человек не заметит. Журнал 17–18.08: три таких смерти
+        // за сутки, простой 717 минут из 1403. Теперь Android поднимет службу сам, а проверка
+        // startedByUser выше не даёт воскреснуть тому, что выключили намеренно.
+        return Service.START_STICKY
     }
 
     internal fun onBind(): IBinder = binder
