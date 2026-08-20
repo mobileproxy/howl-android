@@ -177,6 +177,16 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                 // Select the new outbound immediately
                 CommandTarget.standaloneClient().selectOutbound(groupTag, itemTag)
 
+                // ★ Рвём открытые соединения — но ТОЛЬКО здесь, при РУЧНОМ выборе человека.
+                // Раньше это делал сам селектор (interrupt_exist_connections=true в подписке),
+                // и потому обрыв случался и при АВТОМАТИЧЕСКОЙ смене узла сторожем: журнал
+                // 19–20.08 — 93 переключения за сутки, то есть загрузки и звонки рвались каждые
+                // несколько минут. Флаг снят, разрыв перенесён сюда: человек переключает сервер
+                // осознанно и ждёт, что старые соединения передоговорятся через новый, иначе
+                // получается «переключил, а не помогло» — keep-alive продолжает идти через
+                // мёртвый узел. Автоматика теперь меняет узел бесшовно.
+                runCatching { CommandTarget.standaloneClient().closeConnections() }
+
                 // Update local state and show snackbar
                 withContext(Dispatchers.Main) {
                     updateState {
