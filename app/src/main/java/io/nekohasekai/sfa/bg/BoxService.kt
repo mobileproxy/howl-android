@@ -559,6 +559,24 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
+    /**
+     * Убрать уведомление, которое ядро показывало через [sendNotification].
+     *
+     * Появилось в интерфейсе ядра начиная с sing-box-lx v1.14.0-lx.2x и обязательно к
+     * реализации — на нём и споткнулся переход с lx.9 (единственная несовместимость за
+     * двадцать выпусков). Отменяем по тому же номеру, под которым показывали: [typeID]
+     * передаётся в `notify()` выше, идентификатор канала здесь не нужен и служит лишь
+     * для симметрии с вызовом ядра.
+     *
+     * Канал уведомлений НЕ удаляем: он общий для типа, а не для конкретного сообщения, и
+     * его пересоздание сбросило бы пользовательские настройки звука и важности.
+     */
+    internal fun cancelNotification(identifier: String, typeID: Int) {
+        GlobalScope.launch(Dispatchers.Main) {
+            runCatching { Application.notification.cancel(typeID) }
+        }
+    }
+
     override fun triggerNativeCrash() {
         Thread {
             Thread.sleep(200)
