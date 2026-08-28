@@ -50,9 +50,18 @@ jobs:
           REF="${{ github.event.inputs.singbox_ref || 'v1.14.0-lx.9' }}"
           git clone --depth 1 --branch "$REF" https://github.com/Leadaxe/sing-box-lx.git /tmp/sing-box
           cd /tmp/sing-box
-          # Only the AmneziaWG-patched wireguard-go submodule is needed for the build
-          # (skip the clients/* app-repo submodules).
-          git submodule update --init submodules/wireguard-go
+          # Инициализируем ВСЕ подмодули из submodules/, какие объявлены в этой ревизии
+          # ядра, и НЕ трогаем clients/* — это репозитории приложений, тяжёлые и для
+          # сборки библиотеки не нужные.
+          #
+          # ★ Раньше здесь был жёстко прописан один wireguard-go, и на этом сломалась
+          # пробная сборка на ядре lx.29: там к нему добавились sing-tun и gvisor, без
+          # которых go падает с «reading submodules/gvisor/go.mod: no such file».
+          # Список читаем из .gitmodules самой ревизии, поэтому рецепт одинаково годится
+          # и для старого ядра (подмодуль один), и для любого будущего.
+          git config -f .gitmodules --get-regexp '^submodule\..*\.path$' \
+            | awk '$2 ~ /^submodules\// { print $2 }' \
+            | xargs -r git submodule update --init --depth 1
           go install -v github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
           go install -v github.com/sagernet/gomobile/cmd/gobind@v0.1.13
           export PATH="$PATH:$(go env GOPATH)/bin"
