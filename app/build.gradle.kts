@@ -116,11 +116,18 @@ android {
 
     flavorDimensions += "vendor"
     productFlavors {
+        // ★ Android 7.0 (24), а не 6.0 (23). Планку подняло само ядро: libbox начиная с
+        // sing-box-lx v1.14.0-lx.2x объявляет minSdk 24, и сборка падает на слиянии
+        // манифестов — «minSdkVersion 23 cannot be smaller than version 24 declared in
+        // library [libbox.aar]». Больше переход на новое ядро не потребовал НИЧЕГО: все
+        // вызовы libbox из нашего кода компилятор принял без единой правки.
+        // Цена — телефоны на Android 6.0, это 2015 год. Отдельная сборка otherLegacy для
+        // Android 5 в CI не собиралась никогда, так что реального наследия тут нет.
         create("play") {
-            minSdk = 23
+            minSdk = 24
         }
         create("other") {
-            minSdk = 23
+            minSdk = 24
         }
         create("otherLegacy") {
             minSdk = 21
