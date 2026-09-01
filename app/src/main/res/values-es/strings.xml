@@ -351,10 +351,10 @@
     <string name="per_app_proxy_root_required">Al instalar desde Play Store, el proxy por aplicación requiere ROOT. Google Play no nos permite usar el permiso QUERY_ALL_PACKAGES (aunque sí lo permite a otras apps similares), que es necesario para listar las apps.</string>
     <string name="privileged_access_required">Se requiere acceso root o Shizuku para obtener la lista completa de apps</string>
     <string name="location_permission_title">Permiso de ubicación</string>
-    <string name="location_permission_description">Tu perfil contiene &lt;strong&gt;reglas de enrutamiento &lt;tt&gt;wifi_ssid&lt;/tt&gt; o &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Para que funcionen, sing-box usa el permiso de &lt;strong&gt;ubicación&lt;/strong&gt; &lt;strong&gt;en segundo plano&lt;/strong&gt; para obtener información sobre la red Wi-Fi conectada. Esta información se usará &lt;strong&gt;solo con fines de enrutamiento&lt;/strong&gt;.</string>
+    <string name="location_permission_description">Tu perfil contiene &lt;strong&gt;reglas de enrutamiento &lt;tt&gt;wifi_ssid&lt;/tt&gt; o &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Para que funcionen, Howl usa el permiso de &lt;strong&gt;ubicación&lt;/strong&gt; &lt;strong&gt;en segundo plano&lt;/strong&gt; para obtener información sobre la red Wi-Fi conectada. Esta información se usará &lt;strong&gt;solo con fines de enrutamiento&lt;/strong&gt;.</string>
     <string name="location_permission_background_description">En Android 10 y versiones posteriores se requiere el permiso de &lt;strong&gt;ubicación en segundo plano&lt;/strong&gt;. Selecciona &lt;strong&gt;Permitir siempre&lt;/strong&gt; para concederlo.</string>
     <string name="notification_permission_title">Permiso de notificaciones</string>
-    <string name="notification_permission_required_description">sing-box no puede mostrar las velocidades de red en tiempo real sin el permiso para enviar notificaciones. Concede el permiso o desactiva la notificación de velocidades de red en tiempo real antes de iniciar el servicio.</string>
+    <string name="notification_permission_required_description">Howl no puede mostrar las velocidades de red en tiempo real sin el permiso para enviar notificaciones. Concede el permiso o desactiva la notificación de velocidades de red en tiempo real antes de iniciar el servicio.</string>
     <string name="root_access_required">Se requiere acceso root</string>
     <string name="root_access_denied">Acceso root denegado</string>
     <string name="check_update_automatic">Comprobación automática de actualizaciones</string>
@@ -428,7 +428,7 @@
     <string name="error_empty_configuration">Configuración vacía</string>
     <string name="error_empty_file">Archivo vacío</string>
     <string name="error_decode_profile">No se pudo decodificar el perfil: %s</string>
-    <string name="error_invalid_configuration">Configuración de sing-box no válida: %s</string>
+    <string name="error_invalid_configuration">Configuración de Howl no válida: %s</string>
     <string name="error_start_command_server">Iniciar el servidor de comandos</string>
     <string name="error_create_service">Crear el servicio</string>
     <string name="error_start_service">Iniciar el servicio</string>
@@ -603,7 +603,7 @@
     <string name="oom_report_memory_limit">Límite de memoria</string>
     <string name="oom_report_kill_connections">Cerrar conexiones</string>
     <string name="oom_report_kill_connections_description">Cierra todas las conexiones para liberar memoria cuando la memoria del servicio supera el límite.</string>
-    <string name="xposed_description">Mejora con privilegios para sing-box</string>
+    <string name="xposed_description">Mejora con privilegios para Howl</string>
     <string name="privilege_module_title">Módulos con privilegios</string>
     <string name="lsposed_module_activated">Módulo de LSPosed activado</string>
     <string name="lsposed_module_pending_update">Actualización del módulo de LSPosed pendiente</string>

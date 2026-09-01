@@ -60,7 +60,7 @@ class VPNService :
 
         val builder =
             Builder()
-                .setSession("sing-box")
+                .setSession("Howl")
                 .setMtu(options.mtu)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

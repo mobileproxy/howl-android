@@ -356,10 +356,10 @@
     <string name="per_app_proxy_root_required">Lorsqu\'elle est installée depuis le Play Store, la fonction proxy par application nécessite ROOT. Google Play refuse de nous laisser utiliser l\'autorisation QUERY_ALL_PACKAGES (sans l\'interdire à d\'autres applications similaires), pourtant nécessaire pour lister les applications.</string>
     <string name="privileged_access_required">Accès root ou Shizuku requis pour obtenir la liste complète des applications</string>
     <string name="location_permission_title">Autorisation de localisation</string>
-    <string name="location_permission_description">Votre profil contient des &lt;strong&gt;règles de routage &lt;tt&gt;wifi_ssid&lt;/tt&gt; ou &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Pour les faire fonctionner, sing-box utilise l\'autorisation de &lt;strong&gt;localisation&lt;/strong&gt; &lt;strong&gt;en arrière-plan&lt;/strong&gt; afin d\'obtenir des informations sur le réseau Wi-Fi connecté. Ces informations seront utilisées &lt;strong&gt;uniquement à des fins de routage&lt;/strong&gt;.</string>
+    <string name="location_permission_description">Votre profil contient des &lt;strong&gt;règles de routage &lt;tt&gt;wifi_ssid&lt;/tt&gt; ou &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Pour les faire fonctionner, Howl utilise l\'autorisation de &lt;strong&gt;localisation&lt;/strong&gt; &lt;strong&gt;en arrière-plan&lt;/strong&gt; afin d\'obtenir des informations sur le réseau Wi-Fi connecté. Ces informations seront utilisées &lt;strong&gt;uniquement à des fins de routage&lt;/strong&gt;.</string>
     <string name="location_permission_background_description">Sur Android 10 et versions ultérieures, l\'autorisation de &lt;strong&gt;localisation en arrière-plan&lt;/strong&gt; est requise. Sélectionnez &lt;strong&gt;Toujours autoriser&lt;/strong&gt; pour l\'accorder.</string>
     <string name="notification_permission_title">Autorisation de notification</string>
-    <string name="notification_permission_required_description">sing-box ne peut pas afficher les vitesses réseau en temps réel sans l\'autorisation d\'envoyer des notifications. Veuillez accorder l\'autorisation ou désactiver la notification des vitesses réseau en temps réel avant de démarrer le service.</string>
+    <string name="notification_permission_required_description">Howl ne peut pas afficher les vitesses réseau en temps réel sans l\'autorisation d\'envoyer des notifications. Veuillez accorder l\'autorisation ou désactiver la notification des vitesses réseau en temps réel avant de démarrer le service.</string>
     <string name="root_access_required">Accès root requis</string>
     <string name="root_access_denied">Accès root refusé</string>
     <string name="check_update_automatic">Recherche automatique de mises à jour</string>
@@ -433,7 +433,7 @@
     <string name="error_empty_configuration">Configuration vide</string>
     <string name="error_empty_file">Fichier vide</string>
     <string name="error_decode_profile">Échec du décodage du profil : %s</string>
-    <string name="error_invalid_configuration">Configuration sing-box invalide : %s</string>
+    <string name="error_invalid_configuration">Configuration Howl invalide : %s</string>
     <string name="error_start_command_server">Démarrer le serveur de commandes</string>
     <string name="error_create_service">Créer le service</string>
     <string name="error_start_service">Démarrer le service</string>
@@ -608,7 +608,7 @@
     <string name="oom_report_memory_limit">Limite de mémoire</string>
     <string name="oom_report_kill_connections">Fermer les connexions</string>
     <string name="oom_report_kill_connections_description">Fermer toutes les connexions pour libérer de la mémoire lorsque la mémoire du service dépasse la limite.</string>
-    <string name="xposed_description">Amélioration privilégiée pour sing-box</string>
+    <string name="xposed_description">Amélioration privilégiée pour Howl</string>
     <string name="privilege_module_title">Modules de privilège</string>
     <string name="lsposed_module_activated">Module LSPosed activé</string>
     <string name="lsposed_module_pending_update">Mise à jour du module LSPosed en attente</string>

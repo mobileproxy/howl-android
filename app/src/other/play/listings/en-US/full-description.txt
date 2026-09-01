@@ -1,1 +1,28 @@
-sing-box is a fast, customizable and univsersal proxy platform that can be used to create network proxy servers, clients and transparent proxies. This app allows users to manage and use local and remote sing-box profiles and provides platform specific feature implementations such as the TUN transparent proxy implementation through the Android VpnService.
+Howl is the VPN client for vpn.how. Add your subscription once — the app does the rest.
+
+WHY IT KEEPS WORKING
+
+Howl does not rely on a single way in. Your subscription carries several independent protocols to the same servers, so a block on one of them does not cut you off:
+
+• VLESS with Reality
+• Hysteria2
+• Shadowsocks-2022
+• ShadowTLS
+• OpenConnect
+• AmneziaWG
+
+The app measures every available server by real latency and connects through the fastest one. A built-in watchdog notices when a server stops responding or the network changes — Wi-Fi to mobile, roaming, a dead hotspot — and reconnects on its own, without you opening the app.
+
+WHAT YOU CAN CONTROL
+
+• Pick a country and a protocol yourself, or leave it on automatic
+• Split tunnelling: send chosen sites straight past the VPN
+• Per-app routing: decide which apps use the tunnel
+• Works with Android's always-on VPN and "block connections without VPN"
+• Russia mode: banks, government services and marketplaces that reject foreign addresses keep working
+
+WHAT IT DOES NOT DO
+
+No account inside the app, no registration, no advertising, no analytics profile. Your subscription link is all it needs.
+
+A vpn.how subscription is required to use this app.

@@ -351,10 +351,10 @@
     <string name="per_app_proxy_root_required">Se installata dal Play Store, il proxy per app richiede ROOT. Google Play ci nega l\'uso dell\'autorizzazione QUERY_ALL_PACKAGES (pur non vietandola ad altre app simili), necessaria per elencare le app.</string>
     <string name="privileged_access_required">Per ottenere l\'elenco completo delle app servono i permessi di Root o Shizuku</string>
     <string name="location_permission_title">Autorizzazione alla posizione</string>
-    <string name="location_permission_description">Il tuo profilo contiene &lt;strong&gt;regole di instradamento &lt;tt&gt;wifi_ssid&lt;/tt&gt; o &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Per farle funzionare, sing-box usa l\'autorizzazione alla &lt;strong&gt;posizione&lt;/strong&gt; &lt;strong&gt;in background&lt;/strong&gt; per ottenere informazioni sulla rete Wi-Fi connessa. Le informazioni verranno usate &lt;strong&gt;solo a scopo di instradamento&lt;/strong&gt;.</string>
+    <string name="location_permission_description">Il tuo profilo contiene &lt;strong&gt;regole di instradamento &lt;tt&gt;wifi_ssid&lt;/tt&gt; o &lt;tt&gt;wifi_bssid&lt;/tt&gt;&lt;/strong&gt;. Per farle funzionare, Howl usa l\'autorizzazione alla &lt;strong&gt;posizione&lt;/strong&gt; &lt;strong&gt;in background&lt;/strong&gt; per ottenere informazioni sulla rete Wi-Fi connessa. Le informazioni verranno usate &lt;strong&gt;solo a scopo di instradamento&lt;/strong&gt;.</string>
     <string name="location_permission_background_description">Su Android 10 e versioni successive è necessaria l\'autorizzazione alla &lt;strong&gt;posizione in background&lt;/strong&gt;. Seleziona &lt;strong&gt;Consenti sempre&lt;/strong&gt; per concedere l\'autorizzazione.</string>
     <string name="notification_permission_title">Autorizzazione alle notifiche</string>
-    <string name="notification_permission_required_description">sing-box non può mostrare la velocità di rete in tempo reale senza l\'autorizzazione a inviare notifiche. Concedi l\'autorizzazione oppure disattiva la notifica della velocità di rete in tempo reale prima di avviare il servizio.</string>
+    <string name="notification_permission_required_description">Howl non può mostrare la velocità di rete in tempo reale senza l\'autorizzazione a inviare notifiche. Concedi l\'autorizzazione oppure disattiva la notifica della velocità di rete in tempo reale prima di avviare il servizio.</string>
     <string name="root_access_required">Accesso root necessario</string>
     <string name="root_access_denied">Accesso root negato</string>
     <string name="check_update_automatic">Controllo automatico degli aggiornamenti</string>
@@ -428,7 +428,7 @@
     <string name="error_empty_configuration">Configurazione vuota</string>
     <string name="error_empty_file">File vuoto</string>
     <string name="error_decode_profile">Impossibile decodificare il profilo: %s</string>
-    <string name="error_invalid_configuration">Configurazione di sing-box non valida: %s</string>
+    <string name="error_invalid_configuration">Configurazione di Howl non valida: %s</string>
     <string name="error_start_command_server">Avvio del server dei comandi</string>
     <string name="error_create_service">Creazione del servizio</string>
     <string name="error_start_service">Avvio del servizio</string>
@@ -603,7 +603,7 @@
     <string name="oom_report_memory_limit">Limite di memoria</string>
     <string name="oom_report_kill_connections">Chiudi le connessioni</string>
     <string name="oom_report_kill_connections_description">Chiudi tutte le connessioni per liberare memoria quando la memoria del servizio supera il limite.</string>
-    <string name="xposed_description">Potenziamento con privilegi per sing-box</string>
+    <string name="xposed_description">Potenziamento con privilegi per Howl</string>
     <string name="privilege_module_title">Moduli con privilegi</string>
     <string name="lsposed_module_activated">Modulo LSPosed attivato</string>
     <string name="lsposed_module_pending_update">Aggiornamento del modulo LSPosed in attesa</string>
