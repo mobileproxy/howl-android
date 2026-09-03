@@ -741,6 +741,9 @@
     <string name="howl_status_connecting">Подключение…</string>
     <string name="howl_status_connected">Подключено</string>
     <string name="howl_status_disconnecting">Отключение…</string>
+    <string name="howl_exit_ip">Ваш адрес: %s</string>
+    <string name="howl_exit_ip_resolving">определяем…</string>
+    <string name="howl_exit_ip_unknown">не удалось определить</string>
     <string name="howl_hint_tap_connect">Нажмите, чтобы подключиться</string>
     <string name="howl_hint_tap_disconnect">Нажмите, чтобы отключить</string>
     <string name="howl_background_banner_title">Разрешите работу в фоне</string>

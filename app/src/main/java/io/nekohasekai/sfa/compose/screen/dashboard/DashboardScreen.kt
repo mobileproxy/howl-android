@@ -376,6 +376,25 @@ private fun HowlHomeContent(
                     )
                 }
 
+
+                // Адрес, под которым человек виден сайтам. Показываем только при рабочей
+                // связи: в отключённом состоянии это был бы его домашний адрес, то есть
+                // ровно то, что VPN и должен скрывать.
+                if (serviceStatus == Status.Started) {
+                    val exitIpText = when {
+                        uiState.exitIpResolving -> stringResource(R.string.howl_exit_ip_resolving)
+                        uiState.exitIp != null -> uiState.exitIp!!
+                        else -> stringResource(R.string.howl_exit_ip_unknown)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.howl_exit_ip, exitIpText),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
                 // Просьба разрешить работу в фоне — сама показывается только при
                 // отсутствии разрешения и исчезает после выдачи. Новый пользователь
                 // в настройки не пойдёт, а без разрешения система усыпляет VPN.

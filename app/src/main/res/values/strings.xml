@@ -775,6 +775,9 @@
     <string name="howl_status_connecting">Connecting…</string>
     <string name="howl_status_connected">Connected</string>
     <string name="howl_status_disconnecting">Disconnecting…</string>
+    <string name="howl_exit_ip">Your IP: %s</string>
+    <string name="howl_exit_ip_resolving">checking…</string>
+    <string name="howl_exit_ip_unknown">could not determine</string>
     <string name="howl_hint_tap_connect">Tap to connect</string>
     <string name="howl_hint_tap_disconnect">Tap to disconnect</string>
     <string name="howl_background_banner_title">Allow background operation</string>

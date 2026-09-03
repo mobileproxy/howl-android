@@ -18,8 +18,11 @@ import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.CommandClient
 import io.nekohasekai.sfa.subscription.SubscriptionConverter
 import io.nekohasekai.sfa.utils.CommandTarget
+import io.nekohasekai.sfa.utils.ExitIp
+import io.nekohasekai.sfa.utils.ExitIpLookup
 import io.nekohasekai.sfa.utils.HTTPClient
 import io.nekohasekai.sfa.utils.RemoteControlManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +66,10 @@ data class DashboardUiState(
     // Current server/location shown in the home selector (from the outbound group).
     val selectedServerName: String = "",
     val selectedServerAuto: Boolean = false,
+    // Адрес, под которым человек виден сайтам. null — ещё не определён или связь выключена.
+    val exitIp: String? = null,
+    // true — запрос идёт; отличает «ещё определяем» от «определить не удалось».
+    val exitIpResolving: Boolean = false,
     val connectionsCount: Int = 0,
     val serviceStartTime: Long? = null,
     val deprecatedNotes: List<DeprecatedNote> = emptyList(),
@@ -463,6 +470,44 @@ class DashboardViewModel :
         updateState { copy(showProfilePickerSheet = false) }
     }
 
+    // ── Внешний адрес ───────────────────────────────────────────────────────────────
+    private var exitIpJob: Job? = null
+    private var lastExitIpServer: String = ""
+
+    /**
+     * Определяет адрес, под которым человек виден сайтам, и кладёт его в состояние экрана.
+     *
+     * Пауза перед первой попыткой и повторы — не перестраховка: сразу после подключения
+     * туннель ещё не пропускает трафик (ядро отвечает «endpoint is not ready yet»), и
+     * запрос без паузы вернул бы «не удалось определить» на исправной связи.
+     *
+     * Предыдущий запрос отменяем: при быстрой смене серверов ответ старого мог прийти
+     * ПОСЛЕ нового и показать адрес узла, с которого человек уже ушёл.
+     */
+    private fun refreshExitIp() {
+        exitIpJob?.cancel()
+        updateState { copy(exitIp = null, exitIpResolving = true) }
+        exitIpJob = viewModelScope.launch {
+            delay(2000)
+            var info: ExitIp? = null
+            var attempt = 0
+            while (info == null && attempt < 3) {
+                info = ExitIpLookup.lookup()
+                if (info == null) delay(3000)
+                attempt++
+            }
+            val text = info?.let { if (it.country.isBlank()) it.ip else "${it.ip} · ${it.country}" }
+            updateState { copy(exitIp = text, exitIpResolving = false) }
+        }
+    }
+
+    private fun clearExitIp() {
+        exitIpJob?.cancel()
+        exitIpJob = null
+        lastExitIpServer = ""
+        updateState { copy(exitIp = null, exitIpResolving = false) }
+    }
+
     fun updateServiceStatus(status: Status) {
         viewModelScope.launch {
             _serviceStatus.emit(status)
@@ -491,12 +536,14 @@ class DashboardViewModel :
                 }
                 reloadSystemProxyStatus()
                 reloadStartedAt()
+                refreshExitIp()
             }
 
             Status.Stopped -> {
                 if (isRemote) {
                     return
                 }
+                clearExitIp()
                 updateState {
                     copy(
                         hasGroups = false,
@@ -714,6 +761,12 @@ class DashboardViewModel :
                     selectedServerName = serverName,
                     selectedServerAuto = serverAuto,
                 )
+            }
+
+            // Сервер сменился — прежний адрес больше не наш, определяем заново.
+            if (serverName.isNotBlank() && serverName != lastExitIpServer) {
+                lastExitIpServer = serverName
+                refreshExitIp()
             }
         }
     }

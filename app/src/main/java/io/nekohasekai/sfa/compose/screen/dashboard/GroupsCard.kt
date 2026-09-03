@@ -553,7 +553,7 @@ private fun ProxyChip(item: GroupItem, isSelected: Boolean, isSelectable: Boolea
                 ) {
                     // Type
                     Text(
-                        text = Libbox.proxyDisplayType(item.type),
+                        text = protocolLabel(item),
                         style = MaterialTheme.typography.labelSmall,
                         color =
                         if (isSelected) {
@@ -670,4 +670,21 @@ private fun rememberBounceBlockingNestedScrollConnection(lazyListState: LazyList
             return if (available.y < 0) available else Velocity.Zero
         }
     }
+}
+
+/**
+ * Название протокола для второй строки карточки узла.
+ *
+ * Ядро знает только ТИП выхода, а у ShadowTLS он тот же самый `shadowsocks`: внутри
+ * маскировки действительно он и работает. Из-за этого в списке локаций ДВЕ РАЗНЫЕ строки
+ * подписывались одинаково — «Shadowsocks» и «Shadowsocks», — хотя это разные способы
+ * подключения на разных портах: 741 голым потоком и 742 под видом обычного сайта.
+ *
+ * Наши собственные теги несут точное имя после разделителя («🎭 BG София · ShadowTLS»),
+ * поэтому берём его оттуда — это единственный источник, который знает про маскировку.
+ * У чужих профилей разделителя нет, и тогда работает прежний путь через ядро.
+ */
+private fun protocolLabel(item: GroupItem): String {
+    val suffix = item.tag.substringAfterLast(" · ", "").trim()
+    return if (suffix.isNotEmpty()) suffix else Libbox.proxyDisplayType(item.type)
 }
