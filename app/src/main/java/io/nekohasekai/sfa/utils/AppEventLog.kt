@@ -66,8 +66,23 @@ object AppEventLog {
         }
     }
 
-    /** Уже записанные события (обе генерации файла) — история для экрана «Логи». */
-    fun history(): List<String> = readAll().lineSequence().filter { it.isNotBlank() }.toList()
+    /**
+     * Уже записанные события (обе генерации файла) — история для экрана «Логи».
+     *
+     * [limit] — сколько ПОСЛЕДНИХ строк вернуть. Без него мы разворачивали до 4 МБ журнала
+     * в список из десятков тысяч строк, из которого экран оставлял себе три тысячи;
+     * остальное создавалось только чтобы быть выброшенным. Копим хвост на ходу.
+     */
+    fun history(limit: Int = Int.MAX_VALUE): List<String> {
+        if (limit <= 0) return emptyList()
+        val tail = ArrayDeque<String>()
+        readAll().lineSequence().forEach { line ->
+            if (line.isBlank()) return@forEach
+            if (tail.size >= limit) tail.removeFirst()
+            tail.addLast(line)
+        }
+        return tail.toList()
+    }
 
     private fun rotateIfNeeded() {
         runCatching {
