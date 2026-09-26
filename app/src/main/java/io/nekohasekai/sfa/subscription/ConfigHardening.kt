@@ -19,6 +19,8 @@ import org.json.JSONObject
  *    Без этого правила такие соединения не падают, а ВИСЯТ по 15–25 секунд — журнал 24.07
  *    показал ровно это на сети Telegram. `method=default` — это RST/ICMP unreachable, то есть
  *    приложение видит отказ мгновенно и берёт IPv4.
+ *  • **Живучесть OpenConnect** (`reconnect_timeout`, `dpd_interval`). Без них эндпоинт после
+ *    обрыва дольше ~5 минут выключается до перезапуска ядра — см. keepOpenConnectAlive.
  *
  * Принцип — **только добавлять, ничего не переписывать.** Чужой конфиг мы не знаем: его DNS,
  * маршруты и outbound'ы трогать нельзя, иначе сломаем работающее. Если нужное уже есть —
@@ -35,6 +37,7 @@ object ConfigHardening {
         var changed = false
         if (addTunIPv6(root)) changed = true
         if (addIPv6Reject(root)) changed = true
+        if (keepOpenConnectAlive(root)) changed = true
         if (changed) root.toString(2) else content
     }.getOrDefault(content)
 
@@ -78,5 +81,57 @@ object ConfigHardening {
                 .put("method", "default"),
         )
         return true
+    }
+
+    /**
+     * Сколько эндпоинт OpenConnect пытается переподключиться после обрыва, прежде чем сдаться
+     * навсегда. Год — то есть «не сдаваться, пока работает ядро».
+     */
+    private const val OC_RECONNECT_TIMEOUT = "8760h"
+
+    /**
+     * Как часто эндпоинт OpenConnect проверяет, жив ли путь до узла, когда трафика нет. Путь
+     * объявляется мёртвым после двух интервалов полной тишины.
+     */
+    private const val OC_DPD_INTERVAL = "20s"
+
+    /**
+     * Не даём эндпоинтам OpenConnect умирать насовсем после обрыва и быстрее замечаем «глухой»
+     * путь. Та же правка, что в Howl для Windows (`ConfigBuilder.KeepOpenConnectAlive`), ядро то же.
+     *
+     * ★ Что было. После обрыва уже установленного туннеля ядро переподключается с паузами
+     * 1, 2, 4… 60 с, а сумма пауз ограничена `reconnect_timeout` — по умолчанию 300 с. Обрыв
+     * дольше ~5–6 минут (ночь без сети, долгий провал у провайдера) исчерпывает бюджет:
+     * `client terminated: reconnect timeout exceeded`, и до перезапуска ядра эндпоинт отвечает
+     * только «endpoint is not ready yet». В журнале телефона 15–26.09 — пять таких смертей.
+     * Опыт 21.09 на узле Франкфурт, обрыв 7 минут: по умолчанию эндпоинт умер через 300 с и с
+     * возвратом сети не ожил; с 8760h поднялся сам через 64 с после возврата.
+     *
+     * Бесконечности у поля нет: ноль — это «по умолчанию» (те же 300 с), отрицательное ядро
+     * отвергает. Поэтому — год; пока сети нет, это одна попытка в минуту.
+     *
+     * dpd_interval — путь «глохнет» (соединение живо, ответов нет — например, забытое
+     * провайдером UDP-сопоставление): с интервалом сервера (60 с) эндпоинт замечал это через
+     * 118 с, с 20 с — через 38 с. Цена — крошечный пакет раз в 20 с и только без трафика.
+     *
+     * Ставим здесь, а не в подписке на сервере: незнакомое поле sing-box отвергает вместе со
+     * всем конфигом, а у чужих клиентов ядро может быть старее. Заданное явно не трогаем.
+     */
+    private fun keepOpenConnectAlive(root: JSONObject): Boolean {
+        val endpoints = root.optJSONArray("endpoints") ?: return false
+        var changed = false
+        for (i in 0 until endpoints.length()) {
+            val endpoint = endpoints.optJSONObject(i) ?: continue
+            if (endpoint.optString("type") != "openconnect") continue
+            if (!endpoint.has("reconnect_timeout")) {
+                endpoint.put("reconnect_timeout", OC_RECONNECT_TIMEOUT)
+                changed = true
+            }
+            if (!endpoint.has("dpd_interval")) {
+                endpoint.put("dpd_interval", OC_DPD_INTERVAL)
+                changed = true
+            }
+        }
+        return changed
     }
 }

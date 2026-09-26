@@ -146,6 +146,24 @@ object ConnectivityWatchdog {
     private const val SETTLE_AFTER_NETWORK_MS = 5_000L
 
     /**
+     * Через сколько после смены сети, запуска или перезапуска ядра заново мерить все узлы.
+     *
+     * ★ Журнал 15–26.09.2026: строка «замеры» почти всегда была УСТАРЕВШЕЙ. Автоподбор мерит
+     * узлы сам только пока им пользуются, а селектор после карусели стоит на конкретном узле —
+     * группа засыпает, и замеры обновлялись лишь в моменты смены сети, запуска ядра и смены
+     * узла (726 из 819 соседних строк совпадали один в один). Как раз в эти секунды выходы с
+     * долгой сессией ещё не готовы: OpenConnect логинится заново («endpoint is not ready yet»),
+     * у Hysteria2 переподнимается QUIC. Проба проваливалась — и «—» висел часами. Итог в
+     * сводке: OpenConnect 14%, Hysteria2 34%, хотя в работе через Wi-Fi OpenConnect дал 38
+     * проверок «в порядке» из 38. Карусель берёт только узлы с числом, так что оба протокола
+     * почти никогда не попадали в запасные ходы.
+     *
+     * Поэтому через полминуты после такого события перемеряем ещё раз, когда сессии уже
+     * поднялись, а в спокойное время — вместе с пульсом (см. HEARTBEAT_INTERVAL_MS).
+     */
+    private const val REMEASURE_DELAY_MS = 30_000L
+
+    /**
      * Сколько после смены сети НЕ винить узлы в сбоях.
      *
      * Смена интерфейса — это несколько десятков секунд, когда маршрутов ещё нет, старые сокеты
@@ -210,6 +228,9 @@ object ConnectivityWatchdog {
     private var healAttempts = 0
     private var heal: (suspend () -> Unit)? = null
     private var networkJob: Job? = null
+
+    // Отложенный повторный замер узлов — см. REMEASURE_DELAY_MS. Новое событие переносит его.
+    private var remeasureJob: Job? = null
 
     // Внеплановые проверки по событиям: время последней (для троттлинга) и подписка на статус
     // ядра, по которой ловим залипание трафика. Volatile — пишутся из потока Command-клиента и
@@ -302,6 +323,8 @@ object ConnectivityWatchdog {
         // остаётся, но он тикает только пока устройство не спит; на сон полагаемся на будильник.
         WatchdogAlarm.start { onAlarmTick() }
         WatchdogAlarm.schedule(FIRST_CHECK_DELAY_MS)
+        // Ядро мерит узлы сразу при запуске, когда OpenConnect ещё не вошёл, — перемеряем.
+        scheduleRemeasure()
     }
 
     /**
@@ -333,6 +356,7 @@ object ConnectivityWatchdog {
         groupsClient = null
         stuckNodes.clear()
         networkJob = null
+        remeasureJob = null
         scope?.cancel()
         scope = null
         heal = null
@@ -474,6 +498,27 @@ object ConnectivityWatchdog {
             appendLog(str(R.string.watchdog_log_network_changed))
             runCatching { checkOnce("смена сети") }
         }
+        // Ядро перемерило узлы в момент смены — рано для OpenConnect и Hysteria2. Сети, что
+        // сменяются чаще раза в полминуту, перенос отложит замер до последней из них.
+        scheduleRemeasure()
+    }
+
+    private fun scheduleRemeasure() {
+        val currentScope = scope ?: return
+        remeasureJob?.cancel()
+        remeasureJob = currentScope.launch {
+            delay(REMEASURE_DELAY_MS)
+            remeasure()
+        }
+    }
+
+    /**
+     * Заново мерит все узлы селектора. Выбор узла это не меняет: для селектора ядро только
+     * обновляет задержки, которые видят экран «Локации» и карусель.
+     */
+    private fun remeasure() {
+        val selector = ProfileTags.selector ?: return
+        runCatching { Libbox.newStandaloneCommandClient().urlTest(selector) }
     }
 
     private suspend fun loop() {
@@ -578,6 +623,10 @@ object ConnectivityWatchdog {
                 // все — из моментов сбоя. По ним нельзя понять, как автоподбор выбирает в норме и
                 // какие протоколы вообще доходят до замера. Раз в 15 минут одна строка — дёшево.
                 measurementsLine()?.let { appendLog(it) }
+                // И тут же перемеряем: следующий пульс запишет замеры не старше 15 минут, а не
+                // застывшие с последней смены сети. В своей корутине — проба длится секунды,
+                // а проверку держит мьютекс.
+                scope?.launch { remeasure() }
             }
             // Связь есть — значит парк не при чём: обнуляем счётчик кругов и разрешаем снова
             // сообщить о переходе в редкий режим, если авария повторится.
@@ -777,6 +826,8 @@ object ConnectivityWatchdog {
         if (failure != null) {
             appendLog(str(R.string.watchdog_log_failed, what, failure.message ?: failure.toString()))
         }
+        // Ядро перезапущено — сессии OpenConnect и Hysteria2 поднимаются заново, как при старте.
+        scheduleRemeasure()
     }
 
     /**
