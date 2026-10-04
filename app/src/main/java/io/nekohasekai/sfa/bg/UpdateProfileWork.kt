@@ -14,6 +14,7 @@ import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.subscription.SubscriptionConverter
+import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.HTTPClient
 import java.io.File
 import java.util.Date
@@ -94,6 +95,10 @@ class UpdateProfileWork {
                 }
             }
             if (selectedProfileUpdated) {
+                // Профилактика подписки раньше перезагружала ядро молча — при разборе журнала было
+                // не понять, откуда взялся перезапуск. Сама перезагрузка ставит сторож на паузу
+                // (BoxService.serviceReload0).
+                AppEventLog.log("подписка", "профиль обновился на сервере — перезагружаю ядро")
                 runCatching {
                     Libbox.newStandaloneCommandClient().serviceReload()
                 }

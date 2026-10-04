@@ -37,6 +37,7 @@ import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
 import io.nekohasekai.sfa.subscription.ConfigHardening
+import io.nekohasekai.sfa.subscription.NodeSites
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CoreLog
@@ -247,6 +248,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             ),
         )
         ProfileTags.scan(content)
+        NodeSites.scan(content)
         return content
     }
 
@@ -272,7 +274,24 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
+    /**
+     * Перезагрузка ядра (профилактика подписки, смена настроек, починка сторожа). Сторож на это
+     * время на паузе: туннеля в эти секунды нет, и «сбой» был бы ложным (Windows, 04.10.2026:
+     * проверка посреди перезапуска ядра увела с рабочего узла). В журнал — длительность.
+     */
     suspend fun serviceReload0() {
+        val startedAt = System.currentTimeMillis()
+        ConnectivityWatchdog.pauseForReload()
+        try {
+            reloadCore()
+        } finally {
+            ConnectivityWatchdog.resumeAfterReload()
+            val took = (System.currentTimeMillis() - startedAt) / 100 / 10.0
+            AppEventLog.log("ядро", "конфигурация перезагружена за $took с (профиль «${lastProfileName.ifBlank { "?" }}»)")
+        }
+    }
+
+    private suspend fun reloadCore() {
         val selectedProfileId = Settings.selectedProfile
         if (selectedProfileId == -1L) {
             stopAndAlert(Alert.EmptyConfiguration)

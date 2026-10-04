@@ -145,6 +145,7 @@
     <string name="watchdog_log_recheck">%1$s: lo compruebo otra vez</string>
     <string name="watchdog_log_reconnect">%1$s: vuelvo a conectar</string>
     <string name="watchdog_log_recovered">conexión restablecida</string>
+    <string name="watchdog_log_stall_node_ok">el tráfico se detuvo, pero el nodo responde — parece una subida grande, no toco la conexión</string>
     <string name="watchdog_log_switch_network">%1$s: no ha servido, cambio de red</string>
     <string name="watchdog_log_switch_network_via">%1$s: no ha servido, cambio de red (%2$s)</string>
     <string name="watchdog_log_switch_server">%1$s: no ha servido, cambio de servidor</string>

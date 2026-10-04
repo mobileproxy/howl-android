@@ -249,6 +249,7 @@
     <string name="core_log_description">内核会把日志写入文件，重新连接后依然保留——不像日志页面，每次连接都会从头开始。连接异常时请发送此文件。</string>
     <string name="core_log_size">已收集：%1$s</string>
     <string name="watchdog_log_recovered">连接已恢复</string>
+    <string name="watchdog_log_stall_node_ok">流量停滞，但节点有响应 — 可能是大文件上传，不改动连接</string>
     <string name="watchdog_log_captive">Wi-Fi 需要登录——未登录前 VPN 无法通过</string>
     <string name="watchdog_log_no_internet">手机网络没有互联网——等待中，重启无济于事</string>
     <string name="watchdog_log_network_changed">网络已切换——正在检查连接</string>

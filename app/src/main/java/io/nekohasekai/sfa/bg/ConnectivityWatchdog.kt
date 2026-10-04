@@ -7,6 +7,7 @@ import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.subscription.NodeSites
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.AppEventLog
@@ -93,6 +94,8 @@ object ConnectivityWatchdog {
     // условие требует именно активной отправки без единого ответного байта.
     private const val TRAFFIC_STALL_MS = 9_000L
     private const val TRAFFIC_STALL_UPLINK_BPS = 4_096L  // «шлём», а не фоновый keep-alive
+    // Подпись проверки, разбуженной залипанием, — она же в журнале («проверка: …»).
+    private const val STALL_TRIGGER = "залипание трафика"
 
     /**
      * Насколько свежим должен быть встречный трафик, чтобы считать туннель заведомо живым.
@@ -121,10 +124,6 @@ object ConnectivityWatchdog {
     // то, что ещё проходит; две минуты для этого достаточно. При мёртвом туннеле пауза не
     // применяется вовсе (см. waitBeforeHeal).
     private const val BACKOFF_HEAL_INTERVAL_MS = 2 * 60_000L
-
-    // Проверки приходят из трёх источников (будильник, фоновый цикл, события). Совпали по времени —
-    // вторую пропускаем: пробы занимают до ~16 с, дублировать их незачем.
-    private const val MIN_CHECK_SPACING_MS = 5_000L
 
     // Как часто подтверждать в журнале, что сторож жив и всё в порядке. Реже — снова появится
     // двусмысленная тишина; чаще — журнал утонет в однотипных строках.
@@ -219,6 +218,30 @@ object ConnectivityWatchdog {
     @Volatile
     private var lastCheckAt = 0L
 
+    // Когда закончилась прошлая проверка и когда запущен сторож — для промежутков из
+    // WatchdogRules: «отказы подряд» должны быть разнесены во времени, а не сыпаться пачкой.
+    @Volatile
+    private var lastCheckEndedAt = 0L
+
+    @Volatile
+    private var watchdogStartedAt = 0L
+
+    // ★ Пока ядро перезагружается (профилактика подписки, смена настроек, починка), проверки не
+    // идут: туннель в эти секунды не работает по определению, и «сбой» был бы ложным. На Windows
+    // 04.10.2026 сторож проверил связь посреди перезапуска ядра и сменил рабочий узел.
+    @Volatile
+    private var suspendedUntil = 0L
+
+    // «Трафик встал, а узел отвечает» пишем не чаще раза в RARE_LOG_INTERVAL_MS: большая
+    // выгрузка будит проверку каждые 8 с, и без ограничения журнал утонул бы в этих строках.
+    @Volatile
+    private var lastStallOkLogAt = 0L
+    private const val RARE_LOG_INTERVAL_MS = 5 * 60_000L
+
+    // Потолок паузы на перезагрузку (если конец почему-то не придёт) и тишина после неё.
+    private const val RELOAD_MAX_PAUSE_MS = 60_000L
+    private const val SETTLE_AFTER_RELOAD_MS = 10_000L
+
     // Когда последний раз писали «всё в порядке» — см. HEARTBEAT_INTERVAL_MS.
     @Volatile
     private var lastHeartbeatAt = 0L
@@ -308,6 +331,10 @@ object ConnectivityWatchdog {
         autoSelected = null
         selectorSelected = null
         lastCheckAt = 0L
+        lastCheckEndedAt = 0L
+        watchdogStartedAt = System.currentTimeMillis()
+        suspendedUntil = 0L
+        lastStallOkLogAt = 0L
         lastHeartbeatAt = 0L
         // ★ Явно фиксируем перезапуск сторожа и сброс счётчиков. Без этой строки в журнале после
         // «[старт]» просто пропадали сообщения о починке — счётчики обнулены, прошлый сбой уже не
@@ -400,7 +427,7 @@ object ConnectivityWatchdog {
                 if (trafficStalledSince == 0L) {
                     trafficStalledSince = now
                 } else if (now - trafficStalledSince >= TRAFFIC_STALL_MS) {
-                    triggerImmediateCheck("залипание трафика")
+                    triggerImmediateCheck(STALL_TRIGGER)
                 }
             } else {
                 // Пришёл хоть один ответный байт (или перестали слать) — тишины нет.
@@ -495,6 +522,10 @@ object ConnectivityWatchdog {
         networkJob?.cancel()
         networkJob = currentScope.launch {
             delay(SETTLE_AFTER_NETWORK_MS)
+            // Сеть сменилась в первые секунды после запуска сторожа — первую проверку всё равно
+            // не раньше WatchdogRules.MIN_FIRST_CHECK_MS: туннель ещё поднимается.
+            val wait = WatchdogRules.firstCheckWaitMs(System.currentTimeMillis() - watchdogStartedAt)
+            if (wait > 0) delay(wait)
             appendLog(str(R.string.watchdog_log_network_changed))
             runCatching { checkOnce("смена сети") }
         }
@@ -547,16 +578,48 @@ object ConnectivityWatchdog {
         return "узел «${node ?: "?"}» · сеть ${net ?: "?"} · проверка: $trigger"
     }
 
-    private suspend fun checkOnce(trigger: String = "цикл") = checkMutex.withLock {
-        // Только что проверяли (сошлись будильник и цикл) — второй прогон ничего не добавит.
-        val startedAt = System.currentTimeMillis()
-        if (startedAt - lastCheckAt < MIN_CHECK_SPACING_MS) return@withLock
-        lastCheckAt = startedAt
+    /**
+     * Ядро начинает перезагрузку (BoxService.serviceReload0): проверки на паузу. Память сторожа
+     * не трогаем — это продолжение той же сессии, штрафы карусели остаются в силе.
+     */
+    fun pauseForReload() {
+        suspendedUntil = System.currentTimeMillis() + RELOAD_MAX_PAUSE_MS
+    }
 
+    /** Перезагрузка закончилась: ещё немного тишины, пока поднимаются соединения. */
+    fun resumeAfterReload() {
+        suspendedUntil = System.currentTimeMillis() + SETTLE_AFTER_RELOAD_MS
+    }
+
+    private suspend fun checkOnce(trigger: String = "цикл") = checkMutex.withLock {
+        val startedAt = System.currentTimeMillis()
+        // Ядро перезагружается — туннеля сейчас нет по определению, проверять нечего.
+        if (startedAt < suspendedUntil) return@withLock
+        // Только что проверяли (сошлись будильник и цикл), сторож только запущен или идёт сбой,
+        // а прошлая проверка кончилась только что — см. WatchdogRules.skipCheck.
+        val failing = consecutiveFailures > 0 || healAttempts > 0
+        if (WatchdogRules.skipCheck(
+                sinceStartMs = startedAt - watchdogStartedAt,
+                sinceLastStartMs = startedAt - lastCheckAt,
+                sinceLastEndMs = startedAt - lastCheckEndedAt,
+                failing = failing,
+            )
+        ) {
+            return@withLock
+        }
+        lastCheckAt = startedAt
+        try {
+            checkBody(trigger)
+        } finally {
+            lastCheckEndedAt = System.currentTimeMillis()
+        }
+    }
+
+    private suspend fun checkBody(trigger: String) {
         // Нет сети вообще (самолётный режим, нет сигнала) — не наша беда, чинить нечего.
         if (DefaultNetworkMonitor.defaultNetwork == null) {
             consecutiveFailures = 0
-            return@withLock
+            return
         }
 
         val tunnelOk = probe { tcpReachable() }
@@ -601,6 +664,17 @@ object ConnectivityWatchdog {
         val nameNotReady = !nameOk && tunnelOk
 
         if (domainOk || trafficAlive || nameNotReady) {
+            // Проверку разбудило «залипание», а связь в порядке — так выглядит большая выгрузка:
+            // наружу идут байты, а обратно только подтверждения TCP, которых счётчик ядра не
+            // видит. Отмечаем в журнале (редко), чтобы при разборе было видно, почему сторож
+            // ничего не тронул.
+            if (trigger == STALL_TRIGGER) {
+                val now = System.currentTimeMillis()
+                if (now - lastStallOkLogAt >= RARE_LOG_INTERVAL_MS) {
+                    lastStallOkLogAt = now
+                    appendLog(str(R.string.watchdog_log_stall_node_ok))
+                }
+            }
             // ★ «Пульс»: раз в HEARTBEAT_INTERVAL_MS подтверждаем, что сторож жив и всё в порядке.
             // Без него УСПЕШНЫЕ проверки в журнал не попадали, и тишина читалась двояко: то ли
             // связь была в порядке, то ли сторож вообще не работал (телефон спал). При разборе
@@ -644,7 +718,7 @@ object ConnectivityWatchdog {
             }
             consecutiveFailures = 0
             healAttempts = 0
-            return@withLock
+            return
         }
 
         consecutiveFailures++
@@ -669,7 +743,7 @@ object ConnectivityWatchdog {
         // Каптивный Wi-Fi ждёт, пока человек войдёт на страницу гостевой сети. Тут мы бессильны.
         if (state == UnderlyingNetwork.CAPTIVE_PORTAL) {
             appendLog(str(R.string.watchdog_log_captive))
-            return@withLock
+            return
         }
 
         // ★★ Сеть телефона мертва. РАНЬШЕ ЗДЕСЬ БЫЛ ВЫХОД — и это была главная дыра: лестница
@@ -690,14 +764,14 @@ object ConnectivityWatchdog {
                 // Альтернативы нет — это честное «интернета нет», а не наша беда. Счётчик НЕ
                 // сбрасываем: проверки останутся частыми и подхватят сеть, как только она будет.
                 appendLog(str(R.string.watchdog_log_no_internet))
-                return@withLock
+                return
             }
         }
 
         // Мёртвая сеть — приговор окончательный, второе мнение не нужно: чиним сразу.
         if (consecutiveFailures < FAILURES_BEFORE_HEAL && !networkDead) {
             appendLog(str(R.string.watchdog_log_recheck, what))
-            return@withLock
+            return
         }
 
         // Чем больше безуспешных починок подряд, тем дольше ждём перед следующей: если две
@@ -727,7 +801,7 @@ object ConnectivityWatchdog {
         }
         if (now - lastHealAt < waitBeforeHeal) {
             appendLog(str(R.string.watchdog_log_wait, what))
-            return@withLock
+            return
         }
 
         lastHealAt = now
@@ -860,10 +934,13 @@ object ConnectivityWatchdog {
             val settled = System.currentTimeMillis() - lastNetworkChangeAt >= BLAME_NODE_AFTER_NETWORK_MS
             if (current != null && settled) stuckNodes.add(current)
 
-            // Протокол узла различаем по первому символу тега — у нас это значок (🐺 AmneziaWG,
-            // 🛡 VLESS, ⚡ Hysteria2). У чужого профиля значков нет, тогда признак просто не
-            // сработает и выбор пойдёт как обычно, по задержке.
-            val currentKind = current?.firstOrNull()
+            // ★ Адрес и протокол узла — из конфига (NodeSites), а не из значка. Раньше протокол
+            // брали первым символом тега, а 🛡 VLESS и 🐺 AmneziaWG начинаются с одной половинки
+            // суррогатной пары — для карусели это был один протокол; а «та же локация» сравнивала
+            // хвост тега вместе с протоколом и не совпадала никогда. Подозрительны адрес и
+            // протокол текущего узла и всех штрафных.
+            val sites = NodeSites.current
+            val penalized = stuckNodes.toList() + listOfNotNull(current)
 
             /**
              * Кандидат: узел с ИЗМЕРЕННОЙ разумной задержкой, не в штрафном ящике. При равных
@@ -887,17 +964,12 @@ object ConnectivityWatchdog {
 
             measurementsLine()?.let { appendLog(it) }
 
-            // Локацию узнаём по тексту после значка: «🛡 BG София» → «BG София».
-            val currentPlace = current?.substringAfter(' ')
-
             val candidate = if (measured.isNotEmpty()) {
-                measured.sortedWith(
-                    compareBy(
-                        // Другой протокол — вперёд (см. выше: обычно ложится протокол целиком).
-                        { if (currentKind != null && it.first.firstOrNull() == currentKind) 1 else 0 },
-                        { it.second },
-                    ),
-                ).first().first
+                // ★ Сперва ДРУГОЙ СЕРВЕР, потом другой протокол, потом задержка. Раньше было
+                // «другой протокол, потом задержка» — и сторож охотно уводил с VLESS на
+                // Shadowsocks того же сервера, хотя режут у нас чаще по адресу (Windows,
+                // 04.10.2026: 14 минут рваной связи на таком соседе).
+                WatchdogRules.order(measured, sites, penalized).first()
             } else {
                 // ★ ЗАПАСНОЙ ХОД: замеров нет вообще — идём вслепую, по кругу.
                 //
@@ -912,12 +984,8 @@ object ConnectivityWatchdog {
                 // одном месте (в 793 «последний рубеж» именно топтался и пять раз возвращал
                 // человека на 195.133.14.217). Сначала другая локация: умерший узел чаще всего
                 // тянет за собой все свои протоколы, ведь адрес у них общий.
-                fresh.sortedWith(
-                    compareBy(
-                        { if (currentPlace != null && it.first.substringAfter(' ') == currentPlace) 1 else 0 },
-                        { if (currentKind != null && it.first.firstOrNull() == currentKind) 1 else 0 },
-                    ),
-                ).firstOrNull()?.first
+                // Замеров нет — задержки не в счёт: только «другой сервер, другой протокол».
+                WatchdogRules.order(fresh.map { it.first to 0 }, sites, penalized).firstOrNull()
             }
 
             if (candidate != null) {

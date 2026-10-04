@@ -342,6 +342,11 @@ dependencies {
     "androidTestOtherLegacyImplementation"(composeBom21)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 
+    // Юнит-тесты на JVM (правила сторожа, разбор конфига). org.json — настоящий: в android.jar
+    // для JVM-тестов лежат только заглушки.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+
     // Common Compose-related libraries
     implementation("sh.calvin.reorderable:reorderable:3.0.0")
     implementation("com.github.jeziellago:compose-markdown:0.5.8")

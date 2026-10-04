@@ -146,6 +146,7 @@
     <string name="watchdog_log_recheck">%1$s — prüfe erneut</string>
     <string name="watchdog_log_reconnect">%1$s — verbinde neu</string>
     <string name="watchdog_log_recovered">Verbindung wiederhergestellt</string>
+    <string name="watchdog_log_stall_node_ok">Datenverkehr steht, aber der Knoten antwortet — wohl ein großer Upload, ich lasse die Verbindung in Ruhe</string>
     <string name="watchdog_log_switch_network">%1$s — hat nicht geholfen, wechsle das Netzwerk</string>
     <string name="watchdog_log_switch_network_via">%1$s — hat nicht geholfen, wechsle das Netzwerk (%2$s)</string>
     <string name="watchdog_log_switch_server">%1$s — hat nicht geholfen, wechsle den Server</string>

@@ -249,6 +249,7 @@
     <string name="core_log_description">هسته گزارش را در فایلی می‌نویسد که بین اتصال‌های مجدد باقی می‌ماند — برخلاف صفحه گزارش‌ها که با هر اتصال از نو شروع می‌شود. اگر اتصال مشکل داشت، این فایل را بفرستید.</string>
     <string name="core_log_size">جمع‌آوری‌شده: %1$s</string>
     <string name="watchdog_log_recovered">اتصال بازیابی شد</string>
+    <string name="watchdog_log_stall_node_ok">ترافیک متوقف شد، اما گره پاسخ می‌دهد — احتمالاً یک بارگذاری بزرگ است، اتصال را تغییر نمی‌دهم</string>
     <string name="watchdog_log_captive">Wi-Fi نیاز به ورود دارد — تا وارد نشوید VPN عبور نمی‌کند</string>
     <string name="watchdog_log_no_internet">شبکه گوشی اینترنت ندارد — منتظر می‌مانم، راه‌اندازی مجدد کمکی نمی‌کند</string>
     <string name="watchdog_log_network_changed">شبکه تغییر کرد — اتصال را بررسی می‌کنم</string>

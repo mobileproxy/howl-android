@@ -145,6 +145,7 @@
     <string name="watchdog_log_recheck">%1$s: controllo di nuovo</string>
     <string name="watchdog_log_reconnect">%1$s: mi riconnetto</string>
     <string name="watchdog_log_recovered">connessione ripristinata</string>
+    <string name="watchdog_log_stall_node_ok">traffico fermo, ma il nodo risponde — sembra un grosso caricamento, non tocco la connessione</string>
     <string name="watchdog_log_switch_network">%1$s: non ha funzionato, cambio rete</string>
     <string name="watchdog_log_switch_network_via">%1$s: non ha funzionato, cambio rete (%2$s)</string>
     <string name="watchdog_log_switch_server">%1$s: non ha funzionato, cambio server</string>

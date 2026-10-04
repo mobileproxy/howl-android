@@ -284,6 +284,7 @@
     <string name="core_log_description">События приложения (старт, сеть, автопочинка, серверы) и журнал ядра, слитые в одну хронологию, которая переживает переподключения. Поделитесь им, если со связью что-то не так — это самый быстрый способ разобраться.</string>
     <string name="core_log_size">Накоплено: %1$s</string>
     <string name="watchdog_log_recovered">связь восстановилась</string>
+    <string name="watchdog_log_stall_node_ok">трафик встал, но узел отвечает — похоже на большую выгрузку, не трогаю связь</string>
     <string name="watchdog_log_captive">Wi-Fi требует входа в систему — VPN не пройдёт, пока не войдёте</string>
     <string name="watchdog_log_no_internet">у сети телефона нет интернета — жду, перезапуск не поможет</string>
     <string name="watchdog_log_network_changed">сменилась сеть — проверяю связь</string>

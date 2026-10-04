@@ -249,6 +249,7 @@
     <string name="core_log_description">核心會把紀錄寫入檔案，重新連線後仍然保留——不像紀錄頁面，每次連線都從頭開始。連線異常時請傳送此檔案。</string>
     <string name="core_log_size">已收集：%1$s</string>
     <string name="watchdog_log_recovered">連線已恢復</string>
+    <string name="watchdog_log_stall_node_ok">流量停滯，但節點有回應 — 可能是大型上傳，不更動連線</string>
     <string name="watchdog_log_captive">Wi-Fi 需要登入——未登入前 VPN 無法通過</string>
     <string name="watchdog_log_no_internet">手機網路沒有網際網路——等待中，重新啟動無濟於事</string>
     <string name="watchdog_log_network_changed">網路已切換——正在檢查連線</string>
