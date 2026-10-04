@@ -5,10 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onRoot
+import android.graphics.Canvas
+import android.view.View
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import io.nekohasekai.sfa.compose.theme.SFATheme
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +32,7 @@ import java.io.File
 class SettingsMenuScreenshotTest {
 
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val notes =
         "OpenConnect и Hysteria2 снова участвуют в автоподборе: замеры серверов обновляются " +
@@ -63,7 +63,11 @@ class SettingsMenuScreenshotTest {
             }
         }
         compose.waitForIdle()
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        // captureToImage под Robolectric ждёт кадр, который не приходит (таймаут в forceRedraw,
+        // CI 116) — рисуем корневой View сами, как это делает Roborazzi.
+        val root = compose.activity.findViewById<View>(android.R.id.content)
+        val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+        compose.runOnUiThread { root.draw(Canvas(bitmap)) }
         val dir = File("build/screenshots").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
