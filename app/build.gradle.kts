@@ -114,6 +114,13 @@ android {
         includeInApk = false
     }
 
+    // Скриншот-тест меню (Robolectric) читает строки и шрифты из ресурсов приложения.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     flavorDimensions += "vendor"
     productFlavors {
         // ★ Android 7.0 (24), а не 6.0 (23). Планку подняло само ядро: libbox начиная с
@@ -346,6 +353,11 @@ dependencies {
     // для JVM-тестов лежат только заглушки.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    // Скриншот-тест меню без телефона: Robolectric рисует Compose на JVM (GraphicsMode.NATIVE),
+    // PNG уходят артефактом CI — так меню сверяется с Windows-клиентом до выпуска.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    "testOtherImplementation"(composeBom23)
+    "testOtherImplementation"("androidx.compose.ui:ui-test-junit4")
 
     // Common Compose-related libraries
     implementation("sh.calvin.reorderable:reorderable:3.0.0")

@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
-import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.base.rememberApplyServiceChangeNotifier
@@ -62,7 +61,6 @@ import io.nekohasekai.sfa.compose.screen.profileoverride.PerAppProxyScanner
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
-import io.nekohasekai.sfa.utils.RussiaModeController
 import io.nekohasekai.sfa.vendor.PackageQueryManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -76,7 +74,7 @@ fun ProfileOverrideScreen(
 ) {
     OverrideTopBar {
         TopAppBar(
-            title = { Text(stringResource(R.string.profile_override)) },
+            title = { Text(stringResource(R.string.menu_apps)) },
             navigationIcon = {
                 IconButton(onClick = { navController.navigateUp() }) {
                     Icon(
@@ -91,8 +89,6 @@ fun ProfileOverrideScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var russiaModeEnabled by remember { mutableStateOf(Settings.russiaModeEnabled) }
-    var russiaAppsCount by remember { mutableStateOf(Settings.russiaModeAddedApps.size) }
     var perAppProxyEnabled by remember { mutableStateOf(Settings.perAppProxyEnabled) }
     var managedModeEnabled by remember { mutableStateOf(Settings.perAppProxyManagedMode) }
     var isScanning by remember { mutableStateOf(false) }
@@ -207,122 +203,8 @@ fun ProfileOverrideScreen(
             .verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp),
     ) {
-        // ★ «Режим Россия» — самым первым: для клиента из РФ это главный переключатель на экране.
-        // Он одним движением делает то, ради чего иначе пришлось бы вручную вписывать домены и
-        // отмечать приложения: российские сайты, банки и госсервисы идут напрямую, остальное — в
-        // туннель. Без него человек вынужден выключать VPN ради каждого перевода в банке.
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ),
-        ) {
-            ListItem(
-                headlineContent = {
-                    Text(
-                        stringResource(R.string.russia_mode_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                },
-                supportingContent = {
-                    Column(modifier = Modifier.padding(top = 4.dp)) {
-                        Text(
-                            stringResource(R.string.russia_mode_summary),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        // Сколько приложений реально ушло мимо VPN — иначе режим выглядит как
-                        // «чёрный ящик»: непонятно, сработал ли он и что именно затронул.
-                        if (russiaModeEnabled && russiaAppsCount > 0) {
-                            Text(
-                                stringResource(R.string.russia_mode_apps_count, russiaAppsCount),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                    }
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.Public,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = russiaModeEnabled,
-                        onCheckedChange = { checked ->
-                            russiaModeEnabled = checked
-                            scope.launch(Dispatchers.IO) {
-                                RussiaModeController.setEnabled(checked)
-                                withContext(Dispatchers.Main) {
-                                    russiaAppsCount = Settings.russiaModeAddedApps.size
-                                    perAppProxyEnabled = Settings.perAppProxyEnabled
-                                }
-                                runCatching { Libbox.newStandaloneCommandClient().serviceReload() }
-                            }
-                        },
-                    )
-                },
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)),
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            )
-        }
-
-        // Сайты в обход VPN — ставим первым: это то, за чем сюда приходят пользователи,
-        // в отличие от технического auto-redirect ниже.
-        Card(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            ),
-        ) {
-            ListItem(
-                headlineContent = {
-                    Text(
-                        stringResource(R.string.split_tunnel),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                },
-                supportingContent = {
-                    Text(
-                        stringResource(R.string.split_tunnel_summary),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.Language,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                },
-                trailingContent = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { navController.navigate("settings/profile_override/split_tunnel") },
-                colors =
-                ListItemDefaults.colors(
-                    containerColor = Color.Transparent,
-                ),
-            )
-        }
+        // «Российские сайты напрямую» и «Сайты в обход VPN» живут прямо в меню настроек (общая
+        // схема с Windows, 04.10.2026). Здесь остались только приложения в обход VPN.
 
         // Section: Per-App Proxy
         val canUsePerAppProxy = if (showModeSelector) {

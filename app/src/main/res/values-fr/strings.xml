@@ -691,4 +691,52 @@
         <item quantity="one">Partage de %1$d périphérique USB</item>
         <item quantity="other">Partage de %1$d périphériques USB</item>
     </plurals>
+    <!-- HOWL-MENU: начало (tools/gen-menu-strings.js, руками не править) -->
+    <string name="menu_sec_connection">Connexion</string>
+    <string name="menu_sec_routing">Routage</string>
+    <string name="menu_sec_profile">Profil</string>
+    <string name="menu_sec_app">Application</string>
+    <string name="menu_watchdog">Réparation automatique</string>
+    <string name="menu_watchdog_sub">Si la connexion tombe, se reconnecte ou change de serveur tout seul</string>
+    <string name="menu_kill_switch">Bloquer Internet si le VPN tombe</string>
+    <string name="menu_kill_switch_sub">S\'active dans les réglages VPN d\'Android</string>
+    <string name="menu_autostart">Démarrer au démarrage du téléphone</string>
+    <string name="menu_autostart_sub">Le VPN s\'active tout seul après un redémarrage</string>
+    <string name="menu_autoconnect">Se connecter à l\'ouverture de l\'app</string>
+    <string name="menu_autoconnect_sub">Le VPN s\'active tout seul, sans appui</string>
+    <string name="menu_background">Fonctionnement en arrière-plan</string>
+    <string name="menu_background_ok">L\'optimisation de la batterie est désactivée — bien</string>
+    <string name="menu_background_bad">Le système peut endormir le VPN</string>
+    <string name="menu_russia">Sites russes en direct</string>
+    <string name="menu_russia_sub">Banques, sites publics et apps russes hors VPN</string>
+    <string name="menu_split">Sites hors VPN</string>
+    <string name="menu_split_none">Aucun</string>
+    <string name="menu_apps">Apps hors VPN</string>
+    <string name="menu_apps_on">Activé · apps : %1$d</string>
+    <string name="menu_apps_off">Désactivé</string>
+    <string name="menu_dns">DNS</string>
+    <string name="menu_subscription">Abonnement</string>
+    <string name="menu_subscription_updated">Dernière mise à jour : %1$s</string>
+    <string name="menu_subscription_none">Pas encore d\'abonnement</string>
+    <string name="menu_add_server">Ajouter un serveur</string>
+    <string name="menu_add_server_sub">Lien, code QR, fichier ou configuration d\'un autre service</string>
+    <string name="menu_language">Langue</string>
+    <string name="menu_language_system">Comme le système</string>
+    <string name="menu_update">Mise à jour</string>
+    <string name="menu_update_version">Howl pour Android %1$s</string>
+    <string name="menu_update_available">La version %1$s est disponible · %2$d Mo</string>
+    <string name="menu_update_available_nosize">La version %1$s est disponible</string>
+    <string name="menu_update_checking">Vérification…</string>
+    <string name="menu_update_latest">Vous avez la dernière version</string>
+    <string name="menu_update_check">Vérifier</string>
+    <string name="menu_update_install">Installer</string>
+    <string name="menu_app_more">Notifications et mises à jour</string>
+    <string name="menu_app_more_sub">Débit dans la notification, canal et mise à jour auto</string>
+    <string name="menu_diagnostics">Diagnostic</string>
+    <string name="menu_diagnostics_sub">Journal et versions</string>
+    <string name="menu_diagnostics_versions">Versions</string>
+    <string name="menu_diagnostics_app">Application : %1$s</string>
+    <string name="menu_diagnostics_core">Cœur : %1$s</string>
+    <string name="menu_diagnostics_open_log">Afficher le journal</string>
+    <!-- HOWL-MENU: конец -->
 </resources>

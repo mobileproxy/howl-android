@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.database.Settings
@@ -60,7 +61,7 @@ import kotlinx.coroutines.withContext
 fun WatchdogScreen(navController: NavController) {
     OverrideTopBar {
         TopAppBar(
-            title = { Text(stringResource(R.string.watchdog)) },
+            title = { Text(stringResource(R.string.menu_diagnostics)) },
             navigationIcon = {
                 IconButton(onClick = { navController.navigateUp() }) {
                     Icon(
@@ -74,7 +75,7 @@ fun WatchdogScreen(navController: NavController) {
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var enabled by remember { mutableStateOf(Settings.watchdogEnabled) }
+    val coreVersion = remember { runCatching { Libbox.version() }.getOrDefault("?") }
     var coreLogSize by remember { mutableStateOf(CoreLog.sizeBytes() + AppEventLog.sizeBytes()) }
 
     Column(
@@ -84,58 +85,39 @@ fun WatchdogScreen(navController: NavController) {
             .verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp),
     ) {
+        // «Диагностика» (общая схема с Windows): переключатель автопочинки переехал в меню, здесь —
+        // версии и журнал. Экран тот же, что был у «Автопочинки», чтобы не плодить маршруты.
+        Text(
+            text = stringResource(R.string.menu_diagnostics_versions),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 32.dp, top = 8.dp, bottom = 8.dp),
+        )
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
         ) {
-            ListItem(
-                headlineContent = {
-                    Text(
-                        stringResource(R.string.enabled),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                },
-                supportingContent = {
-                    Text(
-                        stringResource(R.string.watchdog_description),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.HealthAndSafety,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = enabled,
-                        onCheckedChange = { checked ->
-                            enabled = checked
-                            scope.launch(Dispatchers.IO) {
-                                Settings.watchdogEnabled = checked
-                            }
-                        },
-                    )
-                },
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)),
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = stringResource(R.string.menu_diagnostics_app, BuildConfig.VERSION_NAME),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.menu_diagnostics_core, coreVersion),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(onClick = { navController.navigate("log") }) {
+                    Text(stringResource(R.string.menu_diagnostics_open_log))
+                }
+            }
         }
-
-        Text(
-            text = stringResource(R.string.watchdog_restart_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-        )
 
         Spacer(modifier = Modifier.height(8.dp))
 

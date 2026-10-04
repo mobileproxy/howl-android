@@ -86,7 +86,8 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.13004108"
           chmod +x ./gradlew
           # Юнит-тесты правил сторожа и разбора конфига — до сборки: провал останавливает выпуск.
-          ./gradlew :app:testOtherReleaseUnitTest --stacktrace --no-daemon
+          # Debug-вариант: в нём есть тестовая активность для скриншотов меню (Robolectric).
+          ./gradlew :app:testOtherDebugUnitTest --stacktrace --no-daemon
           ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon
 
       - name: Upload unit-test report
@@ -96,6 +97,14 @@ jobs:
           name: howl-unit-tests
           path: app/build/reports/tests/
           if-no-files-found: ignore
+
+      - name: Upload settings screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: howl-screenshots
+          path: app/build/screenshots/
+          if-no-files-found: warn
 
       - name: Upload APK (arm64-v8a only — small download)
         uses: actions/upload-artifact@v4

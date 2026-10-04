@@ -1454,7 +1454,7 @@ private fun calculateDirSize(dir: File?): Long {
     return size
 }
 
-private fun getSupportedLocales(context: Context): List<Locale> {
+internal fun getSupportedLocales(context: Context): List<Locale> {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val localeConfig = LocaleConfig(context)
         val localeList = localeConfig.supportedLocales ?: return emptyList()
