@@ -47,7 +47,7 @@ class ProfileIntegrationTest {
         return NodeSnapshot.of(outbound.getString("tag"), outbound.getString("type"))
     }
 
-    @Test fun legacyMigrationIsPromotedOnlyAfterAcceptedStart() = runBlocking {
+    @Test fun legacyMigrationIsPromotedOnlyAfterAcceptedStart() = runBlocking<Unit> {
         val store = store()
         val content = document("legacy-fixture")
         val prepared = store.prepare { content }
@@ -71,7 +71,7 @@ class ProfileIntegrationTest {
         }
     }
 
-    @Test fun failedCandidateRestoresWorkingProfileAndReportUsesTheAcceptedNode() = runBlocking {
+    @Test fun failedCandidateRestoresWorkingProfileAndReportUsesTheAcceptedNode() = runBlocking<Unit> {
         val store = store()
         val old = document("fixture-PRIVATE-old", "vless")
         val fresh = document("fixture-PRIVATE-new", "hysteria2")
@@ -101,7 +101,7 @@ class ProfileIntegrationTest {
         assertFalse(report.contains("example.com"))
     }
 
-    @Test fun lateStartCannotOverwriteTheReserveOfANewerReceivedCandidate() = runBlocking {
+    @Test fun lateStartCannotOverwriteTheReserveOfANewerReceivedCandidate() = runBlocking<Unit> {
         val store = store()
         val old = document("old-fixture")
         working(store, old)
@@ -115,7 +115,7 @@ class ProfileIntegrationTest {
         assertEquals(document("second-fixture"), store.prepare { error("legacy") }.content)
     }
 
-    @Test fun returnedSubscriptionCannotRestoreAnExpiredReserveOnFailedStart() = runBlocking {
+    @Test fun returnedSubscriptionCannotRestoreAnExpiredReserveOnFailedStart() = runBlocking<Unit> {
         val store = store()
         working(store, document("expired-fixture"))
         store.blockEmpty()
@@ -136,7 +136,7 @@ class ProfileIntegrationTest {
         assertThrows(ProfileFailure::class.java) { store.backupOnly() }
     }
 
-    @Test fun replacingSubscriptionCannotRollbackToAnotherSourcesReserve() = runBlocking {
+    @Test fun replacingSubscriptionCannotRollbackToAnotherSourcesReserve() = runBlocking<Unit> {
         working(store(), document("source-a-fixture"))
         val changed = store(source + "-b")
         receive(changed, document("source-b-fixture"))
@@ -153,7 +153,7 @@ class ProfileIntegrationTest {
         assertEquals(0L, changed.summary().appliedAt)
     }
 
-    @Test fun cancellationDoesNotPromoteCandidateOrTryTheReserve() = runBlocking {
+    @Test fun cancellationDoesNotPromoteCandidateOrTryTheReserve() = runBlocking<Unit> {
         val store = store()
         val old = document("old-fixture")
         working(store, old)
