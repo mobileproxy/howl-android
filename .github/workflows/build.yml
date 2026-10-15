@@ -85,10 +85,14 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.13004108"
           chmod +x ./gradlew
+          python3 tools/validate-candidate-resources.py
           # Юнит-тесты правил сторожа и разбора конфига — до сборки: провал останавливает выпуск.
           # Debug-вариант: в нём есть тестовая активность для скриншотов меню (Robolectric).
           ./gradlew :app:testOtherDebugUnitTest --stacktrace --no-daemon
           ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon
+
+      - name: Verify APK signature and upgrade compatibility
+        run: python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
 
       - name: Upload unit-test report
         uses: actions/upload-artifact@v4
@@ -111,5 +115,7 @@ jobs:
         if: always()
         with:
           name: howl-apk
-          path: app/build/outputs/apk/**/*arm64-v8a*.apk
+          path: |
+            app/build/outputs/apk/**/*arm64-v8a*.apk
+            app/build/outputs/apk/other/release/release-verification.json
           if-no-files-found: warn
