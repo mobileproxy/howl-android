@@ -248,7 +248,7 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
                 userOrder = ProfileManager.nextOrder()
             }
 
-        val fileID = ProfileManager.nextFileID()
+        val fileID = java.util.UUID.randomUUID().toString()
         val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
         val configFile = File(configDirectory, "$fileID.json")
         typedProfile.path = configFile.path
@@ -308,7 +308,7 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
                 userOrder = ProfileManager.nextOrder()
             }
 
-        val fileID = ProfileManager.nextFileID()
+        val fileID = java.util.UUID.randomUUID().toString()
         val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
         val configFile = File(configDirectory, "$fileID.json")
         typedProfile.path = configFile.path

@@ -17,6 +17,7 @@ class ConnectionReportTest {
         assertFalse(report.contains("user@"))
         assertTrue(JSONObject(report).getJSONObject("before").isNull("protocol"))
         assertEquals(2, JSONObject(report).getInt("successfulProbes"))
+        assertEquals(20.0, JSONObject(report).getDouble("medianMs"), 0.01)
     }
 
     @Test fun downloadStopsAtOneMiBEvenIfServerIgnoresRange() {
@@ -39,5 +40,12 @@ class ConnectionReportTest {
         assertTrue(json.getBoolean("nodeChanged"))
         assertTrue(json.isNull("medianMs"))
         assertTrue(json.isNull("downloadMs"))
+    }
+
+    @Test fun serializerRejectsUntrustedFieldsEvenIfFactoryWasBypassed() {
+        val report = ConnectionReport("test", "test", 35, 1, 2,
+            NodeSnapshot("TOKEN-secret", "TOKEN-secret"), NodeSnapshot(null, null),
+            emptyList(), 0, null, EventSummary(0, 0, 0, 0)).json()
+        assertFalse(report.contains("TOKEN-secret"))
     }
 }

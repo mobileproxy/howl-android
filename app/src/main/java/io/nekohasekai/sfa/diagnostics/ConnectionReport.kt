@@ -8,9 +8,9 @@ import java.io.InputStream
 /** Strict allowlist: raw profile names, nodes, URLs, addresses and logs cannot enter JSON. */
 data class NodeSnapshot(val alias: String?, val protocol: String?) {
     companion object {
+        val protocols = setOf("vless", "vmess", "shadowsocks", "trojan", "hysteria2", "tuic", "wireguard", "amneziawg", "openconnect", "trusttunnel", "socks", "http")
         fun of(tag: String?, protocol: String?): NodeSnapshot {
-            val allowed = setOf("vless", "vmess", "shadowsocks", "trojan", "hysteria2", "tuic", "wireguard", "amneziawg", "openconnect", "trusttunnel", "socks", "http")
-            return NodeSnapshot(tag?.let { "node-" + SafeProfileStore.hash(it).take(12) }, protocol?.takeIf { it in allowed })
+            return NodeSnapshot(tag?.let { "node-" + SafeProfileStore.hash(it).take(12) }, protocol?.takeIf { it in protocols })
         }
     }
 }
@@ -45,7 +45,8 @@ data class ConnectionReport(
 ) {
     fun json(): String {
         fun node(value: NodeSnapshot) = JSONObject()
-            .put("alias", value.alias ?: JSONObject.NULL).put("protocol", value.protocol ?: JSONObject.NULL)
+            .put("alias", value.alias?.takeIf { it.matches(Regex("node-[0-9a-f]{12}")) } ?: JSONObject.NULL)
+            .put("protocol", value.protocol?.takeIf { it in NodeSnapshot.protocols } ?: JSONObject.NULL)
         val successful = delays.filterNotNull().sorted()
         return JSONObject()
             .put("schema", 1).put("appVersion", appVersion).put("coreVersion", coreVersion).put("androidSdk", sdk)
@@ -54,7 +55,8 @@ data class ConnectionReport(
             .put("before", node(before)).put("after", node(after)).put("nodeChanged", before != after)
             .put("probesMs", JSONArray().apply { delays.forEach { put(it ?: JSONObject.NULL) } })
             .put("successfulProbes", successful.size)
-            .put("medianMs", successful.getOrNull(successful.size / 2) ?: JSONObject.NULL)
+            .put("medianMs", if (successful.isEmpty()) JSONObject.NULL else
+                (successful[(successful.size - 1) / 2] + successful[successful.size / 2]) / 2.0)
             .put("spreadMs", if (successful.isEmpty()) JSONObject.NULL else successful.last() - successful.first())
             .put("downloadBytes", bytes).put("downloadMs", downloadMs ?: JSONObject.NULL)
             .put("events", JSONObject().put("sampledLines", events.samples).put("networkChanges", events.networkChanges)

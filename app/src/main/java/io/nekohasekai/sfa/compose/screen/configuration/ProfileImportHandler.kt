@@ -242,7 +242,7 @@ class ProfileImportHandler(private val context: Context) {
         }
 
         // Save config file
-        val fileID = ProfileManager.nextFileID()
+        val fileID = java.util.UUID.randomUUID().toString()
         val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
         val configFile = File(configDirectory, "$fileID.json")
         configFile.writeText(content.config)
@@ -270,7 +270,7 @@ class ProfileImportHandler(private val context: Context) {
             }
 
         // Create empty config file for remote profile
-        val fileID = ProfileManager.nextFileID()
+        val fileID = java.util.UUID.randomUUID().toString()
         val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
         val configFile = File(configDirectory, "$fileID.json")
         val raw = io.nekohasekai.sfa.utils.HTTPClient().use { it.getString(url) }
@@ -399,7 +399,7 @@ class ProfileImportHandler(private val context: Context) {
                 }
 
             // Save the configuration file
-            val fileID = ProfileManager.nextFileID()
+            val fileID = java.util.UUID.randomUUID().toString()
             val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
             val configFile = File(configDirectory, "$fileID.json")
             configFile.writeText(content)
