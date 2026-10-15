@@ -86,7 +86,7 @@ android {
         } else {
             getVersionProps("VERSION_NAME")
         }
-        base.archivesName.set("Howl-${getVersionProps("VERSION_NAME")}")
+        base.archivesName.set("Howl-${getVersionProps("VERSION_NAME")}-universal")
     }
 
     signingConfigs {
@@ -156,15 +156,6 @@ android {
         getByName("otherLegacy") {
             java.directories.addAll(listOf("src/minApi21/java", "src/github/java"))
             aidl.directories.add("src/minApi23/aidl")
-        }
-    }
-
-    splits {
-        abi {
-            isEnable = true
-            isUniversalApk = true
-            reset()
-            include("armeabi-v7a", "arm64-v8a")
         }
     }
 
