@@ -9,15 +9,17 @@ import java.net.URI
 object ProfileDocument {
     const val MAX_BYTES = 2 * 1024 * 1024
 
+    fun isOwnSource(source: String): Boolean = runCatching {
+        val uri = URI(source)
+        uri.host?.lowercase() in setOf("gethowl.app", "vpn.how") && uri.path == "/sub.html"
+    }.getOrDefault(false)
+
     fun inspect(content: String, source: String): Boolean {
         require(content.toByteArray(Charsets.UTF_8).size <= MAX_BYTES)
         val parser = JSONTokener(content)
         val root = value(parser, 0) as? JSONObject ?: error("object required")
         require(parser.nextClean() == 0.toChar())
-        val isHowl = runCatching {
-            val uri = URI(source)
-            uri.host?.lowercase() in setOf("gethowl.app", "vpn.how") && uri.path == "/sub.html"
-        }.getOrDefault(false)
+        val isHowl = isOwnSource(source)
         if (!isHowl) return false
         val all = linkedMapOf<String, JSONObject>()
         for (key in listOf("outbounds", "endpoints")) {
