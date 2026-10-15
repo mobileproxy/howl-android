@@ -16,6 +16,12 @@ def api(path):
     return json.loads(gh("api", path))
 
 
+def find_release(repo, tag):
+    pages = json.loads(gh("api", f"repos/{repo}/releases?per_page=100",
+                          "--paginate", "--slurp"))
+    return next((r for page in pages for r in page if r["tag_name"] == tag), None)
+
+
 def select_run(runs, branch, repo):
     eligible = [
         run for run in runs
@@ -77,9 +83,7 @@ def main():
             encoding="utf-8",
         )
         # Find drafts too; do not turn an API outage into a duplicate release.
-        releases = json.loads(gh("api", f"repos/{repo}/releases?per_page=100",
-                                "--paginate", "--slurp"))
-        existing = next((r for page in releases for r in page if r["tag_name"] == tag), None)
+        existing = find_release(repo, tag)
         if existing is None:
             gh("release", "create", tag, "--repo", repo, "--draft",
                "--target", run["head_sha"], "--title", f"Howl {platform} - build {run['run_number']}",
@@ -97,7 +101,10 @@ def main():
 
 
 def verify_assets(repo, tag, directory):
-    release = api(f"repos/{repo}/releases/tags/{tag}")
+    # The tag endpoint returns 404 for drafts whose tag is not created yet.
+    release = find_release(repo, tag)
+    if release is None:
+        raise RuntimeError(f"Release not found: {tag}")
     remote = {asset["name"]: asset for asset in release["assets"]}
     for path in directory.iterdir():
         asset = remote.get(path.name)
