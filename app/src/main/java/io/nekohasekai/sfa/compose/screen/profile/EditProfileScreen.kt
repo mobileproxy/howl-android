@@ -216,6 +216,7 @@ fun EditProfileScreen(
                     .padding(bottom = bottomBarPadding),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                uiState.safetyStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 // Basic Information Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),

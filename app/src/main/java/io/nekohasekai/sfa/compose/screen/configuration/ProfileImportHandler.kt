@@ -273,7 +273,8 @@ class ProfileImportHandler(private val context: Context) {
         val fileID = ProfileManager.nextFileID()
         val configDirectory = File(context.filesDir, "configs").also { it.mkdirs() }
         val configFile = File(configDirectory, "$fileID.json")
-        configFile.writeText("{}")
+        val raw = io.nekohasekai.sfa.utils.HTTPClient().use { it.getString(url) }
+        configFile.writeText(SubscriptionConverter.normalize(raw, name))
         typedProfile.path = configFile.path
 
         // Create profile in database and select it

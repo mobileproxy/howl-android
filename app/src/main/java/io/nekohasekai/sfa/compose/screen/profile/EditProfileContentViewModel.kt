@@ -171,6 +171,7 @@ class EditProfileContentViewModel(private val profileId: Long, initialIsReadOnly
                     )
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 // Configuration has errors, show them
                 _uiState.update {
                     it.copy(
@@ -210,10 +211,11 @@ class EditProfileContentViewModel(private val profileId: Long, initialIsReadOnly
                     }
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = e.message ?: "Failed to load configuration",
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }
@@ -230,9 +232,9 @@ class EditProfileContentViewModel(private val profileId: Long, initialIsReadOnly
                         editor?.text?.toString() ?: ""
                     }
 
-                // Save to file without validation
+                // Проверка и атомарное сохранение кандидата; рабочий резерв не затирается.
                 profile?.let { p ->
-                    File(p.typed.path).writeText(currentContent)
+                    io.nekohasekai.sfa.profile.ProfileSafety.receive(p, currentContent)
                 }
 
                 _uiState.update {
@@ -248,10 +250,11 @@ class EditProfileContentViewModel(private val profileId: Long, initialIsReadOnly
                 delay(2000)
                 _uiState.update { it.copy(showSaveSuccessMessage = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = e.message ?: "Save failed",
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }
@@ -281,10 +284,11 @@ class EditProfileContentViewModel(private val profileId: Long, initialIsReadOnly
 
                 _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = e.message ?: "Format failed",
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }

@@ -382,22 +382,7 @@ class DashboardViewModel :
             }
 
             try {
-                // Fetch remote config
-                val raw = HTTPClient().use { it.getString(profile.typed.remoteURL) }
-                // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
-                val content = SubscriptionConverter.normalize(raw, profile.name)
-
-                // Check if content changed
-                val file = File(profile.typed.path)
-                var contentChanged = false
-                if (!file.exists() || file.readText() != content) {
-                    file.writeText(content)
-                    contentChanged = true
-                }
-
-                // Update last updated time
-                profile.typed.lastUpdated = Date()
-                ProfileManager.update(profile)
+                val contentChanged = io.nekohasekai.sfa.profile.ProfileSafety.refresh(profile)
 
                 // Reload profiles
                 loadProfiles()
@@ -420,7 +405,8 @@ class DashboardViewModel :
                     }
                 }
             } catch (e: Exception) {
-                sendErrorMessage("Failed to update profile: ${e.message}")
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                sendErrorMessage(io.nekohasekai.sfa.profile.ProfileSafety.message(e))
                 // Clear updating state on error
                 withContext(Dispatchers.Main) {
                     updateState { copy(updatingProfileId = null) }

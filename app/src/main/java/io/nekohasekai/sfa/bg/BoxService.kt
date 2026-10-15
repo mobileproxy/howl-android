@@ -53,6 +53,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
+import io.nekohasekai.sfa.profile.ProfileSafety
+import io.nekohasekai.sfa.profile.SafeProfileStore
+import io.nekohasekai.sfa.database.Profile
 
 class BoxService(private val service: Service, private val platformInterface: PlatformInterface) : CommandServerHandler {
     companion object {
@@ -137,7 +140,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 return
             }
 
-            val rawContent = File(profile.typed.path).readText()
+            val prepared = ProfileSafety.prepare(profile)
+            val rawContent = prepared.content
             if (rawContent.isBlank()) {
                 stopAndAlert(Alert.EmptyConfiguration)
                 return
@@ -149,6 +153,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             // Теги групп нужны сторожу для ступени «сменить сервер»: у чужого профиля они
             // называются иначе, чем у нашего, и зашивать их нельзя. scan внутри assembleConfig.
             val content = assembleConfig(rawContent)
+            Libbox.checkConfig(content)
 
             // Старт-событие с контекстом — чтобы в журнале сразу было видно версию, телефон и
             // какой профиль запущен. Это первое, что нужно при разборе присланного лога.
@@ -170,25 +175,10 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
             DefaultNetworkMonitor.start()
 
-            try {
-                commandServer.startOrReloadService(
-                    content,
-                    OverrideOptions().apply {
-                        autoRedirect = Settings.autoRedirect
-                        if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
-                            val appList = Settings.getEffectivePerAppProxyList()
-                            if (Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE) {
-                                includePackage =
-                                    PlatformInterfaceWrapper.StringArray((appList + Application.application.packageName).iterator())
-                            } else {
-                                excludePackage =
-                                    PlatformInterfaceWrapper.StringArray((appList - Application.application.packageName).iterator())
-                            }
-                        }
-                    },
-                )
+            val launched = try {
+                launchProfile(profile, prepared, content)
             } catch (e: Exception) {
-                stopAndAlert(Alert.CreateService, e.message)
+                stopAndAlert(Alert.CreateService, ProfileSafety.message(e))
                 return
             }
 
@@ -205,6 +195,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 }
             }
 
+            ProfileSafety.applied(profile, launched)
             status.postValue(Status.Started)
             // Служба поднялась — с этого момента сторож службы видит нас живыми, а его будильник
             // должен тикать: он и воскресит нас, если оболочка телефона убьёт процесс.
@@ -222,7 +213,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 GlobalScope.launch(Dispatchers.IO) { runCatching { RussiaList.refresh() } }
             }
         } catch (e: Exception) {
-            stopAndAlert(Alert.StartService, e.message)
+            stopAndAlert(Alert.StartService, ProfileSafety.message(e))
             return
         }
     }
@@ -247,8 +238,6 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 ),
             ),
         )
-        ProfileTags.scan(content)
-        NodeSites.scan(content)
         return content
     }
 
@@ -304,34 +293,26 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             return
         }
 
-        val rawContent = File(profile.typed.path).readText()
-        if (rawContent.isBlank()) {
-            stopAndAlert(Alert.EmptyConfiguration)
-            return
-        }
-        // Та же сборка, что и при первом запуске: перезагрузка конфига не должна терять ни
-        // закалку, ни выбор DNS, ни теги групп — иначе после reload сторож «слепнет».
-        val content = assembleConfig(rawContent)
-        lastProfileName = profile.name
-        try {
-            commandServer.startOrReloadService(
-                content,
-                OverrideOptions().apply {
-                    autoRedirect = Settings.autoRedirect
-                    if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
-                        val appList = Settings.getEffectivePerAppProxyList()
-                        if (Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE) {
-                            includePackage = PlatformInterfaceWrapper.StringArray((appList + Application.application.packageName).iterator())
-                        } else {
-                            excludePackage = PlatformInterfaceWrapper.StringArray((appList - Application.application.packageName).iterator())
-                        }
-                    }
-                },
-            )
+        // Проверяем кандидата до обращения к работающему ядру и его остановки.
+        val prepared = try {
+            ProfileSafety.prepare(profile)
         } catch (e: Exception) {
-            stopAndAlert(Alert.CreateService, e.message)
+            AppEventLog.log("профиль", ProfileSafety.message(e))
             return
         }
+        val content = try {
+            assembleConfig(prepared.content).also { Libbox.checkConfig(it) }
+        } catch (e: Exception) {
+            AppEventLog.log("профиль", ProfileSafety.message(e))
+            return
+        }
+        val launched = try {
+            launchProfile(profile, prepared, content)
+        } catch (e: Exception) {
+            stopAndAlert(Alert.CreateService, ProfileSafety.message(e))
+            return
+        }
+        lastProfileName = profile.name
 
         if (commandServer.needWIFIState()) {
             val wifiPermission =
@@ -345,6 +326,40 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 return
             }
         }
+        ProfileSafety.applied(profile, launched)
+    }
+
+    private suspend fun launchProfile(profile: Profile, prepared: SafeProfileStore.Prepared, content: String): SafeProfileStore.Prepared {
+        val current = ProfileManager.get(profile.id) ?: error("profile changed")
+        check(Settings.selectedProfile == profile.id && current.typed.remoteURL == profile.typed.remoteURL)
+        val options = OverrideOptions().apply {
+            autoRedirect = Settings.autoRedirect
+            if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
+                val apps = Settings.getEffectivePerAppProxyList()
+                if (Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE) {
+                    includePackage = PlatformInterfaceWrapper.StringArray((apps + Application.application.packageName).iterator())
+                } else {
+                    excludePackage = PlatformInterfaceWrapper.StringArray((apps - Application.application.packageName).iterator())
+                }
+            }
+        }
+        var accepted = prepared
+        var acceptedContent = content
+        try {
+            commandServer.startOrReloadService(content, options)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            val backup = ProfileSafety.backup(profile)
+            if (backup.hash == prepared.hash) throw e
+            acceptedContent = assembleConfig(backup.content)
+            Libbox.checkConfig(acceptedContent)
+            commandServer.startOrReloadService(acceptedContent, options)
+            accepted = backup
+            AppEventLog.log("профиль", Application.application.getString(R.string.profile_safe_backup))
+        }
+        ProfileTags.scan(acceptedContent)
+        NodeSites.scan(acceptedContent)
+        return accepted
     }
 
     override fun getSystemProxyStatus(): SystemProxyStatus? {

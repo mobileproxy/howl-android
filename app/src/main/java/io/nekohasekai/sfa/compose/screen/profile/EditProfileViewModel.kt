@@ -38,6 +38,7 @@ data class EditProfileUiState(
     val autoUpdate: Boolean = false,
     val autoUpdateInterval: Int = 60,
     val lastUpdated: Date? = null,
+    val safetyStatus: String? = null,
     // Original values for change detection
     val originalName: String = "",
     val originalIcon: String? = null,
@@ -78,6 +79,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                 }
 
                 val typedProfile = profile.typed
+                val safetyStatus = io.nekohasekai.sfa.profile.ProfileSafety.statusText(profile)
                 _uiState.update {
                     it.copy(
                         profile = profile,
@@ -93,14 +95,16 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                         autoUpdateInterval = typedProfile.autoUpdateInterval,
                         originalAutoUpdateInterval = typedProfile.autoUpdateInterval,
                         lastUpdated = typedProfile.lastUpdated,
+                        safetyStatus = safetyStatus,
                         isLoading = false,
                     )
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = e.message,
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }
@@ -207,7 +211,9 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                 // Update profile object
                 profile.name = state.name
                 profile.icon = state.icon
-                profile.typed.remoteURL = state.remoteUrl
+                if (profile.typed.type == TypedProfile.Type.Remote && state.remoteUrl != state.originalRemoteUrl) {
+                    io.nekohasekai.sfa.profile.ProfileSafety.changeSource(profile, state.remoteUrl)
+                }
 
                 // Handle auto-update changes
                 val autoUpdateChanged = state.autoUpdate != state.originalAutoUpdate
@@ -236,10 +242,11 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                 }
                 GlobalEventBus.tryEmit(UiEvent.Snackbar(R.string.snackbar_saved))
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isSaving = false,
-                        errorMessage = e.message,
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }
@@ -258,28 +265,15 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 var selectedProfileUpdated = false
 
-                // Fetch remote config
-                val raw = HTTPClient().use { it.getString(profile.typed.remoteURL) }
-                // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
-                val content = SubscriptionConverter.normalize(raw, profile.name)
+                val changed = io.nekohasekai.sfa.profile.ProfileSafety.refresh(profile)
+                selectedProfileUpdated = changed && profile.id == Settings.selectedProfile
 
-                // Check if content changed
-                val file = File(profile.typed.path)
-                if (!file.exists() || file.readText() != content) {
-                    file.writeText(content)
-                    if (profile.id == Settings.selectedProfile) {
-                        selectedProfileUpdated = true
-                    }
-                }
-
-                // Update last updated time
-                profile.typed.lastUpdated = Date()
-                ProfileManager.update(profile)
-
+                val safetyStatus = io.nekohasekai.sfa.profile.ProfileSafety.statusText(profile)
                 // Update UI state with success indicator
                 _uiState.update {
                     it.copy(
                         lastUpdated = profile.typed.lastUpdated,
+                        safetyStatus = safetyStatus,
                         isUpdating = false,
                         showUpdateSuccess = true,
                     )
@@ -290,14 +284,16 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                     try {
                         Libbox.newStandaloneCommandClient().serviceReload()
                     } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                         // Service reload errors are not critical
                     }
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isUpdating = false,
-                        errorMessage = e.message,
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }
@@ -334,6 +330,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
 
             fileName
         } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
             Toast.makeText(
                 context,
                 context.getString(
@@ -363,6 +360,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                     ).show()
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
                 }

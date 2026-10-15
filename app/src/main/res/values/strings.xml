@@ -847,4 +847,19 @@
     <string name="menu_diagnostics_core">Core: %1$s</string>
     <string name="menu_diagnostics_open_log">Show log</string>
     <!-- HOWL-MENU: конец -->
+    <string name="profile_safe_empty">The subscription confirms that no active servers remain. The saved profile is not used for a new connection.</string>
+    <string name="profile_safe_changed">The subscription changed while the request was running. Try again.</string>
+    <string name="profile_safe_network">Could not download the subscription. The saved working profile has been preserved.</string>
+    <string name="profile_safe_invalid">The profile could not be verified. The saved working profile has been preserved.</string>
+    <string name="profile_safe_backup">Using the last verified working profile. Subscription freshness is not confirmed.</string>
+    <string name="profile_safe_status">Received and verified: %1$s\nApplied successfully: %2$s</string>
+    <string name="profile_safe_pending">The verified update is waiting to be applied.</string>
+    <string name="diagnostics_safe_title">Connection check</string>
+    <string name="diagnostics_safe_description">Three short probes and a download of up to 1 MiB, within 40 seconds. Uses this app’s current route, including your routing rules. This is not a maximum speed test. The report contains no subscription keys, server addresses or raw logs and is saved only when you choose.</string>
+    <string name="diagnostics_safe_run">Check connection</string>
+    <string name="diagnostics_safe_running">Checking… You can cancel the check.</string>
+    <string name="diagnostics_safe_error">The check or save could not be completed. Connect the VPN and try again.</string>
+    <string name="diagnostics_safe_result">Successful probes: %1$d/3. Downloaded: %2$d bytes.</string>
+    <string name="diagnostics_safe_node_changed">The selected node changed during the check.</string>
+    <string name="diagnostics_safe_save">Save anonymized report</string>
 </resources>

@@ -1,0 +1,43 @@
+name: Validate Android candidate
+
+on:
+  push:
+    branches: [android/profile-safety-diagnostics]
+    paths:
+      - "app/**"
+      - ".github/workflows/validate-android-candidate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-candidate-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Fetch the existing core version (no core migration)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/howl-core app/libs
+          gh release download v1.14.0-lx.29 --repo Leadaxe/sing-box-lx --pattern 'libbox-1.14.0-lx.29.aar' --pattern SHA256SUMS --dir /tmp/howl-core
+          cd /tmp/howl-core
+          grep 'libbox-1.14.0-lx.29.aar$' SHA256SUMS | sha256sum --check --strict
+          cp libbox-1.14.0-lx.29.aar "$GITHUB_WORKSPACE/app/libs/libbox.aar"
+      - name: Unit tests and unsigned debug build
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:testOtherDebugUnitTest :app:assembleOtherDebug --stacktrace --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g
+      # No signing secrets, artifact upload, release creation or deployment.

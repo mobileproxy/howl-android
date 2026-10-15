@@ -77,24 +77,15 @@ class UpdateProfileWork {
                     continue
                 }
                 try {
-                    val raw = HTTPClient().use { it.getString(profile.typed.remoteURL) }
-                    // Валидация + разбор подписки-списка ссылок. sing-box JSON проходит как есть.
-                    val content = SubscriptionConverter.normalize(raw, profile.name)
-                    val file = File(profile.typed.path)
-                    if (file.readText() != content) {
-                        File(profile.typed.path).writeText(content)
-                        if (profile.id == selectedProfile) {
-                            selectedProfileUpdated = true
-                        }
-                    }
-                    profile.typed.lastUpdated = Date()
-                    ProfileManager.update(profile)
+                    val changed = io.nekohasekai.sfa.profile.ProfileSafety.refresh(profile)
+                    if (changed && profile.id == selectedProfile) selectedProfileUpdated = true
                 } catch (e: Exception) {
-                    Log.e(TAG, "update profile ${profile.name}", e)
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    Log.e(TAG, io.nekohasekai.sfa.profile.ProfileSafety.message(e))
                     success = false
                 }
             }
-            if (selectedProfileUpdated) {
+            if (selectedProfileUpdated && !io.nekohasekai.sfa.diagnostics.ConnectionDiagnostics.running) {
                 // Профилактика подписки раньше перезагружала ядро молча — при разборе журнала было
                 // не понять, откуда взялся перезапуск. Сама перезагрузка ставит сторож на паузу
                 // (BoxService.serviceReload0).

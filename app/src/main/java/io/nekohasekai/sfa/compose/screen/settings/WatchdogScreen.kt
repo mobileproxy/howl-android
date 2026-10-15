@@ -85,6 +85,7 @@ fun WatchdogScreen(navController: NavController) {
             .verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp),
     ) {
+        ConnectionDiagnosticsCard()
         // «Диагностика» (общая схема с Windows): переключатель автопочинки переехал в меню, здесь —
         // версии и журнал. Экран тот же, что был у «Автопочинки», чтобы не плодить маршруты.
         Text(

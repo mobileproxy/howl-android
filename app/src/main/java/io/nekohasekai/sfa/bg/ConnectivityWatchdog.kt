@@ -572,6 +572,8 @@ object ConnectivityWatchdog {
      * приходилось восстанавливать по ошибкам ядра, а при разборе журнала именно этих двух фактов
      * не хватало, чтобы понять «узел плохой» или «сеть плохая».
      */
+    fun diagnosticNode(): String? = selectorSelected?.takeIf { it != ProfileTags.auto } ?: autoSelected
+
     private fun context(trigger: String): String {
         val node = selectorSelected?.takeIf { it != ProfileTags.auto } ?: autoSelected
         val net = DefaultNetworkMonitor.reportedInterface

@@ -813,4 +813,19 @@
     <string name="menu_diagnostics_core">Ядро: %1$s</string>
     <string name="menu_diagnostics_open_log">Показать журнал</string>
     <!-- HOWL-MENU: конец -->
+    <string name="profile_safe_empty">Подписка подтвердила отсутствие активных серверов. Сохранённый профиль не используется для нового подключения.</string>
+    <string name="profile_safe_changed">Подписка изменилась во время запроса. Повторите действие.</string>
+    <string name="profile_safe_network">Не удалось загрузить подписку. Сохранённый рабочий профиль не изменён.</string>
+    <string name="profile_safe_invalid">Не удалось проверить профиль. Сохранённый рабочий профиль не изменён.</string>
+    <string name="profile_safe_backup">Используется последний проверенный рабочий профиль. Свежесть подписки не подтверждена.</string>
+    <string name="profile_safe_status">Получен и проверен: %1$s\nУспешно применён: %2$s</string>
+    <string name="profile_safe_pending">Проверенное обновление ожидает применения.</string>
+    <string name="diagnostics_safe_title">Проверка связи</string>
+    <string name="diagnostics_safe_description">Три короткие пробы и загрузка до 1 МиБ, не дольше 40 секунд. Используется текущий маршрут приложения с вашими правилами маршрутизации. Это не замер максимальной скорости. Отчёт не содержит ключей подписки, адресов серверов и сырых журналов; сохраняется только по вашему выбору.</string>
+    <string name="diagnostics_safe_run">Проверить связь</string>
+    <string name="diagnostics_safe_running">Идёт проверка… Её можно отменить.</string>
+    <string name="diagnostics_safe_error">Не удалось завершить проверку или сохранить отчёт. Подключите VPN и повторите.</string>
+    <string name="diagnostics_safe_result">Успешные пробы: %1$d/3. Загружено: %2$d байт.</string>
+    <string name="diagnostics_safe_node_changed">Во время проверки изменился выбранный узел.</string>
+    <string name="diagnostics_safe_save">Сохранить обезличенный отчёт</string>
 </resources>

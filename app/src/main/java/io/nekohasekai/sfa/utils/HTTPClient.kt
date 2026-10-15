@@ -5,6 +5,12 @@ import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.ktx.unwrap
 import java.io.Closeable
 import java.util.Locale
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import io.nekohasekai.sfa.profile.ProfileDocument
 
 class HTTPClient : Closeable {
     companion object {
@@ -22,21 +28,52 @@ class HTTPClient : Closeable {
         }
     }
 
-    private val client = Libbox.newHTTPClient()
-
-    init {
-        client.modernTLS()
-    }
-
     fun getString(url: String): String {
-        val request = client.newRequest()
-        request.setUserAgent(userAgent)
-        request.setURL(url)
-        val response = request.execute()
-        return response.content.unwrap
+        // ★ 15.10.2026: ограничиваем ответ до выделения памяти; ошибки не содержат URL/токен.
+        val deadline = System.nanoTime() + 30_000_000_000L
+        var target = URL(url)
+        repeat(6) {
+            require(target.protocol in setOf("http", "https"))
+            val connection = target.openConnection() as HttpURLConnection
+            try {
+                val remaining = ((deadline - System.nanoTime()) / 1_000_000L).toInt()
+                require(remaining > 0)
+                connection.connectTimeout = minOf(10_000, remaining)
+                connection.readTimeout = minOf(10_000, remaining)
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("User-Agent", userAgent)
+                val status = connection.responseCode
+                if (status in listOf(301, 302, 303, 307, 308)) {
+                    val next = URL(target, connection.getHeaderField("Location") ?: error("redirect"))
+                    require(target.protocol != "https" || next.protocol == "https")
+                    target = next
+                } else {
+                    require(status in 200..299)
+                    require(connection.contentLengthLong <= ProfileDocument.MAX_BYTES)
+                    val bytes = ByteArrayOutputStream()
+                    connection.inputStream.use { stream ->
+                        val buffer = ByteArray(8192)
+                        while (true) {
+                            require(System.nanoTime() < deadline && !Thread.currentThread().isInterrupted)
+                            val count = stream.read(buffer)
+                            if (count < 0) break
+                            require(bytes.size() + count <= ProfileDocument.MAX_BYTES)
+                            bytes.write(buffer, 0, count)
+                        }
+                    }
+                    return Charsets.UTF_8.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+        error("redirect limit")
     }
 
     override fun close() {
-        client.close()
+        // Connections are scoped to getString().
     }
 }

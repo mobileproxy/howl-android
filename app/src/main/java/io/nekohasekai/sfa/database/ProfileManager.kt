@@ -42,6 +42,12 @@ object ProfileManager {
     suspend fun get(id: Long): Profile? = instance.profileDao().get(id)
 
     suspend fun create(profile: Profile, andSelect: Boolean = false): Profile {
+        // ★ 15.10.2026: все пути импорта проходят одну проверку до выбора профиля.
+        if (profile.typed.type == TypedProfile.Type.Remote ||
+            java.io.File(profile.typed.path).readText().trim() != "{}"
+        ) {
+            io.nekohasekai.sfa.profile.ProfileSafety.receive(profile, java.io.File(profile.typed.path).readText())
+        }
         profile.id = instance.profileDao().insert(profile)
         if (andSelect) {
             Settings.selectedProfile = profile.id

@@ -225,10 +225,11 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
                     )
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update {
                     it.copy(
                         isSaving = false,
-                        errorMessage = e.message ?: "Unknown error",
+                        errorMessage = io.nekohasekai.sfa.profile.ProfileSafety.message(e),
                     )
                 }
             }
