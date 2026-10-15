@@ -77,7 +77,8 @@ android {
         // ⚠️ versionCode обязан только расти: у уже установленных сборок он 692, поэтому база
         // выше этого числа. Понизить — значит сломать установку поверх.
         val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
-        versionCode = getVersionProps("VERSION_CODE").toInt() + buildNumber
+        versionCode = System.getenv("HOWL_VERSION_CODE")?.toInt()
+            ?: (getVersionProps("VERSION_CODE").toInt() + buildNumber)
         versionName = if (buildNumber > 0) {
             "${getVersionProps("VERSION_NAME")} ($versionCode)"
         } else {
