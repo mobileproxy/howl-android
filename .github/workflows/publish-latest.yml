@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: write
-  actions: read
+  actions: write
 
 # Serialize publishers; an incomplete upload must not replace the previous release.
 concurrency:
@@ -32,7 +32,9 @@ jobs:
         with:
           ref: dev
           persist-credentials: false
-      - name: Publish verified build files to GitHub Releases
+      - name: Test publication and cleanup safety
+        run: python3 -m unittest discover -s .github/scripts -p 'test_publish_latest.py' -v
+      - name: Publish, verify downloads, and clean build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_BRANCH: dev

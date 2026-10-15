@@ -56,6 +56,12 @@ def main():
         "android": [("howl-apk", "*arm64-v8a*.apk", "Howl.apk")],
     }[platform]
 
+    existing = find_release(repo, tag)
+    if existing is not None and not existing["draft"]:
+        finish_release(repo, tag, run, specs, platform)
+        print(f"Already published: https://github.com/{repo}/releases/latest")
+        return
+
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         assets = root / "assets"
@@ -83,20 +89,15 @@ def main():
             encoding="utf-8",
         )
         # Find drafts too; do not turn an API outage into a duplicate release.
-        existing = find_release(repo, tag)
         if existing is None:
             gh("release", "create", tag, "--repo", repo, "--draft",
                "--target", run["head_sha"], "--title", f"Howl {platform} - build {run['run_number']}",
                "--notes-file", notes)
-        elif not existing["draft"]:
-            verify_assets(repo, tag, assets)
-            gh("release", "edit", tag, "--repo", repo, "--latest")
-            print(f"Already published: https://github.com/{repo}/releases/latest")
-            return
         # Only a draft can be retried/overwritten; the previous public release stays intact.
         gh("release", "upload", tag, *sorted(assets.iterdir()), "--repo", repo, "--clobber")
         verify_assets(repo, tag, assets)
         gh("release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
+        finish_release(repo, tag, run, specs, platform, expected=assets)
         print(f"Published: https://github.com/{repo}/releases/latest")
 
 
@@ -109,8 +110,77 @@ def verify_assets(repo, tag, directory):
     for path in directory.iterdir():
         asset = remote.get(path.name)
         digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
-        if not asset or asset["size"] != path.stat().st_size or asset.get("digest") != digest:
+        if (not asset or asset.get("state") != "uploaded"
+                or asset["size"] != path.stat().st_size or asset.get("digest") != digest):
             raise RuntimeError(f"Release asset verification failed: {path.name}")
+
+
+def verify_published(repo, tag, specs, expected=None):
+    """Download the published binaries before allowing destructive cleanup."""
+    release = find_release(repo, tag)
+    if release is None or release["draft"] or release.get("prerelease"):
+        raise RuntimeError("A published release is required for cleanup")
+    names = {filename for _, _, filename in specs}
+    required = names | {"SHA256SUMS.txt"}
+    remote = {a["name"]: a for a in release["assets"]}
+    if not required <= remote.keys():
+        raise RuntimeError("Published release is missing required files")
+    with tempfile.TemporaryDirectory() as temp:
+        directory = Path(temp)
+        patterns = [arg for name in sorted(required) for arg in ("--pattern", name)]
+        gh("release", "download", tag, "--repo", repo, "--dir", directory, *patterns)
+        # Validate bytes against GitHub's SHA-256 and the original staged files.
+        for name in required:
+            path = directory / name
+            if not path.is_file() or path.stat().st_size == 0:
+                raise RuntimeError(f"Missing or empty download: {name}")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            asset = remote[name]
+            if (asset.get("state") != "uploaded" or asset["size"] != path.stat().st_size
+                    or asset.get("digest") != "sha256:" + digest):
+                raise RuntimeError(f"Downloaded asset verification failed: {name}")
+            if expected is not None and hashlib.sha256((expected / name).read_bytes()).hexdigest() != digest:
+                raise RuntimeError(f"Downloaded asset differs from build: {name}")
+        manifest = {}
+        for line in (directory / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines():
+            digest, name = line.split("  ", 1)
+            if name not in names or name in manifest:
+                raise RuntimeError("Unexpected checksum manifest entry")
+            manifest[name] = digest
+        if set(manifest) != names:
+            raise RuntimeError("Incomplete checksum manifest")
+        for name, digest in manifest.items():
+            if hashlib.sha256((directory / name).read_bytes()).hexdigest() != digest:
+                raise RuntimeError(f"Checksum manifest mismatch: {name}")
+
+
+def cleanup_artifacts(repo, run, allowed_names):
+    pages = json.loads(gh("api", f"repos/{repo}/actions/runs/{run['id']}/artifacts?per_page=100",
+                          "--paginate", "--slurp"))
+    artifacts = [a for page in pages for a in page["artifacts"] if a["name"] in allowed_names]
+    # A rerun may reuse the run ID. Never delete a newer attempt's artifacts.
+    # Snapshot IDs before checking the attempt, so later artifacts are not included.
+    current = api(f"repos/{repo}/actions/runs/{run['id']}")
+    if (current["status"] != "completed" or current["conclusion"] != "success"
+            or current["run_attempt"] != run["run_attempt"]):
+        raise RuntimeError("Build changed during publication; cleanup stopped")
+    # Abort before deleting anything if the response refers to a different run.
+    if any(a.get("workflow_run", {}).get("id", run["id"]) != run["id"] for a in artifacts):
+        raise RuntimeError("Unexpected artifact run ID")
+    for artifact in artifacts:
+        gh("api", "--method", "DELETE", f"repos/{repo}/actions/artifacts/{artifact['id']}")
+        print(f"Deleted Actions artifact: {artifact['name']} ({artifact['id']})")
+    print(f"Cleaned {len(artifacts)} artifacts from build {run['id']}")
+
+
+def finish_release(repo, tag, run, specs, platform, expected=None):
+    # ★ 15.10.2026: очистка только после скачивания и проверки опубликованных файлов.
+    verify_published(repo, tag, specs, expected)
+    gh("release", "edit", tag, "--repo", repo, "--latest")
+    allowed = {artifact for artifact, _, _ in specs}
+    if platform == "android":
+        allowed.update({"howl-unit-tests", "howl-screenshots"})
+    cleanup_artifacts(repo, run, allowed)
 
 
 if __name__ == "__main__":
