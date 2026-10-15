@@ -34,9 +34,9 @@ def inspect(apk, build_tools):
 
 def main():
     folder = Path(sys.argv[1])
-    matches = list(folder.rglob("*arm64-v8a*.apk"))
+    matches = list(folder.rglob("*universal*.apk"))
     if len(matches) != 1:
-        raise ValueError("Expected exactly one arm64 APK")
+        raise ValueError("Expected exactly one universal ARM APK")
     sdk = Path(os.environ.get("ANDROID_SDK_ROOT") or os.environ["ANDROID_HOME"])
     build_tools = sdk / "build-tools/36.0.0"
     baseline = folder / "previous-published.apk"
@@ -55,6 +55,7 @@ def main():
         if hashlib.sha256(baseline.read_bytes()).hexdigest() != PREVIOUS_SHA256:
             raise ValueError("Published baseline changed; review before releasing")
         previous = inspect(baseline, build_tools)
+        run(sys.executable, Path(__file__).with_name("verify-arm-libraries.py"), matches[0])
         current = inspect(matches[0], build_tools)
         if previous["package"] != "how.vpn.howl" or current["package"] != previous["package"]:
             raise ValueError("Package identity changed")

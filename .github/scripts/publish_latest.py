@@ -53,7 +53,7 @@ def main():
     specs = {
         "windows": [("howl-setup", "*.exe", "Howl-Setup.exe"),
                     ("howl-portable", "*.zip", "Howl-Portable.zip")],
-        "android": [("howl-apk", "*arm64-v8a*.apk", "Howl.apk")],
+        "android": [("howl-apk", "*universal*.apk", "Howl.apk")],
     }[platform]
 
     existing = find_release(repo, tag)

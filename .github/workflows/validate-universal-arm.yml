@@ -1,0 +1,102 @@
+name: Validate universal ARM APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      singbox_ref:
+        description: "sing-box-lx git ref to build libbox from"
+        default: "v1.14.0-lx.29"
+  push:
+    branches: [android/universal-arm]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Howl
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.11"
+
+      - name: Install Android NDK + platform (use runner's preinstalled SDK)
+        run: |
+          set -eu
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" --install "ndk;28.0.13004108" "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
+
+      - name: Fetch the existing core version (no core migration)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/howl-core app/libs
+          gh release download v1.14.0-lx.29 --repo Leadaxe/sing-box-lx --pattern 'libbox-1.14.0-lx.29.aar' --pattern SHA256SUMS --dir /tmp/howl-core
+          cd /tmp/howl-core
+          grep 'libbox-1.14.0-lx.29.aar$' SHA256SUMS | sha256sum --check --strict
+          cp libbox-1.14.0-lx.29.aar "$GITHUB_WORKSPACE/app/libs/libbox.aar"
+      - name: Verify both ARM cores
+        run: |
+          python3 -m unittest discover -s tools -p test_arm_libraries.py -v
+          python3 tools/verify-arm-libraries.py app/libs/libbox.aar
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+
+      - name: Build APK (other flavor, RELEASE — signed + minified)
+        env:
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.13004108"
+          chmod +x ./gradlew
+          python3 tools/validate-candidate-resources.py
+          # Юнит-тесты правил сторожа и разбора конфига — до сборки: провал останавливает выпуск.
+          # Debug-вариант: в нём есть тестовая активность для скриншотов меню (Robolectric).
+          ./gradlew :app:testOtherDebugUnitTest --stacktrace --no-daemon
+          ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon
+
+      - name: Verify APK signature and upgrade compatibility
+        run: python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
+
+      - name: Upload unit-test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: universal-unit-tests
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: Upload settings screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: universal-screenshots
+          path: app/build/screenshots/
+          if-no-files-found: warn
+
+      - name: Upload verified universal ARM APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: howl-universal-candidate
+          path: |
+            app/build/outputs/apk/**/*universal*.apk
+            app/build/outputs/apk/other/release/release-verification.json
+          if-no-files-found: warn
