@@ -70,6 +70,8 @@ android {
         applicationId = "how.vpn.howl"
         minSdk = 21
         targetSdk = 35
+        // Universal APK must contain only the two supported ARM architectures.
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
         // Версия своя, а не унаследованная от sing-box: VERSION_NAME поднимаем осмысленно,
         // а номер сборки растёт сам от номера запуска CI. Раньше все сборки выходили с одним
         // номером — нельзя было понять, что именно стоит у клиента, и обновление было невозможно

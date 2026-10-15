@@ -13,6 +13,10 @@ def verify(path):
     with zipfile.ZipFile(path) as archive:
         if archive.testzip() is not None:
             raise ValueError("Corrupt archive")
+        found = {n.split("/")[1] for n in archive.namelist()
+                 if n.startswith(prefix + "/") and n.endswith(".so")}
+        if path.suffix == ".apk" and found != set(ABIS):
+            raise ValueError(f"Unexpected APK architectures: {sorted(found)}")
         libraries = {}
         for abi, (elf_class, machine) in ABIS.items():
             names = [n for n in archive.namelist()
