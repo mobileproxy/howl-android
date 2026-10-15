@@ -2,10 +2,11 @@ name: Validate Android candidate
 
 on:
   push:
-    branches: [android/profile-safety-diagnostics, android/kill-switch-copy]
+    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate]
     paths:
       - "app/**"
       - ".github/workflows/validate-android-candidate.yml"
+      - "tools/validate-candidate-resources.py"
 
 permissions:
   contents: read
@@ -26,6 +27,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: Check combined candidate translations
+        run: python3 tools/validate-candidate-resources.py
       - name: Fetch the existing core version (no core migration)
         env:
           GH_TOKEN: ${{ github.token }}
