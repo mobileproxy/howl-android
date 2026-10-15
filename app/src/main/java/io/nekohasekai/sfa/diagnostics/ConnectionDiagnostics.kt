@@ -22,22 +22,9 @@ object ConnectionDiagnostics {
     @Volatile var running = false
         private set
 
-    private suspend fun snapshot(): NodeSnapshot {
+    private fun snapshot(): NodeSnapshot {
         val tag = ConnectivityWatchdog.diagnosticNode()
-        val profile = ProfileManager.get(Settings.selectedProfile)
-        val raw = profile?.let { runCatching { ProfileSafety.backup(it).content }.getOrNull() }
-        var protocol: String? = null
-        if (raw != null) runCatching {
-            val json = JSONObject(raw)
-            for (key in listOf("outbounds", "endpoints")) {
-                val list = json.optJSONArray(key) ?: continue
-                for (i in 0 until list.length()) {
-                    val item = list.getJSONObject(i)
-                    if (item.optString("tag") == tag) protocol = item.optString("type")
-                }
-            }
-        }
-        return NodeSnapshot.of(tag, protocol)
+        return NodeSnapshot.of(tag, BoxService.diagnosticProtocol(tag))
     }
 
     /** ★ 15.10.2026: только чтение и пробы; нет select/reload и автоматической отправки. */

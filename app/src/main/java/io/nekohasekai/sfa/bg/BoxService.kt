@@ -70,6 +70,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         @Volatile
         var running = false
 
+        @Volatile private var diagnosticProtocols: Map<String, String> = emptyMap()
+        fun diagnosticProtocol(tag: String?): String? = tag?.let { diagnosticProtocols[it] }
+
         fun start() {
             val intent =
                 runBlocking {
@@ -271,26 +274,27 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     suspend fun serviceReload0() {
         val startedAt = System.currentTimeMillis()
         ConnectivityWatchdog.pauseForReload()
+        var applied = false
         try {
-            reloadCore()
+            applied = reloadCore()
         } finally {
             ConnectivityWatchdog.resumeAfterReload()
             val took = (System.currentTimeMillis() - startedAt) / 100 / 10.0
-            AppEventLog.log("ядро", "конфигурация перезагружена за $took с (профиль «${lastProfileName.ifBlank { "?" }}»)")
+            AppEventLog.log("ядро", if (applied) "конфигурация перезагружена за $took с" else "перезагрузка не подтверждена; рабочий резерв сохранён")
         }
     }
 
-    private suspend fun reloadCore() {
+    private suspend fun reloadCore(): Boolean {
         val selectedProfileId = Settings.selectedProfile
         if (selectedProfileId == -1L) {
             stopAndAlert(Alert.EmptyConfiguration)
-            return
+            return false
         }
 
         val profile = ProfileManager.get(selectedProfileId)
         if (profile == null) {
             stopAndAlert(Alert.EmptyConfiguration)
-            return
+            return false
         }
 
         // Проверяем кандидата до обращения к работающему ядру и его остановки.
@@ -298,19 +302,19 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             ProfileSafety.prepare(profile)
         } catch (e: Exception) {
             AppEventLog.log("профиль", ProfileSafety.message(e))
-            return
+            return false
         }
         val content = try {
             assembleConfig(prepared.content).also { Libbox.checkConfig(it) }
         } catch (e: Exception) {
             AppEventLog.log("профиль", ProfileSafety.message(e))
-            return
+            return false
         }
         val launched = try {
             launchProfile(profile, prepared, content)
         } catch (e: Exception) {
             stopAndAlert(Alert.CreateService, ProfileSafety.message(e))
-            return
+            return false
         }
         lastProfileName = profile.name
 
@@ -323,10 +327,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 }
             if (!service.hasPermission(wifiPermission)) {
                 stopAndAlert(Alert.RequestLocationPermission)
-                return
+                return false
             }
         }
         ProfileSafety.applied(profile, launched)
+        return true
     }
 
     private suspend fun launchProfile(profile: Profile, prepared: SafeProfileStore.Prepared, content: String): SafeProfileStore.Prepared {
@@ -343,23 +348,28 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 }
             }
         }
-        var accepted = prepared
-        var acceptedContent = content
-        try {
-            commandServer.startOrReloadService(content, options)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            val backup = ProfileSafety.backup(profile)
-            if (backup.hash == prepared.hash) throw e
-            acceptedContent = assembleConfig(backup.content)
-            Libbox.checkConfig(acceptedContent)
-            commandServer.startOrReloadService(acceptedContent, options)
-            accepted = backup
+        val accepted = io.nekohasekai.sfa.profile.ProfileLauncher.launch(
+            prepared, content,
+            { ProfileSafety.backup(profile) }, ::assembleConfig,
+            { Libbox.checkConfig(it) }, { commandServer.startOrReloadService(it, options) },
+        )
+        val acceptedContent = accepted.assembled
+        if (accepted.prepared.backup) {
             AppEventLog.log("профиль", Application.application.getString(R.string.profile_safe_backup))
         }
         ProfileTags.scan(acceptedContent)
         NodeSites.scan(acceptedContent)
-        return accepted
+        diagnosticProtocols = buildMap {
+            val config = org.json.JSONObject(acceptedContent)
+            for (key in listOf("outbounds", "endpoints")) {
+                val items = config.optJSONArray(key) ?: continue
+                for (i in 0 until items.length()) {
+                    val item = items.getJSONObject(i)
+                    put(item.optString("tag"), item.optString("type"))
+                }
+            }
+        }
+        return accepted.prepared
     }
 
     override fun getSystemProxyStatus(): SystemProxyStatus? {

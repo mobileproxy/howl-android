@@ -56,6 +56,7 @@ object ProfileSafety {
     }
 
     suspend fun receive(profile: Profile, raw: String): String = mutex(profile).withLock {
+        currentCoroutineContext().ensureActive()
         receiveLocked(profile, raw)
     }
 
@@ -86,6 +87,8 @@ object ProfileSafety {
     suspend fun changeSource(profile: Profile, url: String) = mutex(profile).withLock {
         // Validate first, then bind to the new URL. No old-source backup is reused.
         val oldUrl = profile.typed.remoteURL
+        val current = ProfileManager.get(profile.id) ?: throw ProfileFailure(ProfileFailure.Kind.CHANGED)
+        if (current.typed.remoteURL != oldUrl) throw ProfileFailure(ProfileFailure.Kind.CHANGED)
         val raw = fetch(url)
         currentCoroutineContext().ensureActive()
         validate(raw, profile.name, url)
@@ -125,15 +128,25 @@ object ProfileSafety {
         store(profile).backupOnly()
     }
 
-    suspend fun applied(profile: Profile, prepared: SafeProfileStore.Prepared) = mutex(profile).withLock {
-        val current = ProfileManager.get(profile.id) ?: return@withLock
-        if (source(current) == source(profile)) store(current).markApplied(prepared)
+    suspend fun applied(profile: Profile, prepared: SafeProfileStore.Prepared): Boolean = mutex(profile).withLock {
+        val current = ProfileManager.get(profile.id) ?: return@withLock false
+        try {
+            source(current) == source(profile) && store(current).markApplied(prepared)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // Ошибка сохранения резерва не должна останавливать уже запущенный VPN.
+            AppEventLog.log("профиль", message(e))
+            false
+        }
     }
 
     suspend fun summary(profile: Profile): SafeProfileStore.Summary = mutex(profile).withLock { store(profile).summary() }
 
     suspend fun statusText(profile: Profile): String {
-        val state = summary(profile)
+        val state = try { summary(profile) } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            return message(e)
+        }
         val context = Application.application
         if (state.blocked) return context.getString(R.string.profile_safe_empty)
         fun date(value: Long): String = if (value == 0L) "—" else
@@ -145,9 +158,7 @@ object ProfileSafety {
     private fun readAtomic(file: File): String? = try {
         if (!file.exists() && !File(file.path + ".bak").exists()) null
         else AtomicFile(file).openRead().use { stream ->
-            val bytes = stream.readBytes()
-            require(bytes.size <= ProfileDocument.MAX_BYTES * 3 + 65536)
-            bytes.toString(Charsets.UTF_8)
+            ProfilePayload.read(stream, ProfileDocument.MAX_BYTES * 4 + 65536)
         }
     } catch (_: Exception) { throw ProfileFailure(ProfileFailure.Kind.STORAGE) }
 

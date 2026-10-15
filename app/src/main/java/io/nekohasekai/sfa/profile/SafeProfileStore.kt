@@ -29,7 +29,8 @@ class SafeProfileStore(
 
     fun receive(raw: String): String {
         val content = validate(raw)
-        val state = state() ?: JSONObject().put("version", 1).put("source", binding)
+        val state = try { state() } catch (_: ProfileFailure) { null }
+            ?: JSONObject().put("version", 1).put("source", binding)
         state.put("received", content).put("receivedHash", hash(content)).put("receivedAt", now())
         state.put("blocked", false)
         save(state)

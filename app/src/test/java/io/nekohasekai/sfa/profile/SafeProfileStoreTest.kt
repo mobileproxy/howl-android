@@ -101,6 +101,8 @@ class SafeProfileStoreTest {
         working(store())
         files["fixture.safe"] = "broken"
         assertThrows(ProfileFailure::class.java) { store().prepare { "valid-old" } }
+        store().receive("valid-repaired")
+        assertEquals("valid-repaired", store().prepare { error("legacy") }.content)
     }
 
     @Test fun persistenceFailureDoesNotPromoteOrChangeWorkingState() {

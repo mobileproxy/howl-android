@@ -739,4 +739,19 @@
     <string name="menu_diagnostics_core">Cœur : %1$s</string>
     <string name="menu_diagnostics_open_log">Afficher le journal</string>
     <!-- HOWL-MENU: конец -->
+    <string name="profile_safe_empty">L’abonnement confirme qu’aucun serveur actif ne reste disponible. Le profil enregistré ne sera pas utilisé pour une nouvelle connexion.</string>
+    <string name="profile_safe_changed">L’abonnement a changé pendant la requête. Réessayez.</string>
+    <string name="profile_safe_network">Impossible de télécharger l’abonnement. Le profil fonctionnel a été conservé.</string>
+    <string name="profile_safe_invalid">Impossible de vérifier le profil. Le profil fonctionnel a été conservé.</string>
+    <string name="profile_safe_backup">Le dernier profil fonctionnel est utilisé. La fraîcheur de l’abonnement n’est pas confirmée.</string>
+    <string name="profile_safe_status">Reçu et vérifié : %1$s\nAppliqué avec succès : %2$s</string>
+    <string name="profile_safe_pending">La mise à jour vérifiée attend son application.</string>
+    <string name="diagnostics_safe_title">Vérifier la connexion</string>
+    <string name="diagnostics_safe_description">Trois tests courts et un téléchargement de 1 Mio maximum en 40 secondes au plus. Utilise la route actuelle de l’application avec vos règles de routage. Ce test ne mesure pas le débit maximal. Le rapport ne contient ni clés d’abonnement, ni adresses de serveurs, ni journaux bruts ; il est enregistré uniquement à votre demande.</string>
+    <string name="diagnostics_safe_run">Vérifier la connexion</string>
+    <string name="diagnostics_safe_running">Vérification en cours… Vous pouvez annuler.</string>
+    <string name="diagnostics_safe_error">Impossible de terminer le test ou d’enregistrer le rapport. Connectez le VPN et réessayez.</string>
+    <string name="diagnostics_safe_result">Tests réussis : %1$d/3. Téléchargement : %2$d octets.</string>
+    <string name="diagnostics_safe_node_changed">Le nœud sélectionné a changé pendant le test.</string>
+    <string name="diagnostics_safe_save">Enregistrer le rapport anonymisé</string>
 </resources>

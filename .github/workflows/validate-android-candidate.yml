@@ -40,4 +40,18 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :app:testOtherDebugUnitTest :app:assembleOtherDebug --stacktrace --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g
+      - name: Summarize test results
+        if: always()
+        run: |
+          python3 - <<'PYTEST'
+          import glob, xml.etree.ElementTree as E
+          totals = [0, 0, 0]
+          for name in sorted(glob.glob('app/build/test-results/testOtherDebugUnitTest/TEST-*.xml')):
+              root = E.parse(name).getroot()
+              counts = [int(root.get(k, 0)) for k in ('tests', 'failures', 'errors')]
+              totals = [a+b for a,b in zip(totals, counts)]
+              if '.profile.' in root.get('name', '') or '.diagnostics.' in root.get('name', ''):
+                  print(root.get('name'), dict(zip(('tests', 'failures', 'errors'), counts)))
+          print('ALL TESTS:', dict(zip(('tests', 'failures', 'errors'), totals)))
+          PYTEST
       # No signing secrets, artifact upload, release creation or deployment.

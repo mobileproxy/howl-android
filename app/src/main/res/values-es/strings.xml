@@ -739,4 +739,19 @@
     <string name="menu_diagnostics_core">Núcleo: %1$s</string>
     <string name="menu_diagnostics_open_log">Mostrar registro</string>
     <!-- HOWL-MENU: конец -->
+    <string name="profile_safe_empty">La suscripción confirma que no quedan servidores activos. El perfil guardado no se utiliza para una nueva conexión.</string>
+    <string name="profile_safe_changed">La suscripción cambió durante la solicitud. Inténtalo de nuevo.</string>
+    <string name="profile_safe_network">No se pudo descargar la suscripción. El perfil que funcionaba se ha conservado.</string>
+    <string name="profile_safe_invalid">No se pudo verificar el perfil. El perfil que funcionaba se ha conservado.</string>
+    <string name="profile_safe_backup">Se utiliza el último perfil que funcionó. No se ha confirmado si la suscripción está actualizada.</string>
+    <string name="profile_safe_status">Recibido y verificado: %1$s\nAplicado correctamente: %2$s</string>
+    <string name="profile_safe_pending">La actualización verificada está pendiente de aplicación.</string>
+    <string name="diagnostics_safe_title">Comprobar conexión</string>
+    <string name="diagnostics_safe_description">Tres pruebas breves y una descarga de hasta 1 MiB en un máximo de 40 segundos. Usa la ruta actual de la aplicación y tus reglas de enrutamiento. No mide la velocidad máxima. El informe no contiene claves de suscripción, direcciones de servidores ni registros sin procesar; solo se guarda cuando tú lo eliges.</string>
+    <string name="diagnostics_safe_run">Comprobar conexión</string>
+    <string name="diagnostics_safe_running">Comprobando… Puedes cancelar la prueba.</string>
+    <string name="diagnostics_safe_error">No se pudo completar la prueba o guardar el informe. Conecta la VPN e inténtalo de nuevo.</string>
+    <string name="diagnostics_safe_result">Pruebas correctas: %1$d/3. Descargados: %2$d bytes.</string>
+    <string name="diagnostics_safe_node_changed">El nodo seleccionado cambió durante la prueba.</string>
+    <string name="diagnostics_safe_save">Guardar informe anonimizado</string>
 </resources>

@@ -739,4 +739,19 @@
     <string name="menu_diagnostics_core">Kern: %1$s</string>
     <string name="menu_diagnostics_open_log">Protokoll anzeigen</string>
     <!-- HOWL-MENU: конец -->
+    <string name="profile_safe_empty">Das Abonnement bestätigt, dass keine aktiven Server vorhanden sind. Das gespeicherte Profil wird nicht für eine neue Verbindung verwendet.</string>
+    <string name="profile_safe_changed">Das Abonnement wurde während der Anfrage geändert. Bitte erneut versuchen.</string>
+    <string name="profile_safe_network">Das Abonnement konnte nicht geladen werden. Das funktionierende Profil bleibt erhalten.</string>
+    <string name="profile_safe_invalid">Das Profil konnte nicht geprüft werden. Das funktionierende Profil bleibt erhalten.</string>
+    <string name="profile_safe_backup">Das zuletzt erfolgreich verwendete Profil wird genutzt. Die Aktualität des Abonnements ist nicht bestätigt.</string>
+    <string name="profile_safe_status">Empfangen und geprüft: %1$s\nErfolgreich angewendet: %2$s</string>
+    <string name="profile_safe_pending">Das geprüfte Update wartet auf die Anwendung.</string>
+    <string name="diagnostics_safe_title">Verbindung prüfen</string>
+    <string name="diagnostics_safe_description">Drei kurze Prüfungen und ein Download bis 1 MiB innerhalb von 40 Sekunden. Verwendet die aktuelle Route der App einschließlich Ihrer Routing-Regeln. Kein Test der maximalen Geschwindigkeit. Der Bericht enthält keine Abonnementschlüssel, Serveradressen oder Rohprotokolle und wird nur auf Ihren Wunsch gespeichert.</string>
+    <string name="diagnostics_safe_run">Verbindung prüfen</string>
+    <string name="diagnostics_safe_running">Prüfung läuft… Sie können abbrechen.</string>
+    <string name="diagnostics_safe_error">Prüfung oder Speichern fehlgeschlagen. VPN verbinden und erneut versuchen.</string>
+    <string name="diagnostics_safe_result">Erfolgreiche Prüfungen: %1$d/3. Heruntergeladen: %2$d Byte.</string>
+    <string name="diagnostics_safe_node_changed">Der ausgewählte Knoten hat sich während der Prüfung geändert.</string>
+    <string name="diagnostics_safe_save">Anonymisierten Bericht speichern</string>
 </resources>

@@ -85,7 +85,7 @@ class UpdateProfileWork {
                     success = false
                 }
             }
-            if (selectedProfileUpdated && !io.nekohasekai.sfa.diagnostics.ConnectionDiagnostics.running) {
+            if (selectedProfileUpdated) {
                 // Профилактика подписки раньше перезагружала ядро молча — при разборе журнала было
                 // не понять, откуда взялся перезапуск. Сама перезагрузка ставит сторож на паузу
                 // (BoxService.serviceReload0).

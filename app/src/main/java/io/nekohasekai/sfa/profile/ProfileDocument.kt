@@ -16,7 +16,7 @@ object ProfileDocument {
         require(parser.nextClean() == 0.toChar())
         val isHowl = runCatching {
             val uri = URI(source)
-            uri.host.equals("gethowl.app", true) && uri.path == "/sub.html"
+            uri.host?.lowercase() in setOf("gethowl.app", "vpn.how") && uri.path == "/sub.html"
         }.getOrDefault(false)
         if (!isHowl) return false
         val all = linkedMapOf<String, JSONObject>()

@@ -254,7 +254,7 @@ class ProfileImportHandler(private val context: Context) {
         return ImportResult.Success(profile)
     }
 
-    private suspend fun importRemoteProfile(name: String, url: String): ImportResult {
+    private suspend fun importRemoteProfile(name: String, url: String): ImportResult = try {
         val typedProfile =
             TypedProfile().apply {
                 type = TypedProfile.Type.Remote
@@ -280,7 +280,10 @@ class ProfileImportHandler(private val context: Context) {
         // Create profile in database and select it
         ProfileManager.create(profile, andSelect = true)
 
-        return ImportResult.Success(profile)
+        ImportResult.Success(profile)
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        ImportResult.Error(io.nekohasekai.sfa.profile.ProfileSafety.message(e))
     }
 
     private fun extractProfileNameFromUrl(url: String): String {
@@ -377,7 +380,7 @@ class ProfileImportHandler(private val context: Context) {
             } catch (e: Exception) {
                 // Configuration validation failed
                 return ImportResult.Error(
-                    context.getString(R.string.error_invalid_configuration, e.message),
+                    context.getString(R.string.error_invalid_configuration, io.nekohasekai.sfa.profile.ProfileSafety.message(e)),
                 )
             }
 
@@ -407,7 +410,7 @@ class ProfileImportHandler(private val context: Context) {
 
             ImportResult.Success(profile)
         } catch (e: Exception) {
-            ImportResult.Error(e.message ?: "Unknown error importing JSON configuration")
+            ImportResult.Error(io.nekohasekai.sfa.profile.ProfileSafety.message(e))
         }
     }
 }

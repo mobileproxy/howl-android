@@ -2,14 +2,10 @@ package io.nekohasekai.sfa.utils
 
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.BuildConfig
-import io.nekohasekai.sfa.ktx.unwrap
 import java.io.Closeable
 import java.util.Locale
 import java.net.HttpURLConnection
 import java.net.URL
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.charset.CodingErrorAction
 import io.nekohasekai.sfa.profile.ProfileDocument
 
 class HTTPClient : Closeable {
@@ -49,22 +45,13 @@ class HTTPClient : Closeable {
                     target = next
                 } else {
                     require(status in 200..299)
-                    require(connection.contentLengthLong <= ProfileDocument.MAX_BYTES)
-                    val bytes = ByteArrayOutputStream()
-                    connection.inputStream.use { stream ->
-                        val buffer = ByteArray(8192)
-                        while (true) {
+                    require((connection.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L) <= ProfileDocument.MAX_BYTES)
+                    return connection.inputStream.use { stream ->
+                        io.nekohasekai.sfa.profile.ProfilePayload.read(stream) {
                             require(System.nanoTime() < deadline && !Thread.currentThread().isInterrupted)
-                            val count = stream.read(buffer)
-                            if (count < 0) break
-                            require(bytes.size() + count <= ProfileDocument.MAX_BYTES)
-                            bytes.write(buffer, 0, count)
+                            connection.readTimeout = minOf(10_000, ((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1).toInt())
                         }
                     }
-                    return Charsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPORT)
-                        .onUnmappableCharacter(CodingErrorAction.REPORT)
-                        .decode(ByteBuffer.wrap(bytes.toByteArray())).toString()
                 }
             } finally {
                 connection.disconnect()

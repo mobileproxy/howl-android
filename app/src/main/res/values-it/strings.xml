@@ -739,4 +739,19 @@
     <string name="menu_diagnostics_core">Core: %1$s</string>
     <string name="menu_diagnostics_open_log">Mostra registro</string>
     <!-- HOWL-MENU: конец -->
+    <string name="profile_safe_empty">L’abbonamento conferma che non ci sono server attivi. Il profilo salvato non viene utilizzato per una nuova connessione.</string>
+    <string name="profile_safe_changed">L’abbonamento è cambiato durante la richiesta. Riprova.</string>
+    <string name="profile_safe_network">Impossibile scaricare l’abbonamento. Il profilo funzionante è stato conservato.</string>
+    <string name="profile_safe_invalid">Impossibile verificare il profilo. Il profilo funzionante è stato conservato.</string>
+    <string name="profile_safe_backup">Viene utilizzato l’ultimo profilo funzionante. L’aggiornamento dell’abbonamento non è confermato.</string>
+    <string name="profile_safe_status">Ricevuto e verificato: %1$s\nApplicato correttamente: %2$s</string>
+    <string name="profile_safe_pending">L’aggiornamento verificato è in attesa di applicazione.</string>
+    <string name="diagnostics_safe_title">Verifica connessione</string>
+    <string name="diagnostics_safe_description">Tre brevi prove e un download fino a 1 MiB entro 40 secondi. Usa il percorso attuale dell’app con le tue regole di instradamento. Non misura la velocità massima. Il rapporto non contiene chiavi di abbonamento, indirizzi dei server o registri grezzi e viene salvato solo quando lo scegli.</string>
+    <string name="diagnostics_safe_run">Verifica connessione</string>
+    <string name="diagnostics_safe_running">Verifica in corso… Puoi annullarla.</string>
+    <string name="diagnostics_safe_error">Impossibile completare la verifica o salvare il rapporto. Connetti la VPN e riprova.</string>
+    <string name="diagnostics_safe_result">Prove riuscite: %1$d/3. Scaricati: %2$d byte.</string>
+    <string name="diagnostics_safe_node_changed">Il nodo selezionato è cambiato durante la verifica.</string>
+    <string name="diagnostics_safe_save">Salva rapporto anonimizzato</string>
 </resources>
