@@ -106,11 +106,11 @@
     <string name="background_work_vendor_generic">Autorisez le lancement automatique et l\'exécution en arrière-plan, et verrouillez Howl dans les apps récentes pour que le système ne la supprime pas.</string>
     <string name="background_work_appinfo_action">Ouvrir les paramètres de l\'app</string>
     <string name="background_work_reset_warning">Certains téléphones réinitialisent ces réglages d\'eux-mêmes. Si le VPN se remet en veille la nuit, revenez ici et vérifiez l\'état ci-dessus.</string>
-    <string name="kill_switch_title">Bloquer internet sans VPN</string>
-    <string name="kill_switch_description">Un kill switch coupe tout internet si le VPN tombe, pour que votre vraie IP et vos DNS ne soient jamais exposés par accident. Sur Android, c\'est le système qui s\'en charge pour une fiabilité maximale : le blocage tient même si l\'application plante.</string>
-    <string name="kill_switch_steps">Activez-le dans les réglages système :\n1. Appuyez sur le bouton ci-dessous.\n2. À côté de Howl, ouvrez la ⚙ roue.\n3. Activez « VPN permanent ».\n4. Activez « Bloquer les connexions sans VPN ».</string>
+    <string name="kill_switch_title">Bloquer sans VPN</string>
+    <string name="kill_switch_description">Cet écran explique le blocage VPN du système Android. Le bouton ouvre seulement les paramètres : il n’active pas la protection et n’indique pas son état. «VPN permanent» demande à Android de lancer Howl automatiquement. Pour bloquer les connexions des applications hors VPN pour cet utilisateur ou profil Android, activez aussi «Bloquer les connexions sans VPN». VPN permanent seul n’active pas ce blocage.</string>
+    <string name="kill_switch_steps">Dans les paramètres Android :\n1. Appuyez sur le bouton ci-dessous.\n2. Ouvrez la roue à côté de Howl. S’il manque, connectez-le d’abord une fois en mode VPN.\n3. Activez «VPN permanent».\n4. Activez «Bloquer les connexions sans VPN».\nLes noms et la disponibilité dépendent de l’appareil et de l’administrateur.</string>
     <string name="kill_switch_open_settings">Ouvrir les réglages VPN</string>
-    <string name="kill_switch_warning">Avec cette option, il n\'y a pas d\'internet tant que le VPN est coupé. Pour naviguer sans VPN, désactivez « Bloquer les connexions sans VPN ».</string>
+    <string name="kill_switch_warning">Tant que le blocage système est activé, déconnecter Howl ne rétablit pas l’accès Internet normal. Désactivez «Bloquer les connexions sans VPN» pour utiliser le réseau sans VPN. Les applications exclues peuvent perdre l’accès au réseau. Les routes directes du profil Howl restent inchangées.</string>
     <string name="split_tunnel_recognized_none">Aucun domaine reconnu pour l\'instant</string>
     <string name="split_tunnel_recognized_prefix">Reconnus :</string>
     <string name="split_tunnel_saved_applied">Enregistré et appliqué</string>
@@ -698,8 +698,8 @@
     <string name="menu_sec_app">Application</string>
     <string name="menu_watchdog">Réparation automatique</string>
     <string name="menu_watchdog_sub">Si la connexion tombe, se reconnecte ou change de serveur tout seul</string>
-    <string name="menu_kill_switch">Bloquer Internet si le VPN tombe</string>
-    <string name="menu_kill_switch_sub">S\'active dans les réglages VPN d\'Android</string>
+    <string name="menu_kill_switch">Bloquer les connexions sans VPN</string>
+    <string name="menu_kill_switch_sub">À régler dans Android ; ici les instructions, pas l’état</string>
     <string name="menu_autostart">Démarrer au démarrage du téléphone</string>
     <string name="menu_autostart_sub">Le VPN s\'active tout seul après un redémarrage</string>
     <string name="menu_autoconnect">Se connecter à l\'ouverture de l\'app</string>

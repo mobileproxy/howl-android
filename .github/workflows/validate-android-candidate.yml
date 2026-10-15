@@ -2,7 +2,7 @@ name: Validate Android candidate
 
 on:
   push:
-    branches: [android/profile-safety-diagnostics]
+    branches: [android/profile-safety-diagnostics, android/kill-switch-copy]
     paths:
       - "app/**"
       - ".github/workflows/validate-android-candidate.yml"
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-candidate-validation
+  group: android-candidate-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
