@@ -400,8 +400,14 @@ class DashboardViewModel :
 
                 // Restart service if this is the selected profile and content changed
                 if (contentChanged && profile.id == Settings.selectedProfile) {
-                    withContext(Dispatchers.Main) {
-                        sendGlobalEvent(UiEvent.RequestReconnectService)
+                    try {
+                        // Проверка кандидата в службе выполняется до остановки рабочего ядра.
+                        Libbox.newStandaloneCommandClient().serviceReload()
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        io.nekohasekai.sfa.utils.AppEventLog.log(
+                            "профиль", io.nekohasekai.sfa.profile.ProfileSafety.message(e),
+                        )
                     }
                 }
             } catch (e: Exception) {
