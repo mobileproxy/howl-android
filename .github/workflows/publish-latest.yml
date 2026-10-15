@@ -1,0 +1,40 @@
+name: Publish latest successful build
+
+on:
+  workflow_run:
+    workflows: ["Build Howl APK"]
+    types: [completed]
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+# Serialize publishers; an incomplete upload must not replace the previous release.
+concurrency:
+  group: durable-build-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.event == 'push' ||
+        github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Checkout the trusted default branch, never code supplied by the build artifact.
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          persist-credentials: false
+      - name: Publish verified build files to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_BRANCH: dev
+          BUILD_PLATFORM: android
+        run: python3 .github/scripts/publish_latest.py
