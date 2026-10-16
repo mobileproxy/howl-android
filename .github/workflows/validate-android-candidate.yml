@@ -2,7 +2,7 @@ name: Validate Android candidate
 
 on:
   push:
-    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate]
+    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress]
     paths:
       - "app/**"
       - ".github/workflows/validate-android-candidate.yml"
@@ -53,7 +53,7 @@ jobs:
               root = E.parse(name).getroot()
               counts = [int(root.get(k, 0)) for k in ('tests', 'failures', 'errors')]
               totals = [a+b for a,b in zip(totals, counts)]
-              if '.profile.' in root.get('name', '') or '.diagnostics.' in root.get('name', ''):
+              if '.profile.' in root.get('name', '') or '.diagnostics.' in root.get('name', '') or '.connections.' in root.get('name', '') or 'ConnectionChecksUiTest' in root.get('name', ''):
                   print(root.get('name'), dict(zip(('tests', 'failures', 'errors'), counts)))
           print('ALL TESTS:', dict(zip(('tests', 'failures', 'errors'), totals)))
           PYTEST

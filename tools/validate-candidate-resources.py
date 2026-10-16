@@ -5,20 +5,20 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCALES = ("values", "values-ru-rRU", "values-de", "values-es", "values-fr", "values-it")
-PREFIXES = ("profile_safe_", "diagnostics_safe_", "kill_switch_")
+PREFIXES = ("profile_safe_", "diagnostics_safe_", "kill_switch_", "checks_")
 FORMAT = re.compile(r"%(?:\d+\$)?[sd]")
 
 
 def load(locale):
-    path = ROOT / "app/src/main/res" / locale / "strings.xml"
     values = {}
-    for item in ET.parse(path).getroot():
-        name = item.get("name")
-        if item.tag != "string" or not name:
-            continue
-        if name in values:
-            raise ValueError(f"{locale}: duplicate string {name}")
-        values[name] = "".join(item.itertext())
+    for path in sorted((ROOT / "app/src/main/res" / locale).glob("*.xml")):
+        for item in ET.parse(path).getroot():
+            name = item.get("name")
+            if item.tag != "string" or not name:
+                continue
+            if name in values:
+                raise ValueError(f"{locale}: duplicate string {name}")
+            values[name] = "".join(item.itertext())
     return values
 
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checks_loading">Verbindungen werden geladen…</string>
+    <string name="checks_progress">Geprüft %1$d von %2$d · verfügbar %3$d · Wiederholung %4$d</string>
+    <string name="checks_summary">Prüfung beendet · %1$d von %2$d verfügbar</string>
+    <string name="checks_stopped">Gestoppt · %1$d von %2$d geprüft. Fertige Ergebnisse bleiben erhalten.</string>
+    <string name="checks_network_changed">Netzwerk geändert. Ergebnisse verworfen — bitte erneut prüfen.</string>
+    <string name="checks_failed">Prüfung fehlgeschlagen. Die Server sind deshalb nicht unbedingt unerreichbar.</string>
+    <string name="checks_protocol_unknown">Protokoll unbekannt</string>
+    <string name="checks_queued">Wartet auf Prüfung</string>
+    <string name="checks_attempt">Prüfung · Versuch %1$d/%2$d</string>
+    <string name="checks_retry_wait">Wartet auf Wiederholung</string>
+    <string name="checks_working">Verfügbar · %1$d ms</string>
+    <string name="checks_no_response">Keine Antwort · 2 Versuche</string>
+    <string name="checks_error">Prüffehler</string>
+    <string name="checks_cancelled">Nicht abgeschlossen</string>
+    <string name="checks_stale">Erneute Prüfung nötig</string>
+    <string name="checks_no_response_hint">Die Anfrage über diese Verbindung schlug fehl. Ursache unbekannt.</string>
+    <string name="checks_error_hint">Kein Ergebnis vom Kern erhalten. Serververfügbarkeit unbekannt.</string>
+    <string name="checks_checked_at">Geprüft um %1$s</string>
+    <string name="checks_help">Testet eine Anfrage über jede Verbindung. ms ist die Verzögerung, nicht die Geschwindigkeit. Auswahl bleibt erhalten; Automatik und Wächter arbeiten separat.</string>
+    <string name="checks_stop">Stoppen</string>
+    <string name="checks_retry">Unfertige und erfolglose wiederholen</string>
+    <string name="checks_again">Alle erneut prüfen</string>
+    <string name="checks_empty">Dieses Profil enthält keine prüfbaren Verbindungen.</string>
+    <string name="checks_routing">Routingmodus — keine einzelne VPN-Verbindung</string>
+    <string name="checks_busy">Eine andere manuelle Prüfung läuft. Bitte warten oder diese zuerst stoppen.</string>
+    <string name="checks_title">Verbindungsprüfung</string>
+</resources>

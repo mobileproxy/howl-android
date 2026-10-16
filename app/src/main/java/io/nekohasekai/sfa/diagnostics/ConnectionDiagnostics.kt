@@ -5,6 +5,7 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.bg.BoxService
 import io.nekohasekai.sfa.bg.ConnectivityWatchdog
+import io.nekohasekai.sfa.connections.ManualProbeGate
 import io.nekohasekai.sfa.utils.AppEventLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +33,12 @@ object ConnectionDiagnostics {
 
     /** ★ 15.10.2026: только чтение и пробы; нет select/reload и автоматической отправки. */
     suspend fun run(): ConnectionReport = withContext(Dispatchers.IO) {
-        synchronized(this@ConnectionDiagnostics) {
-            check(!running && BoxService.running)
-            running = true
-        }
+        val lease = ManualProbeGate.acquire() ?: error(io.nekohasekai.sfa.Application.application.getString(io.nekohasekai.sfa.R.string.checks_busy))
         try {
+            synchronized(this@ConnectionDiagnostics) {
+                check(!running && BoxService.running)
+                running = true
+            }
             val context = currentCoroutineContext()
             val startedAt = System.currentTimeMillis()
             val deadline = System.nanoTime() + 40_000_000_000L
@@ -70,6 +72,7 @@ object ConnectionDiagnostics {
             )
         } finally {
             running = false
+            lease.close()
         }
     }
 

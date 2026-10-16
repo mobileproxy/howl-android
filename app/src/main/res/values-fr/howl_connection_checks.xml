@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checks_loading">Chargement des connexions…</string>
+    <string name="checks_progress">Vérifiées %1$d sur %2$d · fonctionnelles %3$d · nouvel essai %4$d</string>
+    <string name="checks_summary">Vérification terminée · %1$d sur %2$d fonctionnelles</string>
+    <string name="checks_stopped">Arrêtée · %1$d sur %2$d vérifiées. Les résultats terminés sont conservés.</string>
+    <string name="checks_network_changed">Le réseau a changé. Résultats effacés ; relancez la vérification.</string>
+    <string name="checks_failed">Impossible de terminer la vérification. Cela ne signifie pas que les serveurs sont indisponibles.</string>
+    <string name="checks_protocol_unknown">Protocole inconnu</string>
+    <string name="checks_queued">En attente</string>
+    <string name="checks_attempt">Vérification · essai %1$d/%2$d</string>
+    <string name="checks_retry_wait">En attente du nouvel essai</string>
+    <string name="checks_working">Fonctionne · %1$d ms</string>
+    <string name="checks_no_response">Sans réponse · 2 essais</string>
+    <string name="checks_error">Erreur de vérification</string>
+    <string name="checks_cancelled">Non terminée</string>
+    <string name="checks_stale">Nouvelle vérification requise</string>
+    <string name="checks_no_response_hint">La requête via cette connexion a échoué. Cause inconnue.</string>
+    <string name="checks_error_hint">Aucun résultat du moteur. Disponibilité du serveur inconnue.</string>
+    <string name="checks_checked_at">Vérifié à %1$s</string>
+    <string name="checks_help">Teste une requête via chaque connexion. ms indique le délai, pas le débit. Votre sélection reste inchangée ; sélection automatique et surveillance fonctionnent séparément.</string>
+    <string name="checks_stop">Arrêter</string>
+    <string name="checks_retry">Réessayer les non terminées et sans succès</string>
+    <string name="checks_again">Tout vérifier à nouveau</string>
+    <string name="checks_empty">Ce profil ne contient aucune connexion à vérifier.</string>
+    <string name="checks_routing">Mode de routage, pas une connexion VPN individuelle</string>
+    <string name="checks_busy">Une autre vérification manuelle est en cours. Attendez ou arrêtez-la d’abord.</string>
+    <string name="checks_title">Vérification des connexions</string>
+</resources>

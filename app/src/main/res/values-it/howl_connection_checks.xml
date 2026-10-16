@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checks_loading">Caricamento connessioni…</string>
+    <string name="checks_progress">Verificate %1$d di %2$d · funzionanti %3$d · nuovi tentativi %4$d</string>
+    <string name="checks_summary">Verifica completata · funzionanti %1$d di %2$d</string>
+    <string name="checks_stopped">Interrotta · verificate %1$d di %2$d. I risultati completati sono conservati.</string>
+    <string name="checks_network_changed">Rete cambiata. Risultati azzerati: ripeti la verifica.</string>
+    <string name="checks_failed">Impossibile completare la verifica. Non significa che i server siano irraggiungibili.</string>
+    <string name="checks_protocol_unknown">Protocollo sconosciuto</string>
+    <string name="checks_queued">In attesa</string>
+    <string name="checks_attempt">Verifica · tentativo %1$d/%2$d</string>
+    <string name="checks_retry_wait">In attesa di riprovare</string>
+    <string name="checks_working">Funziona · %1$d ms</string>
+    <string name="checks_no_response">Nessuna risposta · 2 tentativi</string>
+    <string name="checks_error">Errore di verifica</string>
+    <string name="checks_cancelled">Non completata</string>
+    <string name="checks_stale">Ripetere la verifica</string>
+    <string name="checks_no_response_hint">Richiesta tramite questa connessione non riuscita. Causa sconosciuta.</string>
+    <string name="checks_error_hint">Nessun risultato dal core. Disponibilità del server sconosciuta.</string>
+    <string name="checks_checked_at">Verificato alle %1$s</string>
+    <string name="checks_help">Prova una richiesta tramite ogni connessione. ms indica la latenza, non la velocità. La selezione non cambia; selezione automatica e watchdog operano separatamente.</string>
+    <string name="checks_stop">Interrompi</string>
+    <string name="checks_retry">Riprova incomplete e non riuscite</string>
+    <string name="checks_again">Ricontrolla tutte</string>
+    <string name="checks_empty">Questo profilo non ha connessioni da verificare.</string>
+    <string name="checks_routing">Modalità di instradamento, non una singola connessione VPN</string>
+    <string name="checks_busy">È in corso un’altra verifica manuale. Attendi o interrompila prima.</string>
+    <string name="checks_title">Verifica connessioni</string>
+</resources>

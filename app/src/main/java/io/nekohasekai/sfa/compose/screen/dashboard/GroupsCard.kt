@@ -43,6 +43,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.ExperimentalFoundationApi
+import io.nekohasekai.sfa.connections.CheckResult
+import io.nekohasekai.sfa.connections.CheckTarget
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -98,6 +102,10 @@ fun GroupsCard(
     )
     val snackbarHostState = remember { SnackbarHostState() }
     val uiState by actualViewModel.uiState.collectAsState()
+    DisposableEffect(actualViewModel) {
+        actualViewModel.panelShown()
+        onDispose { actualViewModel.panelHidden() }
+    }
 
     if (showTopBar) {
         val allCollapsed = uiState.expandedGroups.isEmpty()
@@ -177,18 +185,23 @@ fun GroupsCard(
         onToggleExpanded = onToggleExpanded,
         onItemSelected = onItemSelected,
         onUrlTest = onUrlTest,
+        onCheckStart = actualViewModel::startConnectionChecks,
+        onCheckStop = actualViewModel::stopConnectionChecks,
         listHeaderContent = listHeaderContent,
         asSheet = asSheet,
         modifier = modifier,
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupsCardContent(
     uiState: io.nekohasekai.sfa.compose.screen.dashboard.groups.GroupsUiState,
     onToggleExpanded: (String) -> Unit,
     onItemSelected: (String, String) -> Unit,
     onUrlTest: (String) -> Unit,
+    onCheckStart: (Boolean) -> Unit,
+    onCheckStop: () -> Unit,
     listHeaderContent: (@Composable () -> Unit)? = null,
     asSheet: Boolean = false,
     modifier: Modifier = Modifier,
@@ -237,6 +250,12 @@ private fun GroupsCardContent(
             }
         }
 
+        stickyHeader(key = "connection_check_controls") {
+            Surface(color = MaterialTheme.colorScheme.surface) {
+                ConnectionCheckControls(uiState.checks, uiState.checkPhase, uiState.checksAvailable,
+                    onCheckStart, onCheckStop)
+            }
+        }
         when {
             uiState.isLoading -> {
                 item(key = "groups_loading") {
@@ -282,6 +301,7 @@ private fun GroupsCardContent(
                         onToggleExpanded = { onToggleExpanded(group.tag) },
                         onItemSelected = { itemTag -> onItemSelected(group.tag, itemTag) },
                         onUrlTest = { onUrlTest(group.tag) },
+                        checks = uiState.checks.results,
                     )
                 }
             }
@@ -297,6 +317,7 @@ private fun ProxyGroupItem(
     onToggleExpanded: () -> Unit,
     onItemSelected: (String) -> Unit,
     onUrlTest: () -> Unit,
+    checks: Map<String, CheckResult>,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -362,27 +383,6 @@ private fun ProxyGroupItem(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // URL Test button
-                            AnimatedVisibility(
-                                visible = group.selectable,
-                                enter = slideInVertically() + fadeIn(),
-                                exit = slideOutVertically() + fadeOut(),
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        onUrlTest()
-                                    },
-                                    modifier = Modifier.size(40.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Speed,
-                                        contentDescription = stringResource(R.string.url_test),
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-
                             // Expand/Collapse indicator
                             val rotationAngle by animateFloatAsState(
                                 targetValue = if (isExpanded) 180f else 0f,
@@ -440,6 +440,7 @@ private fun ProxyGroupItem(
                         selectedTag = group.selected,
                         isSelectable = group.selectable,
                         onItemSelected = onItemSelected,
+                        checks = checks,
                     )
                 }
             }
@@ -448,211 +449,20 @@ private fun ProxyGroupItem(
 }
 
 @Composable
-private fun ProxyItemsList(items: List<GroupItem>, selectedTag: String, isSelectable: Boolean, onItemSelected: (String) -> Unit) {
-    val itemsPerRow = 2
-    val chunkedItems =
-        remember(items) {
-            items.chunked(itemsPerRow)
-        }
-
-    Column(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        chunkedItems.forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                rowItems.forEach { item ->
-                    key(item.tag) {
-                        Box(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            ProxyChip(
-                                item = item,
-                                isSelected = item.tag == selectedTag,
-                                isSelectable = isSelectable,
-                                onClick = { onItemSelected(item.tag) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
-                }
-                repeat(itemsPerRow - rowItems.size) {
-                    Box(modifier = Modifier.weight(1f))
-                }
+private fun ProxyItemsList(items: List<GroupItem>, selectedTag: String, isSelectable: Boolean,
+    onItemSelected: (String) -> Unit, checks: Map<String, CheckResult>) {
+    val ordered = remember(items.map { it.tag to it.type }) {
+        items.sortedBy { CheckTarget(it.tag, it.type).location.lowercase() }
+    }
+    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ordered.forEach { item ->
+            key(item.tag) {
+                ConnectionCheckRow(item.tag, protocolLabel(item), checks[item.tag],
+                    CheckTarget(item.tag, item.type).checkable, item.tag == selectedTag, isSelectable,
+                    select = { onItemSelected(item.tag) })
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ProxyChip(item: GroupItem, isSelected: Boolean, isSelectable: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    // Use simpler, faster animations
-    val animatedElevation by animateFloatAsState(
-        targetValue = if (isSelected) 6.dp.value else 1.dp.value,
-        animationSpec = tween(150),
-        label = "Elevation",
-    )
-
-    val surfaceModifier = modifier
-    val surfaceShape = RoundedCornerShape(8.dp)
-    val surfaceColor =
-        when {
-            isSelected -> MaterialTheme.colorScheme.primaryContainer
-            else -> MaterialTheme.colorScheme.surface
-        }
-    val surfaceBorder =
-        androidx.compose.foundation.BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
-            color =
-            when {
-                isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            },
-        )
-
-    val content: @Composable () -> Unit = {
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                // First line: Name
-                Text(
-                    text = item.tag,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                    color =
-                    if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                // Second line: Type on left, Latency on right
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Type
-                    Text(
-                        text = protocolLabel(item),
-                        style = MaterialTheme.typography.labelSmall,
-                        color =
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        },
-                    )
-
-                    // Latency
-                    AnimatedVisibility(
-                        visible = item.urlTestTime > 0,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                    ) {
-                        ProxyLatencyBadge(
-                            delay = item.urlTestDelay,
-                            isSelected = isSelected,
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (isSelectable) {
-        Surface(
-            onClick = onClick,
-            modifier = surfaceModifier,
-            shape = surfaceShape,
-            color = surfaceColor,
-            tonalElevation = animatedElevation.dp,
-            border = surfaceBorder,
-            content = content,
-        )
-    } else {
-        Surface(
-            modifier = surfaceModifier,
-            shape = surfaceShape,
-            color = surfaceColor,
-            tonalElevation = animatedElevation.dp,
-            border = surfaceBorder,
-            content = content,
-        )
-    }
-}
-
-@Composable
-private fun ProxyLatencyBadge(delay: Int, isSelected: Boolean, modifier: Modifier = Modifier) {
-    // Direct color calculation without animation for better performance
-    val colorScheme = MaterialTheme.colorScheme
-    val latencyColor =
-        remember(delay, isSelected) {
-            when {
-                delay < 100 -> {
-                    // Excellent - green/tertiary
-                    if (isSelected) {
-                        colorScheme.tertiary
-                    } else {
-                        colorScheme.tertiary.copy(alpha = 0.9f)
-                    }
-                }
-
-                delay < 300 -> {
-                    // Good - primary
-                    if (isSelected) {
-                        colorScheme.primary
-                    } else {
-                        colorScheme.primary.copy(alpha = 0.9f)
-                    }
-                }
-
-                delay < 500 -> {
-                    // Fair - secondary/warning
-                    if (isSelected) {
-                        colorScheme.secondary
-                    } else {
-                        colorScheme.secondary.copy(alpha = 0.9f)
-                    }
-                }
-
-                else -> {
-                    // Poor - error
-                    if (isSelected) {
-                        colorScheme.error
-                    } else {
-                        colorScheme.error.copy(alpha = 0.9f)
-                    }
-                }
-            }
-        }
-
-    Text(
-        text = "${delay}ms",
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = latencyColor,
-        modifier = modifier,
-    )
 }
 
 @Composable
@@ -686,5 +496,5 @@ private fun rememberBounceBlockingNestedScrollConnection(lazyListState: LazyList
  */
 private fun protocolLabel(item: GroupItem): String {
     val suffix = item.tag.substringAfterLast(" · ", "").trim()
-    return if (suffix.isNotEmpty()) suffix else Libbox.proxyDisplayType(item.type)
+    return if (suffix.isNotEmpty()) suffix else item.type
 }

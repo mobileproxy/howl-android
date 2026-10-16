@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checks_loading">Cargando conexiones…</string>
+    <string name="checks_progress">Comprobadas %1$d de %2$d · funcionan %3$d · reintentos %4$d</string>
+    <string name="checks_summary">Comprobación terminada · funcionan %1$d de %2$d</string>
+    <string name="checks_stopped">Detenida · comprobadas %1$d de %2$d. Se conservan los resultados terminados.</string>
+    <string name="checks_network_changed">La red cambió. Resultados descartados; repita la comprobación.</string>
+    <string name="checks_failed">No se pudo completar la comprobación. Esto no indica que los servidores estén caídos.</string>
+    <string name="checks_protocol_unknown">Protocolo desconocido</string>
+    <string name="checks_queued">En espera</string>
+    <string name="checks_attempt">Comprobando · intento %1$d/%2$d</string>
+    <string name="checks_retry_wait">Esperando reintento</string>
+    <string name="checks_working">Funciona · %1$d ms</string>
+    <string name="checks_no_response">Sin respuesta · 2 intentos</string>
+    <string name="checks_error">Error de comprobación</string>
+    <string name="checks_cancelled">Sin terminar</string>
+    <string name="checks_stale">Requiere nueva comprobación</string>
+    <string name="checks_no_response_hint">Falló la solicitud por esta conexión. Causa desconocida.</string>
+    <string name="checks_error_hint">No se obtuvo un resultado del núcleo. Disponibilidad desconocida.</string>
+    <string name="checks_checked_at">Comprobado a las %1$s</string>
+    <string name="checks_help">Prueba una solicitud por cada conexión. ms es latencia, no velocidad. Su selección no cambia; la selección automática y el supervisor actúan por separado.</string>
+    <string name="checks_stop">Detener</string>
+    <string name="checks_retry">Repetir pendientes y fallidas</string>
+    <string name="checks_again">Comprobar todas de nuevo</string>
+    <string name="checks_empty">Este perfil no tiene conexiones para comprobar.</string>
+    <string name="checks_routing">Modo de enrutamiento, no una conexión VPN individual</string>
+    <string name="checks_busy">Hay otra comprobación manual en curso. Espere o deténgala primero.</string>
+    <string name="checks_title">Comprobación de conexiones</string>
+</resources>

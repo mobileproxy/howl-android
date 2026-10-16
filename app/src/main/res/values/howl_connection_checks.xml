@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checks_loading">Loading connections…</string>
+    <string name="checks_progress">Checked %1$d of %2$d · working %3$d · retrying %4$d</string>
+    <string name="checks_summary">Check complete · %1$d of %2$d working</string>
+    <string name="checks_stopped">Stopped · checked %1$d of %2$d. Completed results are kept.</string>
+    <string name="checks_network_changed">Network changed. Results cleared — run the check again.</string>
+    <string name="checks_failed">Could not complete the check. This does not mean the servers are unavailable.</string>
+    <string name="checks_protocol_unknown">Protocol unknown</string>
+    <string name="checks_queued">Queued</string>
+    <string name="checks_attempt">Checking · attempt %1$d/%2$d</string>
+    <string name="checks_retry_wait">Waiting to retry</string>
+    <string name="checks_working">Working · %1$d ms</string>
+    <string name="checks_no_response">No response · 2 attempts</string>
+    <string name="checks_error">Check error</string>
+    <string name="checks_cancelled">Not completed</string>
+    <string name="checks_stale">Check again</string>
+    <string name="checks_no_response_hint">The request through this connection failed. Cause unknown.</string>
+    <string name="checks_error_hint">Could not obtain a result from the core. Server availability is unknown.</string>
+    <string name="checks_checked_at">Checked at %1$s</string>
+    <string name="checks_help">Tests a request through each connection. ms is request delay, not speed. Your selection is unchanged; auto-selection and the watchdog work separately.</string>
+    <string name="checks_stop">Stop</string>
+    <string name="checks_retry">Retry unfinished and unsuccessful</string>
+    <string name="checks_again">Check all again</string>
+    <string name="checks_empty">This profile has no connections to check.</string>
+    <string name="checks_routing">Routing mode — not an individual VPN connection</string>
+    <string name="checks_busy">Another manual check is running. Wait or stop it before starting this check.</string>
+    <string name="checks_title">Connection checks</string>
+</resources>

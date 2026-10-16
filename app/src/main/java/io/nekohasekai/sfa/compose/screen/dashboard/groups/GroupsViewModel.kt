@@ -1,6 +1,14 @@
 package io.nekohasekai.sfa.compose.screen.dashboard.groups
 
 import androidx.lifecycle.viewModelScope
+import io.nekohasekai.sfa.connections.CheckSnapshot
+import io.nekohasekai.sfa.connections.CheckPhase
+import io.nekohasekai.sfa.connections.CheckTarget
+import io.nekohasekai.sfa.connections.ConnectionChecksController
+import io.nekohasekai.sfa.connections.LibboxProbeTransport
+import io.nekohasekai.sfa.bg.DefaultNetworkListener
+import io.nekohasekai.sfa.database.Settings
+import kotlinx.coroutines.NonCancellable
 import io.nekohasekai.libbox.OutboundGroup
 import io.nekohasekai.sfa.compose.base.BaseViewModel
 import io.nekohasekai.sfa.compose.base.ScreenEvent
@@ -25,6 +33,9 @@ data class GroupsUiState(
     val isLoading: Boolean = false,
     val expandedGroups: Set<String> = emptySet(),
     val showCloseConnectionsSnackbar: Boolean = false,
+    val checks: CheckSnapshot = CheckSnapshot(),
+    val checkPhase: CheckPhase = CheckPhase.Idle,
+    val checksAvailable: Boolean = false,
 )
 
 sealed class GroupsEvent : ScreenEvent {
@@ -41,7 +52,49 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     val serviceStatus = _serviceStatus.asStateFlow()
     private var lastServiceStatus: Status = Status.Stopped
 
+    private val checks = ConnectionChecksController(viewModelScope,
+        measureFactory = { val transport = LibboxProbeTransport.create(); { tag, attempt -> transport.measure(tag, attempt) } },
+        publish = { snapshot, phase -> updateState { copy(checks = snapshot, checkPhase = phase) } })
+    private var panelCount = 0
+    private var checkWhenReady = false
+    private var networkKnown = false
+    private var lastNetwork: android.net.Network? = null
+
+    fun panelShown() {
+        panelCount++
+        if (panelCount == 1) { checkWhenReady = true; checkIfReady() }
+    }
+    fun panelHidden() {
+        panelCount = (panelCount - 1).coerceAtLeast(0)
+        if (panelCount == 0) { checkWhenReady = false; checks.stop() }
+    }
+    private fun canCheck() = AppLifecycleObserver.isForeground.value &&
+        if (CommandTarget.isRemote) RemoteControlManager.isConnected.value else _serviceStatus.value == Status.Started
+    private fun updateCheckTargets() {
+        val groups = uiState.value.groups
+        val selected = groups.filter { it.selectable }.ifEmpty { groups }
+        checks.updateTargets(selected.flatMap { group -> group.items.map { CheckTarget(it.tag, it.type) } },
+            Settings.selectedProfile to CommandTarget.remoteServer?.id)
+    }
+    private fun checkIfReady() {
+        if (!checkWhenReady || panelCount == 0 || !canCheck() || uiState.value.groups.isEmpty()) return
+        checkWhenReady = false; updateCheckTargets(); checks.start()
+    }
+    fun startConnectionChecks(retryOnly: Boolean = false) {
+        if (!canCheck() || panelCount == 0) return
+        updateCheckTargets(); checks.start(retryOnly)
+    }
+    fun stopConnectionChecks() = checks.stop()
+
     init {
+        viewModelScope.launch {
+            DefaultNetworkListener.start(this@GroupsViewModel) { network ->
+                viewModelScope.launch {
+                    if (networkKnown && lastNetwork != network) checks.invalidate(networkChanged = true)
+                    networkKnown = true; lastNetwork = network
+                }
+            }
+        }
         if (sharedCommandClient != null) {
             commandClient = sharedCommandClient
             isUsingSharedClient = true
@@ -69,6 +122,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                     remoteServerId = remoteServer?.id,
                 )
             }.distinctUntilChanged().collect { target ->
+                updateState { copy(checksAvailable = target.connect) }
                 if (target.connect) {
                     if (isUsingSharedClient) {
                         commandClient.addHandler(this@GroupsViewModel)
@@ -77,6 +131,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                         commandClient.connect()
                     }
                 } else {
+                    checks.stop()
                     if (isUsingSharedClient) {
                         commandClient.removeHandler(this@GroupsViewModel)
                     } else {
@@ -92,6 +147,8 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     override fun createInitialState() = GroupsUiState()
 
     override fun onCleared() {
+        checks.stop()
+        viewModelScope.launch(NonCancellable) { DefaultNetworkListener.stop(this@GroupsViewModel) }
         super.onCleared()
         if (isUsingSharedClient) {
             commandClient.removeHandler(this)
@@ -105,8 +162,10 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
             return
         }
         if (status != Status.Started) {
+            checks.invalidate()
             updateState {
                 copy(
+                    checksAvailable = false,
                     groups = emptyList(),
                     isLoading = false,
                 )
@@ -165,6 +224,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     }
 
     fun selectGroupItem(groupTag: String, itemTag: String) {
+        checks.stop()
         // Check if this is actually a different selection
         val currentGroup = uiState.value.groups.find { it.tag == groupTag }
         if (currentGroup?.selected == itemTag) {
@@ -232,27 +292,22 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         }
     }
 
-    fun urlTest(groupTag: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                CommandTarget.standaloneClient().urlTest(groupTag)
-            } catch (e: Exception) {
-                sendError(e)
-            }
-        }
-    }
+    fun urlTest(@Suppress("UNUSED_PARAMETER") groupTag: String) = startConnectionChecks()
 
     // CommandClient.Handler implementation
     override fun onConnected() {
         viewModelScope.launch(Dispatchers.Main) {
+            updateState { copy(checksAvailable = canCheck()) }
             // Connection established, waiting for groups
         }
     }
 
     override fun onDisconnected() {
         viewModelScope.launch(Dispatchers.Main) {
+            checks.invalidate()
             updateState {
                 copy(
+                    checksAvailable = false,
                     groups = emptyList(),
                     isLoading = false,
                 )
@@ -334,6 +389,8 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                         isLoading = false,
                     )
                 }
+                updateCheckTargets()
+                checkIfReady()
             }
         }
     }

@@ -1,0 +1,71 @@
+package io.nekohasekai.sfa.connections
+
+import kotlinx.coroutines.*
+import org.junit.Assert.*
+import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+
+class ProbeTransportTest {
+    @Test fun fallbackAndZeroLatencyAreSupported() = runBlocking {
+        val urls = mutableListOf<String>(); val timeouts = mutableListOf<Int>(); val closed = AtomicInteger()
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
+                assertEquals("node / +", tag); urls.add(url); timeouts.add(timeoutMs)
+                return ProbeReply(0, urls.size == 1)
+            }
+            override fun close() { closed.incrementAndGet() }
+        } })
+        assertEquals(0, transport.measure("node / +", 1))
+        assertEquals(ConnectionChecks.urls, urls); assertEquals(listOf(6000, 6000), timeouts)
+        withTimeout(5000) { while (closed.get() != 2) delay(1) }
+    }
+    @Test fun confirmationUsesFourSecondsAndExhaustsBothTargets() = runBlocking {
+        val timeouts = mutableListOf<Int>()
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply { timeouts.add(timeoutMs); return ProbeReply(0, true) }
+            override fun close() {}
+        } })
+        assertNull(transport.measure("node", 2)); assertEquals(listOf(4000, 4000), timeouts)
+    }
+    @Test fun transportExceptionDoesNotBecomeNoResponse() = runBlocking {
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply = error("fixture transport error")
+            override fun close() {}
+        } })
+        var error = false
+        try { transport.measure("node", 1) } catch (_: IllegalStateException) { error = true }
+        assertTrue(error)
+    }
+    @Test fun negativeSuccessfulReplyIsNotAccepted() = runBlocking {
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int) = ProbeReply(-1, false)
+            override fun close() {}
+        } })
+        var error = false
+        try { transport.measure("node", 1) } catch (_: IllegalStateException) { error = true }
+        assertTrue(error)
+    }
+    @Test fun cancellationClosesOnlyOwnedClientAndIgnoresLateSuccess() = runBlocking {
+        val entered = CompletableDeferred<Unit>(); val closed = CountDownLatch(1); val release = CountDownLatch(1)
+        val closeCount = AtomicInteger(); var completed = false
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
+                entered.complete(Unit); check(release.await(5, TimeUnit.SECONDS)); return ProbeReply(80, false)
+            }
+            override fun close() { closeCount.incrementAndGet(); release.countDown(); closed.countDown() }
+        } })
+        val job = launch { transport.measure("node", 1); completed = true }
+        withTimeout(5000) { entered.await() }; job.cancelAndJoin()
+        assertTrue(withContext(Dispatchers.IO) { closed.await(5, TimeUnit.SECONDS) })
+        assertEquals(1, closeCount.get()); assertFalse(completed)
+    }
+    @Test fun cancelledQueuedCallDoesNotCreateAClient() = runBlocking {
+        val pending = mutableListOf<Runnable>(); var factories = 0
+        val transport = ProbeTransport(factory = { factories++; error("must not create") }, workers = java.util.concurrent.Executor { pending.add(it) })
+        val job = launch { transport.measure("node", 1) }
+        yield(); job.cancelAndJoin(); pending.forEach(Runnable::run)
+        assertEquals(0, factories)
+    }
+}

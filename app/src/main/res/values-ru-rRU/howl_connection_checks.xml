@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checks_loading">Получаем список подключений…</string>
+    <string name="checks_progress">Проверено %1$d из %2$d · работают %3$d · повторяются %4$d</string>
+    <string name="checks_summary">Проверка завершена · работают %1$d из %2$d</string>
+    <string name="checks_stopped">Остановлено · проверено %1$d из %2$d. Готовые результаты сохранены.</string>
+    <string name="checks_network_changed">Сеть изменилась. Результаты сброшены — запустите проверку снова.</string>
+    <string name="checks_failed">Не удалось выполнить проверку. Это не означает, что серверы недоступны.</string>
+    <string name="checks_protocol_unknown">Протокол не определён</string>
+    <string name="checks_queued">Ожидает проверки</string>
+    <string name="checks_attempt">Проверка · попытка %1$d/%2$d</string>
+    <string name="checks_retry_wait">Пауза перед повтором</string>
+    <string name="checks_working">Работает · %1$d мс</string>
+    <string name="checks_no_response">Нет ответа · 2 попытки</string>
+    <string name="checks_error">Ошибка проверки</string>
+    <string name="checks_cancelled">Не завершено</string>
+    <string name="checks_stale">Нужна новая проверка</string>
+    <string name="checks_no_response_hint">Запрос через это подключение не прошёл. Причина не установлена.</string>
+    <string name="checks_error_hint">Не удалось получить результат от ядра. Доступность сервера не определена.</string>
+    <string name="checks_checked_at">Проверено в %1$s</string>
+    <string name="checks_help">Проверяем запрос через каждое подключение. мс — задержка запроса, не скорость. Выбранный сервер не меняем; автовыбор и сторож работают отдельно.</string>
+    <string name="checks_stop">Остановить</string>
+    <string name="checks_retry">Повторить незавершённые и без ответа</string>
+    <string name="checks_again">Проверить все снова</string>
+    <string name="checks_empty">В этом профиле нет подключений для проверки.</string>
+    <string name="checks_routing">Режим маршрутизации — не отдельное подключение VPN</string>
+    <string name="checks_busy">Уже выполняется другая ручная проверка. Дождитесь её завершения или остановите её.</string>
+    <string name="checks_title">Проверка подключений</string>
+</resources>
