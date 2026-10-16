@@ -9,7 +9,16 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-data class ProbeReply(val delayMs: Int, val failed: Boolean)
+data class ProbeReply(val delayMs: Int, val failed: Boolean) {
+    companion object {
+        // The pinned core reports a removed target using this exact control-error prefix.
+        // Never export its tag or inspect arbitrary dial-error text to guess the cause.
+        fun fromCore(delayMs: Int, error: String): ProbeReply {
+            check(!error.startsWith("outbound or endpoint not found: ")) { "Probe target no longer exists" }
+            return ProbeReply(delayMs, error.isNotEmpty())
+        }
+    }
+}
 interface OwnedProbeClient : java.io.Closeable {
     fun test(tag: String, url: String, timeoutMs: Int): ProbeReply
 }

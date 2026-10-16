@@ -40,7 +40,7 @@ class ConnectionChecksTest {
         }, events::add) }
         withTimeout(5000) { started.await() }
         assertEquals(4, entered); assertFalse(job.isCompleted)
-        release.complete(Unit); job.await()
+        release.complete(Unit); assertEquals(12, job.await().size)
         assertEquals(4, maximum); assertEquals(12, entered); assertEquals(0, active)
         assertEquals(12, events.count { it.state == CheckState.Working })
     }
@@ -51,7 +51,7 @@ class ConnectionChecksTest {
         }, { if (it.tag == "retry" && it.finished) recovered.complete(Unit) }, retryPauseMs = 0) }
         withTimeout(5000) { recovered.await() }
         assertFalse(job.isCompleted)
-        release.complete(Unit); job.await()
+        release.complete(Unit); assertEquals(2, job.await().size)
     }
     @Test fun cancelActiveAndQueuedWithoutCallingThemUnavailable() = runBlocking {
         var entered = 0; val started = CompletableDeferred<Unit>(); val events = mutableListOf<CheckResult>()

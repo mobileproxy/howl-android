@@ -8,6 +8,15 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class ProbeTransportTest {
+    @Test fun missingCoreTargetIsAnErrorWithoutItsRawTag() {
+        val error = runCatching { ProbeReply.fromCore(0, "outbound or endpoint not found: private-fixture") }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertFalse(error!!.message.orEmpty().contains("private-fixture"))
+    }
+    @Test fun coreHandshakeFailureIsNotGuessedAsBlocking() {
+        assertTrue(ProbeReply.fromCore(0, "fixture handshake failure").failed)
+        assertEquals(ProbeReply(0, false), ProbeReply.fromCore(0, ""))
+    }
     @Test fun fallbackAndZeroLatencyAreSupported() = runBlocking {
         val urls = mutableListOf<String>(); val timeouts = mutableListOf<Int>(); val closed = AtomicInteger()
         val transport = ProbeTransport(factory = { object : OwnedProbeClient {

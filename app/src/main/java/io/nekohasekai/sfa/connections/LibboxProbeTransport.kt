@@ -13,7 +13,7 @@ object LibboxProbeTransport {
             object : OwnedProbeClient {
                 override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
                     val result = owned.urlTestOutbound(tag, url, timeoutMs)
-                    return ProbeReply(result.delay, result.error.orEmpty().isNotEmpty())
+                    return ProbeReply.fromCore(result.delay, result.error.orEmpty())
                 }
                 override fun close() { owned.disconnect() }
             }

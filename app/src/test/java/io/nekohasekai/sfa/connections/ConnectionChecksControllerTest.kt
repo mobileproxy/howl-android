@@ -26,7 +26,8 @@ class ConnectionChecksControllerTest {
         val time = controller.snapshot.results.getValue("a").checkedAt
         assertEquals(CheckState.Working, controller.snapshot.results.getValue("a").state)
         assertEquals(CheckState.Cancelled, controller.snapshot.results.getValue("b").state)
-        delay(10); controller.start(true); waitFor { controller.phase == CheckPhase.Done }
+        waitFor { ManualProbeGate.acquire()?.let { it.close(); true } == true }
+        controller.start(true); waitFor { controller.phase == CheckPhase.Done }
         assertEquals(1, calls.count { it == "a" }); assertEquals(2, calls.count { it == "b" })
         assertEquals(time, controller.snapshot.results.getValue("a").checkedAt)
     }
@@ -59,8 +60,9 @@ class ConnectionChecksControllerTest {
         val scope = CoroutineScope(Job().also { it.cancel() })
         val controller = ConnectionChecksController(scope, { { _, _ -> 180 } }, { _, _ -> })
         controller.updateTargets(listOf(CheckTarget("a", "vless")), 1); controller.start()
-        delay(10)
-        val next = ManualProbeGate.acquire(); assertNotNull(next); next!!.close()
+        var next: java.io.Closeable? = null
+        waitFor { next = ManualProbeGate.acquire(); next != null }
+        assertNotNull(next); next!!.close()
     }
     @Test fun unchangedTopologyDoesNotReplaceFreshResultsWithCoreHistory() = runBlocking {
         val controller = ConnectionChecksController(this, { { _, _ -> 180 } }, { _, _ -> })

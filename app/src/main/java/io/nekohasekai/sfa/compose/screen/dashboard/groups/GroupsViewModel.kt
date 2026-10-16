@@ -9,6 +9,8 @@ import io.nekohasekai.sfa.connections.LibboxProbeTransport
 import io.nekohasekai.sfa.bg.DefaultNetworkListener
 import io.nekohasekai.sfa.database.Settings
 import kotlinx.coroutines.NonCancellable
+import io.nekohasekai.sfa.constant.SettingsKey
+import io.nekohasekai.sfa.database.preference.OnPreferenceDataStoreChangeListener
 import io.nekohasekai.libbox.OutboundGroup
 import io.nekohasekai.sfa.compose.base.BaseViewModel
 import io.nekohasekai.sfa.compose.base.ScreenEvent
@@ -59,6 +61,20 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     private var checkWhenReady = false
     private var networkKnown = false
     private var lastNetwork: android.net.Network? = null
+    private val groupEpoch = java.util.concurrent.atomic.AtomicLong()
+    private var lastRemoteId: Long? = null
+    private val profileListener = object : OnPreferenceDataStoreChangeListener {
+        override fun onPreferenceDataStoreChanged(store: androidx.preference.PreferenceDataStore, key: String) {
+            if (key == SettingsKey.SELECTED_PROFILE) {
+                groupEpoch.incrementAndGet()
+                viewModelScope.launch {
+                    checks.invalidate()
+                    updateState { copy(groups = emptyList()) }
+                    checkWhenReady = panelCount > 0
+                }
+            }
+        }
+    }
 
     fun panelShown() {
         panelCount++
@@ -87,6 +103,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     fun stopConnectionChecks() = checks.stop()
 
     init {
+        Settings.dataStore.registerChangeListener(profileListener)
         viewModelScope.launch {
             DefaultNetworkListener.start(this@GroupsViewModel) { network ->
                 viewModelScope.launch {
@@ -122,6 +139,11 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                     remoteServerId = remoteServer?.id,
                 )
             }.distinctUntilChanged().collect { target ->
+                if (lastRemoteId != target.remoteServerId) {
+                    lastRemoteId = target.remoteServerId
+                    checks.invalidate()
+                    checkWhenReady = panelCount > 0
+                }
                 updateState { copy(checksAvailable = target.connect) }
                 if (target.connect) {
                     if (isUsingSharedClient) {
@@ -148,6 +170,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
 
     override fun onCleared() {
         checks.stop()
+        Settings.dataStore.unregisterChangeListener(profileListener)
         viewModelScope.launch(NonCancellable) { DefaultNetworkListener.stop(this@GroupsViewModel) }
         super.onCleared()
         if (isUsingSharedClient) {
@@ -296,13 +319,18 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
 
     // CommandClient.Handler implementation
     override fun onConnected() {
+        val epoch = groupEpoch.incrementAndGet()
         viewModelScope.launch(Dispatchers.Main) {
+            if (epoch != groupEpoch.get()) return@launch
+            checks.invalidate()
+            checkWhenReady = panelCount > 0
             updateState { copy(checksAvailable = canCheck()) }
             // Connection established, waiting for groups
         }
     }
 
     override fun onDisconnected() {
+        groupEpoch.incrementAndGet()
         viewModelScope.launch(Dispatchers.Main) {
             checks.invalidate()
             updateState {
@@ -316,6 +344,8 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     }
 
     override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
+        val epoch = groupEpoch.get()
+        val profile = Settings.selectedProfile
         viewModelScope.launch(Dispatchers.Default) {
             val currentGroups = uiState.value.groups
             val newGroupsMap = newGroups.associateBy { it.tag }
@@ -326,7 +356,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                     // Initial load
                     newGroups.map(::Group)
                 } else {
-                    currentGroups.map { existingGroup ->
+                    currentGroups.mapNotNull { existingGroup ->
                         val newGroupData = newGroupsMap[existingGroup.tag]
                         if (newGroupData != null) {
                             // Check if only delays have changed
@@ -368,7 +398,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                                 existingGroup.copy(items = updatedItems)
                             }
                         } else {
-                            existingGroup
+                            null
                         }
                     } +
                         newGroups.filter { newGroup ->
@@ -377,6 +407,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                 }
 
             withContext(Dispatchers.Main) {
+                if (epoch != groupEpoch.get() || profile != Settings.selectedProfile) return@withContext
                 updateState {
                     val initialExpandedGroups = if (expandedGroups.isEmpty() && currentGroups.isEmpty()) {
                         mergedGroups.filter { it.isExpand }.map { it.tag }.toSet()
