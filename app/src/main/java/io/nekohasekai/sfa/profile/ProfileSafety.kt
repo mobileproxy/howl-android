@@ -41,14 +41,8 @@ object ProfileSafety {
 
     private fun validate(raw: String, name: String, url: String): String {
         try {
-            require(raw.toByteArray(Charsets.UTF_8).size <= ProfileDocument.MAX_BYTES)
-            if (ProfileDocument.isOwnSource(url) && ProfileDocument.inspect(raw, url)) {
-                throw ProfileFailure(ProfileFailure.Kind.EMPTY)
-            }
-            val content = SubscriptionConverter.normalize(raw, name)
-            if (ProfileDocument.inspect(content, url)) throw ProfileFailure(ProfileFailure.Kind.EMPTY)
-            Libbox.checkConfig(content)
-            return content
+            return ProfileValidation.validate(raw, url,
+                { SubscriptionConverter.normalize(it, name) }, { Libbox.checkConfig(it) })
         } catch (e: CancellationException) {
             throw e
         } catch (e: ProfileFailure) {

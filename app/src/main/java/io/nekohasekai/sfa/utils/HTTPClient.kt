@@ -27,7 +27,7 @@ class HTTPClient : Closeable {
     fun getString(url: String): String {
         // ★ 15.10.2026: ограничиваем ответ до выделения памяти; ошибки не содержат URL/токен.
         val deadline = System.nanoTime() + 30_000_000_000L
-        var target = URL(url)
+        var target = URL(io.nekohasekai.sfa.profile.SubscriptionRequest.url(url))
         repeat(6) {
             require(target.protocol in setOf("http", "https"))
             val connection = target.openConnection() as HttpURLConnection
@@ -42,7 +42,7 @@ class HTTPClient : Closeable {
                 if (status in listOf(301, 302, 303, 307, 308)) {
                     val next = URL(target, connection.getHeaderField("Location") ?: error("redirect"))
                     require(target.protocol != "https" || next.protocol == "https")
-                    target = next
+                    target = URL(io.nekohasekai.sfa.profile.SubscriptionRequest.url(next.toExternalForm()))
                 } else {
                     require(status in 200..299)
                     require((connection.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L) <= ProfileDocument.MAX_BYTES)
