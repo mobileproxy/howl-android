@@ -141,7 +141,9 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
             }.distinctUntilChanged().collect { target ->
                 if (lastRemoteId != target.remoteServerId) {
                     lastRemoteId = target.remoteServerId
+                    groupEpoch.incrementAndGet()
                     checks.invalidate()
+                    updateState { copy(groups = emptyList(), isLoading = target.connect) }
                     checkWhenReady = panelCount > 0
                 }
                 updateState { copy(checksAvailable = target.connect) }
