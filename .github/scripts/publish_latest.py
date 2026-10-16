@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from urllib.parse import quote
 
 
 def gh(*args):
@@ -42,6 +43,23 @@ def single_file(root, pattern):
     return matches[0]
 
 
+def can_promote_run(repo, run):
+    """Do not replace a newer manual release with an older successful dev build."""
+    pages = json.loads(gh("api", f"repos/{repo}/releases?per_page=100", "--paginate", "--slurp"))
+    published = [r for page in pages for r in page if not r["draft"] and not r.get("prerelease")]
+    if not published:
+        return True
+    # Compare every published source: a divergent or newer release needs review.
+    # API errors deliberately propagate; an outage must not permit a downgrade.
+    for release in published:
+        base = quote(release["tag_name"], safe="")
+        head = quote(run["head_sha"], safe="")
+        comparison = api(f"repos/{repo}/compare/{base}...{head}")
+        if comparison["status"] not in {"ahead", "identical"}:
+            return False
+    return True
+
+
 def main():
     repo = os.environ["GITHUB_REPOSITORY"]
     branch = os.environ["BUILD_BRANCH"]
@@ -56,6 +74,9 @@ def main():
         "android": [("howl-apk", "*universal*.apk", "Howl.apk")],
     }[platform]
 
+    if not can_promote_run(repo, run):
+        print("A newer or divergent release is already published; keeping it unchanged")
+        return
     existing = find_release(repo, tag)
     if existing is not None and not existing["draft"]:
         finish_release(repo, tag, run, specs, platform)
@@ -96,6 +117,9 @@ def main():
         # Only a draft can be retried/overwritten; the previous public release stays intact.
         gh("release", "upload", tag, *sorted(assets.iterdir()), "--repo", repo, "--clobber")
         verify_assets(repo, tag, assets)
+        if not can_promote_run(repo, run):
+            print("A newer release appeared during upload; leaving the draft unpromoted")
+            return
         gh("release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
         finish_release(repo, tag, run, specs, platform, expected=assets)
         print(f"Published: https://github.com/{repo}/releases/latest")
@@ -176,6 +200,9 @@ def cleanup_artifacts(repo, run, allowed_names):
 def finish_release(repo, tag, run, specs, platform, expected=None):
     # ★ 15.10.2026: очистка только после скачивания и проверки опубликованных файлов.
     verify_published(repo, tag, specs, expected)
+    if not can_promote_run(repo, run):
+        print("A newer release appeared during verification; keeping latest and artifacts unchanged")
+        return
     gh("release", "edit", tag, "--repo", repo, "--latest")
     allowed = {artifact for artifact, _, _ in specs}
     if platform == "android":

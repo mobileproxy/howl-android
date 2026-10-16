@@ -77,7 +77,10 @@ jobs:
           ls -la "$GITHUB_WORKSPACE/app/libs/"
 
       - name: Verify both ARM cores
-        run: python3 tools/verify-arm-libraries.py app/libs/libbox.aar
+        run: |
+          python3 -m unittest discover -s tools -p test_arm_libraries.py -v
+          python3 -m unittest discover -s tools -p test_next_version_code.py -v
+          python3 tools/verify-arm-libraries.py app/libs/libbox.aar
 
       - name: Decode release keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
@@ -87,6 +90,8 @@ jobs:
           LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
           export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.13004108"
+          export HOWL_VERSION_CODE=$(python3 tools/next-version-code.py)
+          test -n "$HOWL_VERSION_CODE"
           chmod +x ./gradlew
           python3 tools/validate-candidate-resources.py
           # Юнит-тесты правил сторожа и разбора конфига — до сборки: провал останавливает выпуск.
@@ -120,4 +125,4 @@ jobs:
           path: |
             app/build/outputs/apk/**/*universal*.apk
             app/build/outputs/apk/other/release/release-verification.json
-          if-no-files-found: warn
+          if-no-files-found: error

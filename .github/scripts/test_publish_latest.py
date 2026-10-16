@@ -17,6 +17,7 @@ class ReleaseCleanupTests(unittest.TestCase):
     def test_cleanup_only_after_verification_and_promotion(self):
         events = []
         with patch.object(publisher, "verify_published", side_effect=lambda *a: events.append("verified")), \
+             patch.object(publisher, "can_promote_run", return_value=True), \
              patch.object(publisher, "gh", side_effect=lambda *a: events.append("promoted")), \
              patch.object(publisher, "cleanup_artifacts", side_effect=lambda *a: events.append(("cleaned", a[2]))):
             publisher.finish_release(self.repo, "ci-42-1", self.run, self.specs, "android")
@@ -33,6 +34,7 @@ class ReleaseCleanupTests(unittest.TestCase):
 
     def test_promotion_failure_never_deletes(self):
         with patch.object(publisher, "verify_published"), \
+             patch.object(publisher, "can_promote_run", return_value=True), \
              patch.object(publisher, "gh", side_effect=RuntimeError("API")), \
              patch.object(publisher, "cleanup_artifacts") as cleanup:
             with self.assertRaises(RuntimeError):
@@ -99,6 +101,43 @@ class ReleaseCleanupTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     publisher.verify_published(self.repo, "ci-42-1", self.specs)
             gh.assert_not_called()
+
+    def test_old_or_divergent_build_cannot_replace_manual_release(self):
+        pages = [[{"draft": False, "prerelease": False, "tag_name": "v1.0.1"}]]
+        for status in ("behind", "diverged"):
+            with patch.object(publisher, "gh", return_value=json.dumps(pages)), \
+                 patch.object(publisher, "api", return_value={"status": status}):
+                self.assertFalse(publisher.can_promote_run(self.repo, {"head_sha": "older"}))
+
+    def test_same_or_newer_source_can_be_published(self):
+        pages = [[{"draft": False, "tag_name": "v1.0.1"}, {"draft": True},
+                  {"draft": False, "prerelease": True}]]
+        for status in ("ahead", "identical"):
+            with patch.object(publisher, "gh", return_value=json.dumps(pages)), \
+                 patch.object(publisher, "api", return_value={"status": status}) as api:
+                self.assertTrue(publisher.can_promote_run(self.repo, {"head_sha": "newer"}))
+                self.assertEqual(api.call_count, 1)
+
+    def test_first_publication_is_allowed(self):
+        with patch.object(publisher, "gh", return_value="[[]]"), patch.object(publisher, "api") as api:
+            self.assertTrue(publisher.can_promote_run(self.repo, {"head_sha": "first"}))
+        api.assert_not_called()
+
+    def test_newer_release_during_download_blocks_promotion_and_cleanup(self):
+        with patch.object(publisher, "verify_published"), \
+             patch.object(publisher, "can_promote_run", return_value=False), \
+             patch.object(publisher, "gh") as gh, \
+             patch.object(publisher, "cleanup_artifacts") as cleanup:
+            publisher.finish_release(self.repo, "ci-42-1", self.run, self.specs, "android")
+        gh.assert_not_called()
+        cleanup.assert_not_called()
+
+    def test_comparison_failure_blocks_promotion(self):
+        pages = [[{"draft": False, "tag_name": "v1.0.1"}]]
+        with patch.object(publisher, "gh", return_value=json.dumps(pages)), \
+             patch.object(publisher, "api", side_effect=RuntimeError("API unavailable")):
+            with self.assertRaises(RuntimeError):
+                publisher.can_promote_run(self.repo, {"head_sha": "candidate"})
 
 
 if __name__ == "__main__":

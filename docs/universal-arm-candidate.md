@@ -1,5 +1,12 @@
 # Universal ARM APK candidate
 
+## Integration into dev (2026-10-16)
+The candidate history below is retained for provenance. Attempt 2 of CI 38809812159 subsequently built version 819 from b9584b1; that universal APK was published on gethowl.app. Device acceptance is still unconfirmed.
+
+Merged current dev (0b72984), retaining its newer-release protection and 13 publication tests. Native ARM filters, AAR/APK validation and universal artifact selection are preserved. Normal build CI now chooses max(VERSION_CODE + GITHUB_RUN_NUMBER, public versionCode + 1), avoiding a collision with separately published 819; malformed/unavailable public metadata blocks the build. The final APK verifier still checks against the public version after compilation. Added four version-number tests; five native checks and 13 publisher tests pass. Resource validation passes in six languages. Kotlin/application sources match the previously built universal candidate; no new APK was built for this integration.
+
+Integration commit uses [skip ci] to suppress automatic build/publication. No manual build or publisher dispatch is part of this merge. Next explicitly initiated release must re-run the full build and signature checks.
+
 Branch: android/universal-arm. Base: 4e729c1 (prepared Android 1.0.1 release candidate, including integrated profile safety/diagnostics/Kill Switch copy). This is not a minimal hotfix on the old public 817 source.
 
 ## Change
