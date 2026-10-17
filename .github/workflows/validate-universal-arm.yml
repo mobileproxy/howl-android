@@ -82,6 +82,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
+          retention-days: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && 7 || 1 }}
           name: universal-unit-tests
           path: app/build/reports/tests/
           if-no-files-found: ignore
@@ -90,6 +91,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
+          retention-days: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && 7 || 1 }}
           name: universal-screenshots
           path: app/build/screenshots/
           if-no-files-found: warn
@@ -97,6 +99,7 @@ jobs:
       - name: Upload verified universal ARM APK
         uses: actions/upload-artifact@v4
         with:
+          retention-days: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && 7 || 1 }}
           name: howl-universal-candidate
           path: |
             app/build/outputs/apk/**/*universal*.apk

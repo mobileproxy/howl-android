@@ -1,0 +1,41 @@
+name: Clean candidate artifacts
+
+on:
+  workflow_run:
+    workflows: ["Build Howl APK", "Validate universal ARM APK", "Validate Android candidate"]
+    types: [completed]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview deletions without removing files"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: candidate-artifact-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Never execute code or download artifacts from the triggering branch.
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          persist-credentials: false
+      - name: Test cleanup and release safety
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
+      - name: Remove old candidate artifacts only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_PLATFORM: android
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: python3 .github/scripts/cleanup_candidates.py
