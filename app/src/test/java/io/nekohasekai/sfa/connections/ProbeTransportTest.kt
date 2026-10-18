@@ -17,7 +17,7 @@ class ProbeTransportTest {
         assertTrue(ProbeReply.fromCore(0, "fixture handshake failure").failed)
         assertEquals(ProbeReply(0, false), ProbeReply.fromCore(0, ""))
     }
-    @Test fun fallbackAndZeroLatencyAreSupported() = runBlocking {
+    @Test fun firstPassAndIndependentConfirmationSupportZeroLatency() = runBlocking {
         val urls = mutableListOf<String>(); val timeouts = mutableListOf<Int>(); val closed = AtomicInteger()
         val transport = ProbeTransport(factory = { object : OwnedProbeClient {
             override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
@@ -26,8 +26,9 @@ class ProbeTransportTest {
             }
             override fun close() { closed.incrementAndGet() }
         } })
-        assertEquals(0, transport.measure("node / +", 1))
-        assertEquals(ConnectionChecks.urls, urls); assertEquals(listOf(6000, 6000), timeouts)
+        assertNull(transport.measure("node / +", 1))
+        assertEquals(0, transport.measure("node / +", 2))
+        assertEquals(ConnectionChecks.urls, urls); assertEquals(listOf(4500, 4000), timeouts)
         withTimeout(5000) { while (closed.get() != 2) delay(1) }
     }
     @Test fun confirmationUsesFourSecondsAndExhaustsBothTargets() = runBlocking {

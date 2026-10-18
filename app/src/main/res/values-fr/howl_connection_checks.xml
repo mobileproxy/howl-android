@@ -26,4 +26,16 @@
     <string name="checks_routing">Mode de routage, pas une connexion VPN individuelle</string>
     <string name="checks_busy">Une autre vérification manuelle est en cours. Attendez ou arrêtez-la d’abord.</string>
     <string name="checks_title">Vérification des connexions</string>
+    <string name="checks_first_pass_progress">Premier passage : %1$d sur %2$d</string>
+    <string name="checks_confirmation_progress">Confirmation : %1$d sur %2$d · premier passage terminé</string>
+    <string name="checks_queue_counts">En cours : %1$d · en file : %2$d · nouvel essai en attente : %3$d</string>
+    <string name="checks_elapsed_limit">Écoulé : %1$d s · limite totale : %2$d s</string>
+    <string name="checks_elapsed_done">Durée de la vérification : %1$d s</string>
+    <string name="checks_time_limit">Limite de %1$d s atteinte · %2$d sur %3$d terminées</string>
+    <string name="checks_not_completed">Aucun résultat</string>
+    <string name="checks_deadline_hint">Le délai est dépassé. Vous pouvez vérifier cette connexion à nouveau.</string>
+    <string name="checks_retry_after_first">Nouvel essai après le premier passage de tous les emplacements.</string>
+    <string name="checks_request_stalled">Le noyau n\'a pas terminé une requête annulée. Le résultat de la connexion est inconnu.</string>
+    <string name="checks_attempt_progress">Essai %1$d/2 · %2$d/%3$d s</string>
+    <string name="checks_summary_detail">Fonctionnent : %1$d sur %2$d · sans réponse : %3$d · erreurs : %4$d</string>
 </resources>

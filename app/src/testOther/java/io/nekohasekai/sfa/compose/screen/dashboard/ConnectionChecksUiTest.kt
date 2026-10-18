@@ -2,6 +2,7 @@ package io.nekohasekai.sfa.compose.screen.dashboard
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -23,6 +24,53 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34], application = android.app.Application::class, qualifiers = "w400dp-h1200dp-xhdpi")
 class ConnectionChecksUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
+    @Test fun firstPassShowsSeparateQueuesAndLiveAttemptBudget() {
+        val snapshot = CheckSnapshot(mapOf("a" to CheckResult("a", CheckState.Working, 180, 1),
+            "b" to CheckResult("b", CheckState.RetryWaiting, attempt = 1),
+            "c" to CheckResult("c", CheckState.Checking, attempt = 1, startedAt = 1000, timeoutMs = 5000),
+            "d" to CheckResult("d", CheckState.Queued)), setOf("a", "b", "c", "d"), elapsedMs = 3000, clockAt = 4000)
+        compose.setContent { SFATheme { Column {
+            ConnectionCheckControls(snapshot, CheckPhase.Running, true, {}, {})
+            ConnectionCheckRow("Fictional", "VLESS", snapshot.results["c"], true, false, true, {}, nowMs = snapshot.clockAt)
+        } } }
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_first_pass_progress, 2, 4)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_queue_counts, 1, 1, 1)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_elapsed_limit, 3, 60)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_attempt_progress, 1, 3, 5)).assertIsDisplayed()
+    }
+    @Test fun confirmationHasIndependentProgressTotal() {
+        val snapshot = CheckSnapshot(mapOf("a" to CheckResult("a", CheckState.Working, 180, 1),
+            "b" to CheckResult("b", CheckState.Retrying, attempt = 2),
+            "c" to CheckResult("c", CheckState.Error, attempt = 1)), setOf("a", "b", "c"))
+        compose.setContent { SFATheme { ConnectionCheckControls(snapshot, CheckPhase.Running, true, {}, {}) } }
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_confirmation_progress, 0, 1)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_queue_counts, 1, 0, 0)).assertIsDisplayed()
+    }
+    @Test @Config(qualifiers = "+ru-rRU") fun deadlineShowsUnfinishedAndAllowsRetryAndSelection() {
+        var retry = false; var selected = false
+        val snapshot = CheckSnapshot(mapOf("a" to CheckResult("a", CheckState.Working, 180, 1),
+            "b" to CheckResult("b", CheckState.NotCompleted, issue = CheckIssue.RunDeadline)), setOf("a", "b"), elapsedMs = 60000)
+        compose.setContent { SFATheme { Column {
+            ConnectionCheckControls(snapshot, CheckPhase.TimedOut, true, { retry = it }, {})
+            ConnectionCheckRow("Fictional", "TUIC", snapshot.results["b"], true, false, true, { selected = true })
+        } } }
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_time_limit, 60, 1, 2)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_not_completed)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_deadline_hint)).assertIsDisplayed()
+        compose.onNodeWithTag("checks-retry").performClick(); assertTrue(retry)
+        compose.onNodeWithText("Fictional").performClick(); assertTrue(selected)
+        compose.onNodeWithTag("checks-progress").assertDoesNotExist()
+    }
+    @Test fun tickUpdatesAttemptTextWithoutNewProbeResults() {
+        val clock = mutableStateOf(2000L)
+        val result = CheckResult("fixture", CheckState.Checking, attempt = 1, startedAt = 1000, timeoutMs = 5000)
+        compose.setContent { SFATheme {
+            ConnectionCheckRow("Fictional", "VLESS", result, true, false, true, {}, nowMs = clock.value)
+        } }
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_attempt_progress, 1, 1, 5)).assertIsDisplayed()
+        compose.runOnIdle { clock.value = 3000 }
+        compose.onNodeWithText(compose.activity.getString(R.string.checks_attempt_progress, 1, 2, 5)).assertIsDisplayed()
+    }
     @Test fun runningHasProgressAndStopOnly() {
         var stopped = false
         val snapshot = CheckSnapshot(mapOf("a" to CheckResult("a", CheckState.Working, 180, 1, 123),

@@ -29,37 +29,39 @@ class ConnectionChecksTest {
         assertTrue(events.any { it.state == CheckState.Retrying })
         assertFalse(events.joinToString().contains("fixture secret"))
     }
-    @Test fun limitsPoolToFourAndDeliversResultsIncrementally() = runBlocking {
+    @Test fun limitsPoolToEightAndDeliversResultsIncrementally() = runBlocking {
         val started = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         var active = 0; var maximum = 0; var entered = 0
         val events = mutableListOf<CheckResult>()
         val job = async { ConnectionChecks.run((1..12).map(Int::toString), { _, _ ->
             active++; maximum = maxOf(maximum, active); entered++
-            if (entered == 4) started.complete(Unit)
+            if (entered == 8) started.complete(Unit)
             try { release.await(); 80 } finally { active-- }
         }, events::add) }
         withTimeout(5000) { started.await() }
-        assertEquals(4, entered); assertFalse(job.isCompleted)
+        assertEquals(8, entered); assertFalse(job.isCompleted)
         release.complete(Unit); assertEquals(12, job.await().size)
-        assertEquals(4, maximum); assertEquals(12, entered); assertEquals(0, active)
+        assertEquals(8, maximum); assertEquals(12, entered); assertEquals(0, active)
         assertEquals(12, events.count { it.state == CheckState.Working })
     }
-    @Test fun retryDoesNotWaitForUnrelatedSlowNode() = runBlocking {
-        val release = CompletableDeferred<Unit>(); val recovered = CompletableDeferred<Unit>()
+    @Test fun retryWaitsForRemainingFirstAttempts() = runBlocking {
+        val release = CompletableDeferred<Unit>(); val waiting = CompletableDeferred<Unit>()
+        val events = mutableListOf<CheckResult>()
         val job = async { ConnectionChecks.run(listOf("slow", "retry"), { tag, attempt ->
             if (tag == "slow") { release.await(); 100 } else if (attempt == 2) 200 else null
-        }, { if (it.tag == "retry" && it.finished) recovered.complete(Unit) }, retryPauseMs = 0) }
-        withTimeout(5000) { recovered.await() }
+        }, { events.add(it); if (it.state == CheckState.RetryWaiting) waiting.complete(Unit) }, retryPauseMs = 0) }
+        withTimeout(5000) { waiting.await() }
         assertFalse(job.isCompleted)
+        assertFalse(events.any { it.state == CheckState.Retrying })
         release.complete(Unit); assertEquals(2, job.await().size)
     }
     @Test fun cancelActiveAndQueuedWithoutCallingThemUnavailable() = runBlocking {
         var entered = 0; val started = CompletableDeferred<Unit>(); val events = mutableListOf<CheckResult>()
         val job = launch { ConnectionChecks.run((1..10).map(Int::toString), { _, _ ->
-            entered++; if (entered == 4) started.complete(Unit); awaitCancellation()
+            entered++; if (entered == 8) started.complete(Unit); awaitCancellation()
         }, events::add) }
         withTimeout(5000) { started.await() }; job.cancelAndJoin()
-        assertEquals(4, entered)
+        assertEquals(8, entered)
         assertEquals(10, events.count { it.state == CheckState.Cancelled })
         assertFalse(events.any { it.state == CheckState.NoResponse })
     }

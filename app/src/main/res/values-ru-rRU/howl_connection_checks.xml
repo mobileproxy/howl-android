@@ -9,7 +9,7 @@
     <string name="checks_protocol_unknown">Протокол не определён</string>
     <string name="checks_queued">Ожидает проверки</string>
     <string name="checks_attempt">Проверка · попытка %1$d/%2$d</string>
-    <string name="checks_retry_wait">Пауза перед повтором</string>
+    <string name="checks_retry_wait">Ждёт повтора</string>
     <string name="checks_working">Работает · %1$d мс</string>
     <string name="checks_no_response">Нет ответа · 2 попытки</string>
     <string name="checks_error">Ошибка проверки</string>
@@ -26,4 +26,16 @@
     <string name="checks_routing">Режим маршрутизации — не отдельное подключение VPN</string>
     <string name="checks_busy">Уже выполняется другая ручная проверка. Дождитесь её завершения или остановите её.</string>
     <string name="checks_title">Проверка подключений</string>
+    <string name="checks_first_pass_progress">Первый проход: %1$d из %2$d</string>
+    <string name="checks_confirmation_progress">Подтверждение: %1$d из %2$d · первый проход завершён</string>
+    <string name="checks_queue_counts">Проверяются: %1$d · в очереди: %2$d · ждут повтора: %3$d</string>
+    <string name="checks_elapsed_limit">Прошло %1$d с · общий лимит %2$d с</string>
+    <string name="checks_elapsed_done">Длительность проверки: %1$d с</string>
+    <string name="checks_time_limit">Достигнут лимит %1$d с · завершено %2$d из %3$d</string>
+    <string name="checks_not_completed">Нет результата</string>
+    <string name="checks_deadline_hint">Лимит времени истёк. Можно повторить проверку этого подключения.</string>
+    <string name="checks_retry_after_first">Повторим после первого прохода всех локаций.</string>
+    <string name="checks_request_stalled">Ядро не завершило отменённый запрос. Результат подключения неизвестен.</string>
+    <string name="checks_attempt_progress">Попытка %1$d/2 · %2$d/%3$d с</string>
+    <string name="checks_summary_detail">Работают %1$d из %2$d · без ответа %3$d · ошибок проверки %4$d</string>
 </resources>

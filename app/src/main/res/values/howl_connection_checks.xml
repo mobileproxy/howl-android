@@ -26,4 +26,16 @@
     <string name="checks_routing">Routing mode — not an individual VPN connection</string>
     <string name="checks_busy">Another manual check is running. Wait or stop it before starting this check.</string>
     <string name="checks_title">Connection checks</string>
+    <string name="checks_first_pass_progress">First pass: %1$d of %2$d</string>
+    <string name="checks_confirmation_progress">Confirmation: %1$d of %2$d · first pass complete</string>
+    <string name="checks_queue_counts">Checking: %1$d · queued: %2$d · waiting to retry: %3$d</string>
+    <string name="checks_elapsed_limit">Elapsed %1$ds · overall limit %2$ds</string>
+    <string name="checks_elapsed_done">Check duration: %1$ds</string>
+    <string name="checks_time_limit">Reached the %1$ds limit · completed %2$d of %3$d</string>
+    <string name="checks_not_completed">No result</string>
+    <string name="checks_deadline_hint">The time limit expired. You can check this connection again.</string>
+    <string name="checks_retry_after_first">Will retry after the first pass of all locations.</string>
+    <string name="checks_request_stalled">The core did not finish a cancelled request. The connection result is unknown.</string>
+    <string name="checks_attempt_progress">Attempt %1$d/2 · %2$d/%3$ds</string>
+    <string name="checks_summary_detail">Working %1$d of %2$d · no response %3$d · check errors %4$d</string>
 </resources>

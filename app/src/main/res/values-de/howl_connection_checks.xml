@@ -26,4 +26,16 @@
     <string name="checks_routing">Routingmodus — keine einzelne VPN-Verbindung</string>
     <string name="checks_busy">Eine andere manuelle Prüfung läuft. Bitte warten oder diese zuerst stoppen.</string>
     <string name="checks_title">Verbindungsprüfung</string>
+    <string name="checks_first_pass_progress">Erster Durchlauf: %1$d von %2$d</string>
+    <string name="checks_confirmation_progress">Bestätigung: %1$d von %2$d · erster Durchlauf beendet</string>
+    <string name="checks_queue_counts">In Prüfung: %1$d · in Warteschlange: %2$d · Wiederholung ausstehend: %3$d</string>
+    <string name="checks_elapsed_limit">Vergangen: %1$d s · Gesamtlimit: %2$d s</string>
+    <string name="checks_elapsed_done">Prüfdauer: %1$d s</string>
+    <string name="checks_time_limit">Limit von %1$d s erreicht · %2$d von %3$d abgeschlossen</string>
+    <string name="checks_not_completed">Kein Ergebnis</string>
+    <string name="checks_deadline_hint">Das Zeitlimit ist abgelaufen. Diese Verbindung kann erneut geprüft werden.</string>
+    <string name="checks_retry_after_first">Wiederholung nach dem ersten Durchlauf aller Standorte.</string>
+    <string name="checks_request_stalled">Der Kern hat eine abgebrochene Anfrage nicht beendet. Das Verbindungsergebnis ist unbekannt.</string>
+    <string name="checks_attempt_progress">Versuch %1$d/2 · %2$d/%3$d s</string>
+    <string name="checks_summary_detail">Funktionieren: %1$d von %2$d · keine Antwort: %3$d · Prüffehler: %4$d</string>
 </resources>

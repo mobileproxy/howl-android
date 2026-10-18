@@ -45,7 +45,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.ExperimentalFoundationApi
-import io.nekohasekai.sfa.connections.CheckResult
+import io.nekohasekai.sfa.connections.CheckSnapshot
 import io.nekohasekai.sfa.connections.CheckTarget
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -301,7 +301,7 @@ private fun GroupsCardContent(
                         onToggleExpanded = { onToggleExpanded(group.tag) },
                         onItemSelected = { itemTag -> onItemSelected(group.tag, itemTag) },
                         onUrlTest = { onUrlTest(group.tag) },
-                        checks = uiState.checks.results,
+                        checks = uiState.checks,
                     )
                 }
             }
@@ -317,7 +317,7 @@ private fun ProxyGroupItem(
     onToggleExpanded: () -> Unit,
     onItemSelected: (String) -> Unit,
     onUrlTest: () -> Unit,
-    checks: Map<String, CheckResult>,
+    checks: CheckSnapshot,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -450,16 +450,16 @@ private fun ProxyGroupItem(
 
 @Composable
 private fun ProxyItemsList(items: List<GroupItem>, selectedTag: String, isSelectable: Boolean,
-    onItemSelected: (String) -> Unit, checks: Map<String, CheckResult>) {
+    onItemSelected: (String) -> Unit, checks: CheckSnapshot) {
     val ordered = remember(items.map { it.tag to it.type }) {
         items.sortedBy { CheckTarget(it.tag, it.type).location.lowercase() }
     }
     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ordered.forEach { item ->
             key(item.tag) {
-                ConnectionCheckRow(item.tag, protocolLabel(item), checks[item.tag],
+                ConnectionCheckRow(item.tag, protocolLabel(item), checks.results[item.tag],
                     CheckTarget(item.tag, item.type).checkable, item.tag == selectedTag, isSelectable,
-                    select = { onItemSelected(item.tag) })
+                    select = { onItemSelected(item.tag) }, nowMs = checks.clockAt)
             }
         }
     }

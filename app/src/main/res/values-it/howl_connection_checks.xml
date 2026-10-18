@@ -26,4 +26,16 @@
     <string name="checks_routing">Modalità di instradamento, non una singola connessione VPN</string>
     <string name="checks_busy">È in corso un’altra verifica manuale. Attendi o interrompila prima.</string>
     <string name="checks_title">Verifica connessioni</string>
+    <string name="checks_first_pass_progress">Primo passaggio: %1$d di %2$d</string>
+    <string name="checks_confirmation_progress">Conferma: %1$d di %2$d · primo passaggio completato</string>
+    <string name="checks_queue_counts">In verifica: %1$d · in coda: %2$d · in attesa di ripetizione: %3$d</string>
+    <string name="checks_elapsed_limit">Trascorsi %1$d s · limite totale %2$d s</string>
+    <string name="checks_elapsed_done">Durata della verifica: %1$d s</string>
+    <string name="checks_time_limit">Raggiunto il limite di %1$d s · completate %2$d di %3$d</string>
+    <string name="checks_not_completed">Nessun risultato</string>
+    <string name="checks_deadline_hint">Il tempo è scaduto. Puoi verificare di nuovo questa connessione.</string>
+    <string name="checks_retry_after_first">Nuovo tentativo dopo il primo passaggio di tutte le località.</string>
+    <string name="checks_request_stalled">Il nucleo non ha terminato una richiesta annullata. Il risultato della connessione è sconosciuto.</string>
+    <string name="checks_attempt_progress">Tentativo %1$d/2 · %2$d/%3$d s</string>
+    <string name="checks_summary_detail">Funzionano %1$d di %2$d · senza risposta %3$d · errori di verifica %4$d</string>
 </resources>
