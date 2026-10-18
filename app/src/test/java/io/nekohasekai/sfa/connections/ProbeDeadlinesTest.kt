@@ -8,6 +8,40 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class ProbeDeadlinesTest {
+    @Test fun attemptDeadlineDuringCancellationGraceCannotBecomeNoResponseOrRetry() = runBlocking {
+        val release = CountDownLatch(1); val calls = AtomicInteger()
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
+                calls.incrementAndGet(); check(release.await(5, TimeUnit.SECONDS)); return ProbeReply(120, false)
+            }
+            override fun close() {}
+        } }, firstTimeoutMs = 100, retryTimeoutMs = 100, requestSlackMs = 0, cancellationGraceMs = 100)
+        try {
+            val final = ConnectionChecks.run(listOf("fixture"), transport::measure, {}, retryPauseMs = 0, attemptDeadlineMs = 150)
+            assertEquals(CheckState.Error, final.single().state)
+            assertEquals(CheckIssue.RequestDidNotStop, final.single().issue)
+            assertEquals(1, calls.get())
+        } finally { release.countDown() }
+    }
+
+    @Test fun delayedDispatcherCannotHideNativeRequestBehindTransportDeadline() = runBlocking {
+        val release = CountDownLatch(1)
+        val transport = ProbeTransport(factory = { object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
+                check(release.await(8, TimeUnit.SECONDS)); return ProbeReply(120, false)
+            }
+            override fun close() {}
+        } })
+        val job = async { runCatching { transport.measure("fixture", 1) }.exceptionOrNull() }
+        try {
+            yield()
+            delay(4700)
+            // Deliberately emulate a short busy Main event loop: grace then crosses 5s.
+            Thread.sleep(250)
+            assertTrue(job.await() is ProbeRequestDidNotStopException)
+        } finally { release.countDown(); job.cancelAndJoin() }
+    }
+
     @Test fun uncooperativeRequestIsAnErrorAndIsNeverRepeated() = runBlocking {
         val release = CountDownLatch(1); val calls = AtomicInteger()
         val transport = ProbeTransport(factory = { object : OwnedProbeClient {
