@@ -73,6 +73,8 @@ class ConnectionCheckSession {
 
 /** A successful 0 ms response is valid in libbox; null means no response. */
 object ConnectionChecks {
+    // A completed measurement may legitimately contain null. A missing wrapper is a deadline.
+    private data class Measurement(val delayMs: Int?)
     const val PARALLELISM = 8
     const val FIRST_ATTEMPT_MS = 5000L
     const val RETRY_ATTEMPT_MS = 9000L
@@ -98,8 +100,10 @@ object ConnectionChecks {
                 val budget = if (attempt == 1) attemptDeadlineMs else retryDeadlineMs
                 emit(CheckResult(tag, if (attempt == 1) CheckState.Checking else CheckState.Retrying,
                     attempt = attempt, startedAt = now(), timeoutMs = budget))
-                val delayMs = withTimeoutOrNull(budget) { measure(tag, attempt) }
+                val measurement = withTimeoutOrNull(budget) { Measurement(measure(tag, attempt)) }
                 currentCoroutineContext().ensureActive()
+                if (measurement == null) throw ProbeRequestDidNotStopException()
+                val delayMs = measurement.delayMs
                 if (delayMs != null) {
                     require(delayMs >= 0)
                     emit(CheckResult(tag, CheckState.Working, delayMs, attempt, now()))

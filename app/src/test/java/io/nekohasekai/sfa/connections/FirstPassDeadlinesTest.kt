@@ -1,6 +1,7 @@
 package io.nekohasekai.sfa.connections
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -19,13 +20,13 @@ class FirstPassDeadlinesTest {
         assertFalse(events.any { it.state == CheckState.NoResponse || it.state == CheckState.Cancelled })
     }
 
-    @Test fun firstAndRetryHaveDifferentVisibleBudgets() = runBlocking {
+    @Test fun firstAndRetryHaveDifferentVisibleBudgets() = runTest {
         val events = mutableListOf<CheckResult>()
-        ConnectionChecks.run(listOf("fixture"), { _, attempt -> if (attempt == 1) awaitCancellation() else 0 },
-            events::add, retryPauseMs = 0, attemptDeadlineMs = 20, retryDeadlineMs = 60, now = { 123 })
+        ConnectionChecks.run(listOf("fixture"), { _, attempt -> if (attempt == 1) { delay(10); null } else 0 },
+            events::add, retryPauseMs = 0, attemptDeadlineMs = 100, retryDeadlineMs = 300, now = { 123 })
         val first = events.single { it.state == CheckState.Checking }
         val second = events.single { it.state == CheckState.Retrying }
-        assertEquals(20L, first.timeoutMs); assertEquals(60L, second.timeoutMs)
+        assertEquals(100L, first.timeoutMs); assertEquals(300L, second.timeoutMs)
         assertEquals(123L, first.startedAt); assertEquals(123L, second.startedAt)
         assertEquals(CheckState.Working, events.last().state)
         assertEquals(0, events.last().delayMs)

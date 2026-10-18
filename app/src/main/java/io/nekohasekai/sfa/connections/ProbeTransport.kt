@@ -48,11 +48,12 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
         val returned = CompletableDeferred<Unit>()
         val error = AtomicReference<Exception?>()
     }
+    private data class Measurement(val delayMs: Int?)
     suspend fun measure(tag: String, attempt: Int): Int? {
         require(attempt in 1..2)
         val timeout = if (attempt == 1) firstTimeoutMs else retryTimeoutMs
         val budget = if (attempt == 1) ConnectionChecks.FIRST_ATTEMPT_MS else ConnectionChecks.RETRY_ATTEMPT_MS
-        return withTimeoutOrNull(budget) {
+        val measurement = withTimeoutOrNull(budget) {
             val urls = if (attempt == 1) ConnectionChecks.urls.take(1) else ConnectionChecks.urls.reversed()
             for (url in urls) {
                 val call = Call()
@@ -66,11 +67,12 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
                     call.error.get()?.let { throw it }
                 } else if (!reply.failed) {
                     check(reply.delayMs >= 0)
-                    return@withTimeoutOrNull reply.delayMs
+                    return@withTimeoutOrNull Measurement(reply.delayMs)
                 }
             }
-            null
-        }
+            Measurement(null)
+        } ?: throw ProbeRequestDidNotStopException()
+        return measurement.delayMs
     }
     private suspend fun request(tag: String, url: String, timeout: Int, call: Call): ProbeReply = suspendCancellableCoroutine { continuation ->
         val client = AtomicReference<OwnedProbeClient?>()

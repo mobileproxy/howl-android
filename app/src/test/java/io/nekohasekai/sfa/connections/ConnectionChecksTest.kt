@@ -73,10 +73,11 @@ class ConnectionChecksTest {
         withTimeout(5000) { waiting.await() }; job.cancelAndJoin()
         assertFalse(events.any { it.state == CheckState.Retrying })
     }
-    @Test fun attemptDeadlineProducesTwoAttemptsNotAnApiError() = runBlocking {
+    @Test fun attemptDeadlineCannotEstablishServerFailureAndMustNotRepeat() = runBlocking {
         val final = ConnectionChecks.run(listOf("timeout"), { _, _ -> awaitCancellation() }, {}, retryPauseMs = 0, attemptDeadlineMs = 20)
-        assertEquals(CheckState.NoResponse, final.single().state)
-        assertEquals(2, final.single().attempt)
+        assertEquals(CheckState.Error, final.single().state)
+        assertEquals(CheckIssue.RequestDidNotStop, final.single().issue)
+        assertEquals(1, final.single().attempt)
     }
     @Test fun invalidDelayIsAnError() = runBlocking {
         val final = ConnectionChecks.run(listOf("node"), { _, _ -> -1 }, {})

@@ -1,11 +1,31 @@
 package io.nekohasekai.sfa.connections
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.Collections
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FirstPassChecksTest {
+    @Test fun freeWorkersReachTailWhileOneFirstAttemptIsStillWaiting() = runTest {
+        val slow = CompletableDeferred<Int?>()
+        val events = mutableListOf<CheckResult>()
+        val job = async {
+            ConnectionChecks.run((0..11).map { "fixture-$it" }, { tag, attempt ->
+                if (tag == "fixture-0" && attempt == 1) slow.await() else 180
+            }, events::add, retryPauseMs = 0)
+        }
+        runCurrent()
+        assertFalse(job.isCompleted)
+        assertEquals(11, events.count { it.state == CheckState.Working })
+        assertTrue(events.any { it.tag == "fixture-11" && it.state == CheckState.Working })
+        assertFalse(events.any { it.state == CheckState.Retrying })
+        slow.complete(null)
+        advanceUntilIdle()
+        assertTrue(job.await().all { it.state == CheckState.Working })
+    }
+
     @Test fun allFirstAttemptsPrecedeEveryConfirmation() = runBlocking {
         val calls = mutableListOf<Pair<String, Int>>()
         ConnectionChecks.run((0..11).map { "fixture-$it" }, { tag, attempt ->
@@ -16,12 +36,12 @@ class FirstPassChecksTest {
         assertEquals(12, calls.take(12).map { it.first }.distinct().size)
     }
 
-    @Test fun stalledPrefixDoesNotReceiveRetriesBeforeUntouchedTail() = runBlocking {
+    @Test fun stalledPrefixDoesNotReceiveRetriesBeforeUntouchedTail() = runTest {
         val events = mutableListOf<CheckResult>()
-        ConnectionChecks.run((0..11).map { "fixture-$it" }, { tag, _ ->
-            if (tag.removePrefix("fixture-").toInt() < 8) awaitCancellation()
-            180
-        }, events::add, retryPauseMs = 0, attemptDeadlineMs = 30)
+        ConnectionChecks.run((0..11).map { "fixture-$it" }, { tag, attempt ->
+            if (attempt == 1 && tag.removePrefix("fixture-").toInt() < 8) { delay(20); null } else 180
+        }, events::add, retryPauseMs = 0, attemptDeadlineMs = 100)
+        assertEquals(8, events.count { it.state == CheckState.Retrying })
         assertEquals(4, events.takeWhile { it.state != CheckState.Retrying }.count { it.state == CheckState.Working })
         assertEquals(12, events.count { it.finished })
     }
