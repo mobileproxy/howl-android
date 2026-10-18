@@ -1,45 +1,76 @@
 package io.nekohasekai.sfa.connections
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.CoroutineContext
 
+@OptIn(ExperimentalCoroutinesApi::class, InternalCoroutinesApi::class)
 class ProbeDeadlinesTest {
-    @Test fun attemptDeadlineDuringCancellationGraceCannotBecomeNoResponseOrRetry() = runBlocking {
-        val release = CountDownLatch(1); val calls = AtomicInteger()
+    /** Timer callbacks run on virtual time; continuation dispatch can deliberately lag. */
+    private class PausedDispatcher(timer: CoroutineDispatcher) : CoroutineDispatcher(), Delay by (timer as Delay) {
+        private val pending = java.util.concurrent.ConcurrentLinkedQueue<Runnable>()
+        override fun dispatch(context: CoroutineContext, block: Runnable) { pending.add(block) }
+        fun drain() { while (true) (pending.poll() ?: return).run() }
+    }
+
+    @Test fun attemptDeadlineDuringCancellationGraceCannotBecomeNoResponseOrRetry() = runTest {
+        val release = CountDownLatch(1); val entered = CountDownLatch(1); val calls = AtomicInteger()
+        val workers = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val dispatcher = PausedDispatcher(StandardTestDispatcher(testScheduler))
         val transport = ProbeTransport(factory = { object : OwnedProbeClient {
             override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
-                calls.incrementAndGet(); check(release.await(5, TimeUnit.SECONDS)); return ProbeReply(120, false)
+                calls.incrementAndGet(); entered.countDown()
+                check(release.await(5, TimeUnit.SECONDS)); return ProbeReply(120, false)
             }
             override fun close() {}
-        } }, firstTimeoutMs = 100, retryTimeoutMs = 100, requestSlackMs = 0, cancellationGraceMs = 100)
+        } }, workers = workers, firstTimeoutMs = 100, retryTimeoutMs = 100, requestSlackMs = 0, cancellationGraceMs = 100)
+        val job = async(dispatcher) {
+            ConnectionChecks.run(listOf("fixture"), transport::measure, {}, retryPauseMs = 0, attemptDeadlineMs = 150)
+        }
         try {
-            val final = ConnectionChecks.run(listOf("fixture"), transport::measure, {}, retryPauseMs = 0, attemptDeadlineMs = 150)
+            dispatcher.drain()
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            advanceTimeBy(100); runCurrent(); dispatcher.drain() // Request timeout; grace lasts until 200.
+            advanceTimeBy(50); runCurrent(); dispatcher.drain() // Attempt deadline at 150 interrupts grace.
+            advanceTimeBy(1000); runCurrent(); dispatcher.drain()
+            val final = job.await()
             assertEquals(CheckState.Error, final.single().state)
             assertEquals(CheckIssue.RequestDidNotStop, final.single().issue)
             assertEquals(1, calls.get())
-        } finally { release.countDown() }
+        } finally {
+            release.countDown(); job.cancel(); dispatcher.drain(); job.join()
+            workers.shutdown(); assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS))
+        }
     }
 
-    @Test fun delayedDispatcherCannotHideNativeRequestBehindTransportDeadline() = runBlocking {
-        val release = CountDownLatch(1)
+    @Test fun delayedDispatcherCannotHideNativeRequestBehindTransportDeadline() = runTest {
+        val release = CountDownLatch(1); val entered = CountDownLatch(1)
+        val workers = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val dispatcher = PausedDispatcher(StandardTestDispatcher(testScheduler))
         val transport = ProbeTransport(factory = { object : OwnedProbeClient {
             override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
-                check(release.await(8, TimeUnit.SECONDS)); return ProbeReply(120, false)
+                entered.countDown(); check(release.await(5, TimeUnit.SECONDS)); return ProbeReply(120, false)
             }
             override fun close() {}
-        } })
-        val job = async { runCatching { transport.measure("fixture", 1) }.exceptionOrNull() }
+        } }, workers = workers)
+        val job = async(dispatcher) { runCatching { transport.measure("fixture", 1) }.exceptionOrNull() }
         try {
-            yield()
-            delay(4700)
-            // Deliberately emulate a short busy Main event loop: grace then crosses 5s.
-            Thread.sleep(250)
+            dispatcher.drain()
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            // Native timeout fires at 4750, but a busy UI resumes the waiter at 4950.
+            advanceTimeBy(4950); runCurrent(); dispatcher.drain()
+            // The 100 ms grace now crosses the transport's 5000 ms deadline.
+            advanceTimeBy(50); runCurrent(); dispatcher.drain()
             assertTrue(job.await() is ProbeRequestDidNotStopException)
-        } finally { release.countDown(); job.cancelAndJoin() }
+        } finally {
+            release.countDown(); job.cancel(); dispatcher.drain(); job.join()
+            workers.shutdown(); assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS))
+        }
     }
 
     @Test fun uncooperativeRequestIsAnErrorAndIsNeverRepeated() = runBlocking {
