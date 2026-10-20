@@ -75,7 +75,9 @@ jobs:
           "$ADB" -s emulator-5554 shell am start -W -n how.vpn.howl/io.nekohasekai.sfa.compose.MainActivity
           sleep 5
           if ! "$ADB" -s emulator-5554 shell pidof how.vpn.howl; then
-            "$ADB" -s emulator-5554 logcat -d -t 180
+            "$ADB" -s emulator-5554 shell dumpsys activity exit-info how.vpn.howl
+            "$ADB" -s emulator-5554 logcat -b crash -d
+            "$ADB" -s emulator-5554 logcat -d '*:W'
             exit 1
           fi
       # Read-only diagnostics only; no signing secrets, artifacts or release publication.
