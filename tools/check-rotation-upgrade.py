@@ -17,9 +17,9 @@ DATA = '/data/user/0/' + PACKAGE
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def remote_file_exists(adb, path):
+def remote_path_exists(adb, path):
     # ADB failure must not look like an absent WAL and hide uncheckpointed changes.
-    answer = adb('shell', 'if [ -f ' + shlex.quote(path)
+    answer = adb('shell', 'if [ -e ' + shlex.quote(path)
                  + ' ]; then echo PRESENT; else echo ABSENT; fi').strip()
     if answer not in [b'PRESENT', b'ABSENT']:
         raise ValueError('No trustworthy remote file-presence result')
@@ -102,8 +102,13 @@ def main():
     adb('wait-for-device')
     if adb('shell', 'id', '-u').strip() != b'0':
         raise ValueError('Acceptance image must allow adb root for synthetic data inspection')
+    if remote_path_exists(adb, DATA):
+        raise ValueError('Refusing retained application data from a previous installation')
     adb('install', args.baseline)
     uid = re.search(rb'userId=(\d+)', adb('shell', 'dumpsys', 'package', PACKAGE))[1]
+    adb('shell', 'test', '-d', DATA)
+    if adb('shell', 'stat', '-c', '%u', DATA).strip() != uid:
+        raise ValueError('Installed application data must belong to its application UID')
 
     def launch():
         adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/io.nekohasekai.sfa.compose.MainActivity')
@@ -140,7 +145,7 @@ def main():
                 local = destination / name
                 local.write_bytes(adb('exec-out', 'cat', DATA + '/databases/' + name))
                 wal = DATA + '/databases/' + name + '-wal'
-                exists = remote_file_exists(adb, wal)
+                exists = remote_path_exists(adb, wal)
                 wal_data = adb('exec-out', 'cat', wal) if exists else b''
                 if wal_data:
                     local.with_name(local.name + '-wal').write_bytes(wal_data)
@@ -170,7 +175,7 @@ def main():
                           'profilesPreserved': 2, 'selectedProfilePreserved': True, 'subscriptionPreserved': True,
                           'workingReservesPreserved': 2, 'uidPreserved': True,
                           'acceptanceScope': 'package-installer-data-retention' if args.package_data_only else 'app-upgrade',
-                          'appLaunchesVerified': not args.package_data_only, 'appRoomReadVerified': not args.package_data_only,
+                          'appLaunchesVerified': not args.package_data_only, 'appRoomReadVerified': False,
                           'physicalDeviceTested': False, 'realVpnTested': False}, indent=2))
 
 
