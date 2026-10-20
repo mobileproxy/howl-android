@@ -1,5 +1,6 @@
 import importlib.util
 import io
+import struct
 import unittest
 import xml.etree.ElementTree as ET
 import zipfile
@@ -101,6 +102,25 @@ class ApkBrandingTests(unittest.TestCase):
                 self.archive(resources='Howl account at vpn.how'.encode(encoding))
         # Legacy links in executable code remain compatible; visible resource copy changes.
         self.archive(payload=b'https://vpn.how/legacy-subscription')
+
+    def test_resource_package_identity_is_not_visible_branding(self):
+        # ResTable_package.name is a fixed UTF16 field and must retain the app ID.
+        def resource_table(copy, package='how.vpn.howl'):
+            package_header = bytearray(288)
+            struct.pack_into('<HHII', package_header, 0, 0x0200, 288, 288 + len(copy), 0x7f)
+            name = package.encode('utf-16-le')
+            package_header[12:12+len(name)] = name
+            return struct.pack('<HHII', 0x0002, 12, 12 + len(package_header) + len(copy), 1) + package_header + copy
+
+        self.archive(resources=resource_table(b'Howl'))
+        for encoding in ['utf-8', 'utf-16-le']:
+            with self.assertRaises(ValueError):
+                self.archive(resources=resource_table('account at vpn.how'.encode(encoding)))
+        with self.assertRaises(ValueError):
+            self.archive(resources=resource_table(b'Howl', package='other.vpn.how'))
+        # The same bytes in a visible string are not the package header exemption.
+        with self.assertRaises(ValueError):
+            self.archive(resources='how.vpn.howl'.encode('utf-16-le'))
 
     def test_rejects_duplicate_archive_entries(self):
         self.guard()

@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import struct
 import subprocess
 import zipfile
 
@@ -45,6 +46,29 @@ def check_badging(text):
         raise ValueError('Every application label must be Howl')
 
 
+def check_resource_branding(data):
+    visible = bytearray(data)
+    # ResTable_package.name is identity, not displayed copy. Mask only this exact
+    # fixed field in a structurally bounded resource table; never exempt strings
+    # containing the same bytes elsewhere (including actual visible resources).
+    if len(data) >= 12:
+        kind, header, size = struct.unpack_from('<HHI', data)
+        if kind == 0x0002 and 12 <= header <= size == len(data):
+            offset = header
+            while offset + 8 <= size:
+                child_kind, child_header, child_size = struct.unpack_from('<HHI', data, offset)
+                if child_header < 8 or child_size < child_header or offset + child_size > size:
+                    break
+                if child_kind == 0x0200 and child_header >= 284:
+                    start, end = offset + 12, offset + 268
+                    identity = 'how.vpn.howl'.encode('utf-16-le').ljust(256, b'\0')
+                    if data[start:end] == identity:
+                        visible[start:end] = bytes(256)
+                offset += child_size
+    if any(value in visible.lower() for value in (b'vpn.how', 'vpn.how'.encode('utf-16-le'))):
+        raise ValueError('Old visible branding in compiled resources')
+
+
 def scan_archive(path):
     with zipfile.ZipFile(path) as archive:
         files = [i for i in archive.infolist() if not i.is_dir()]
@@ -63,9 +87,8 @@ def scan_archive(path):
             check_paths(name.encode('utf-8'), 'archive entry name')
             data = archive.read(info)  # ZipFile checks each entry's CRC while reading.
             check_paths(data, name)
-            if name == 'resources.arsc' and any(value in data.lower() for value in
-                    (b'vpn.how', 'vpn.how'.encode('utf-16-le'))):
-                raise ValueError('Old visible branding in compiled resources')
+            if name == 'resources.arsc':
+                check_resource_branding(data)
     return {'entriesChecked': len(files), 'uncompressedBytes': total,
             'personalBuildPaths': 0, 'oldBrandInResources': False}
 
