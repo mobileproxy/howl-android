@@ -2,9 +2,6 @@ name: Diagnose native ARM Android environment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [android/signing-rotation]
-    paths: ['.github/workflows/validate-rotation-native-arm.yml']
 
 permissions:
   contents: read
