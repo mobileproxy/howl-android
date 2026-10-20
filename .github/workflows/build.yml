@@ -66,6 +66,8 @@ jobs:
           go install -v github.com/sagernet/gomobile/cmd/gobind@v0.1.13
           export PATH="$PATH:$(go env GOPATH)/bin"
           export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/28.0.13004108"
+          # Keep logical module/line information without the native build machine's paths.
+          export GOFLAGS="${GOFLAGS:-} -trimpath"
           make lib_android
           echo "--- locate produced aar ---"
           find . -maxdepth 4 -name 'libbox*.aar' -print
@@ -80,6 +82,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tools -p test_arm_libraries.py -v
           python3 -m unittest discover -s tools -p test_next_version_code.py -v
+          python3 -m unittest discover -s tools -p test_apk_branding.py -v
           python3 tools/verify-arm-libraries.py app/libs/libbox.aar
 
       - name: Decode release keystore
@@ -100,7 +103,10 @@ jobs:
           ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon
 
       - name: Verify APK signature and upgrade compatibility
-        run: python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
+        run: |
+          python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*.apk' -print -quit)
+          python3 tools/verify-apk-branding.py "$APK" --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt"
 
       - name: Upload unit-test report
         uses: actions/upload-artifact@v4

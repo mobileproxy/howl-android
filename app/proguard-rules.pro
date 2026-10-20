@@ -12,10 +12,7 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep useful crash line information without exposing physical source-file names
+# in the minified release. R8 mapping remains a private build output for retrace.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

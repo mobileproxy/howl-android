@@ -32,7 +32,7 @@
     <string name="howl_hint_tap_disconnect">Tocca per disconnetterti</string>
     <string name="howl_home_widgets_hint">Widget aggiuntivi per la schermata principale. Compaiono quando la VPN è attiva e sono nascosti per impostazione predefinita. Trascina dalla maniglia per riordinarli.</string>
     <string name="howl_no_server">Nessun server</string>
-    <string name="howl_onboarding_body">Apri il tuo account su vpn.how, vai alla sezione Howl e scansiona il codice QR. Dal telefono puoi anche premere direttamente il pulsante che trovi lì.</string>
+    <string name="howl_onboarding_body">Per iniziare, aggiungi il tuo abbonamento Howl. Apri il tuo account e scansiona il codice QR del tuo abbonamento, oppure apri il tuo account sul telefono e tocca il link Howl.</string>
     <string name="howl_onboarding_manual">Inserisci il link manualmente</string>
     <string name="howl_onboarding_scan">Scansiona il codice QR</string>
     <string name="howl_onboarding_title">Benvenuto in Howl</string>

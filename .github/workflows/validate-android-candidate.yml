@@ -2,11 +2,15 @@ name: Validate Android candidate
 
 on:
   push:
-    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress, android/first-pass-location-checks, android/soft-switching]
+    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress, android/first-pass-location-checks, android/soft-switching, android/international-branding]
     paths:
       - "app/**"
       - ".github/workflows/validate-android-candidate.yml"
       - "tools/validate-candidate-resources.py"
+      - "tools/verify-apk-branding.py"
+      - "tools/test_apk_branding.py"
+      - "tools/verify-signing-rotation-lab.py"
+      - "tools/SigningRotationLab.java"
 
 permissions:
   contents: read
@@ -28,7 +32,16 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Check combined candidate translations
-        run: python3 tools/validate-candidate-resources.py
+        run: |
+          python3 tools/validate-candidate-resources.py
+          python3 -m unittest discover -s tools -p 'test_*.py' -v
+      - name: Prepare build tools for signed branding verification
+        if: github.ref == 'refs/heads/android/international-branding'
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;36.0.0' >/dev/null
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
       - name: Fetch the existing core version (no core migration)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,4 +70,27 @@ jobs:
                   print(root.get('name'), dict(zip(('tests', 'failures', 'errors'), counts)))
           print('ALL TESTS:', dict(zip(('tests', 'failures', 'errors'), totals)))
           PYTEST
-      # No signing secrets, artifact upload, release creation or deployment.
+      - name: Check minified candidate with the existing release signer
+        if: github.ref == 'refs/heads/android/international-branding'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$LOCAL_PROPERTIES"
+          trap 'rm -f app/release.keystore' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          export HOWL_VERSION_CODE=$(python3 tools/next-version-code.py)
+          ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g
+          python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*.apk' -print -quit)
+          python3 tools/verify-apk-branding.py "$APK" --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt"
+      - name: Rehearse future rotation with disposable test keys only
+        if: github.ref == 'refs/heads/android/international-branding'
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*.apk' -print -quit)
+          python3 tools/verify-signing-rotation-lab.py "$APK" --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+      # Signing uses the existing key only for this private candidate verification.
+      # No artifact upload, release creation or deployment; contents permission is read-only.

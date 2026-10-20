@@ -38,7 +38,7 @@ import io.nekohasekai.sfa.compose.screen.qrscan.QRScanResult
 
 /**
  * First-run / empty state for the Howl home screen: when there is no subscription yet,
- * guide the user to add one by scanning the QR from their vpn.how account (or entering
+ * guide the user to add one by scanning the QR from their Howl account (or entering
  * the link manually). Scan results are routed into the existing new-profile import flow.
  */
 @Composable

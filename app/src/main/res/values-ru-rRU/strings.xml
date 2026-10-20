@@ -762,7 +762,7 @@
 
     <!-- Howl onboarding -->
     <string name="howl_onboarding_title">Добро пожаловать в Howl</string>
-    <string name="howl_onboarding_body">Чтобы начать, добавьте подписку. Откройте личный кабинет на vpn.how, найдите раздел приложения Howl и отсканируйте QR-код — или откройте его на телефоне и нажмите ссылку Howl.</string>
+    <string name="howl_onboarding_body">Чтобы начать, добавьте подписку Howl. Откройте личный кабинет и отсканируйте QR-код подписки или откройте кабинет на телефоне и нажмите ссылку Howl.</string>
     <string name="howl_onboarding_scan">Сканировать QR-код</string>
     <string name="howl_onboarding_manual">Ввести ссылку вручную</string>
     <!-- HOWL-MENU: начало (tools/gen-menu-strings.js, руками не править) -->
