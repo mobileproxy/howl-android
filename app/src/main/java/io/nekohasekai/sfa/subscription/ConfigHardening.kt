@@ -22,7 +22,7 @@ import org.json.JSONObject
  *  • **Живучесть OpenConnect** (`reconnect_timeout`, `dpd_interval`). Без них эндпоинт после
  *    обрыва дольше ~5 минут выключается до перезапуска ядра — см. keepOpenConnectAlive.
  *
- * Принцип — **только добавлять, ничего не переписывать.** Чужой конфиг мы не знаем: его DNS,
+ * Кроме политики мягкого выбора, только добавляем отсутствующее. Чужой конфиг мы не знаем: его DNS,
  * маршруты и outbound'ы трогать нельзя, иначе сломаем работающее. Если нужное уже есть —
  * оставляем как есть. Если конфиг не разобрался — возвращаем исходный текст без изменений:
  * пусть лучше профиль работает без закалки, чем не работает вовсе.
@@ -38,8 +38,24 @@ object ConfigHardening {
         if (addTunIPv6(root)) changed = true
         if (addIPv6Reject(root)) changed = true
         if (keepOpenConnectAlive(root)) changed = true
+        if (preserveConnections(root)) changed = true
         if (changed) root.toString(2) else content
     }.getOrDefault(content)
+
+    /** Runtime policy for owned/imported/nested groups; source profiles and reserves stay intact. */
+    private fun preserveConnections(root: JSONObject): Boolean {
+        val outbounds = root.optJSONArray("outbounds") ?: return false
+        var changed = false
+        for (i in 0 until outbounds.length()) {
+            val group = outbounds.optJSONObject(i) ?: continue
+            if (group.optString("type") !in setOf("selector", "urltest")) continue
+            if (group.opt("interrupt_exist_connections") != false) {
+                group.put("interrupt_exist_connections", false)
+                changed = true
+            }
+        }
+        return changed
+    }
 
     /** Адрес IPv6 на tun-инбаунде — чтобы IPv6 заходил В туннель, а не мимо него. */
     private fun addTunIPv6(root: JSONObject): Boolean {

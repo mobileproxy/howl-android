@@ -7,12 +7,21 @@ import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.connections.LibboxProbeTransport
+import io.nekohasekai.sfa.connections.LibboxSelectionTransport
+import io.nekohasekai.sfa.connections.SoftSwitching
+import io.nekohasekai.sfa.connections.SwitchOutcome
+import io.nekohasekai.sfa.connections.CheckTarget
 import io.nekohasekai.sfa.subscription.NodeSites
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.AppEventLog
 import io.nekohasekai.sfa.utils.CommandClient
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -57,14 +66,13 @@ import javax.net.ssl.SSLSocketFactory
  * Все триггеры лишь ЗАПУСКАЮТ пробу; чинит только реальный провал пробы, поэтому ложная тревога
  * безвредна.
  *
- * Починка идёт по нарастающей — три ступени, каждая лечит свою причину:
- *   1) переподключение — залипшие сокеты после смены сети;
- *   2) другая СЕТЬ телефона — телефон держится за мёртвый Wi-Fi, хотя рядом живая мобильная
- *      (по журналу 23.07: `dial wlan0: no route to host` за 6 мс — сеть отвергала пакеты сразу,
- *      при этом мобильная была доступна; reload не спасал, т.к. ядру отдавалась та же сеть);
- *   3) другой СЕРВЕР — деградация узла.
- * Пока идёт сбой, проверки чаще (15 с вместо 60), чтобы пройти лестницу за полминуты, а не
- * за минуты. Каждое событие — в журнал (Настройки → Автопочинка).
+ * При отказе узла выбирает проверенный резерв только для НОВЫХ соединений,
+ * сохраняя существующие сеансы и работающий core/TUN. История задержек задаёт
+ * порядок кандидатов; переключение разрешает только свежая проба. Повторные
+ * отказы не запускают reload ядра. При мёртвой физической сети перевыбирается
+ * сеть телефона через DefaultNetworkMonitor, без принудительной перезагрузки.
+ * Сохранность сеансов при потере физической сети зависит от транспорта.
+ * Пока идёт сбой, проверки чаще; каждое решение видно в журнале.
  *
  * ★ Правка 24.07.2026. Вердикт «у телефона нет интернета» раньше приводил к ВЫХОДУ из починки —
  * и лестница никогда не доходила до ступени 2 ровно в том случае, ради которого её и писали.
@@ -245,11 +253,9 @@ object ConnectivityWatchdog {
     // Когда последний раз писали «всё в порядке» — см. HEARTBEAT_INTERVAL_MS.
     @Volatile
     private var lastHeartbeatAt = 0L
-    // Сколько раз чинили подряд, не добившись успеха. 0 — свежий сбой, лечим мягко
-    // (просто переподключением); ≥1 — прошлый reload не помог, значит дело не в залипших
-    // сокетах, а в самом узле → уводим на автоподбор, как при ручной смене сервера.
+    // Сколько мягких починок подряд не восстановили связь: задаёт отступ,
+    // но не повышает действие до перезапуска работающего ядра.
     private var healAttempts = 0
-    private var heal: (suspend () -> Unit)? = null
     private var networkJob: Job? = null
 
     // Отложенный повторный замер узлов — см. REMEASURE_DELAY_MS. Новое событие переносит его.
@@ -314,12 +320,11 @@ object ConnectivityWatchdog {
     // прийтись на один момент, а каждая занимает до 20 секунд.
     private val checkMutex = Mutex()
 
-    fun start(heal: suspend () -> Unit) {
+    fun start() {
         stop()
         if (!Settings.watchdogEnabled) return
         val newScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scope = newScope
-        this.heal = heal
         consecutiveFailures = 0
         healAttempts = 0
         // Первые FIRST_CHECK_DELAY_MS не триггерим: туннель ещё поднимается, ложный «сбой» тут
@@ -386,7 +391,6 @@ object ConnectivityWatchdog {
         remeasureJob = null
         scope?.cancel()
         scope = null
-        heal = null
         consecutiveFailures = 0
         healAttempts = 0
     }
@@ -472,7 +476,7 @@ object ConnectivityWatchdog {
                     while (selectorItems.hasNext()) {
                         val item = selectorItems.next()
                         // Сама группа автоподбора — не узел, на неё уводить бессмысленно.
-                        if (item.tag != ProfileTags.auto) all.add(item.tag to item.urlTestDelay)
+                        if (item.tag != ProfileTags.auto && CheckTarget(item.tag, item.type).checkable) all.add(item.tag to item.urlTestDelay)
                     }
                 }
                 selectorNodes = all
@@ -486,7 +490,7 @@ object ConnectivityWatchdog {
             val items = auto.items
             while (items.hasNext()) {
                 val item = items.next()
-                nodes.add(item.tag to item.urlTestDelay)
+                if (CheckTarget(item.tag, item.type).checkable) nodes.add(item.tag to item.urlTestDelay)
             }
             autoNodes = nodes
         }
@@ -809,76 +813,18 @@ object ConnectivityWatchdog {
         lastHealAt = now
         consecutiveFailures = 0
 
-        // Лестница починки: сначала дёшево, потом радикальнее.
-        //   1) переподключение — лечит залипшие сокеты после смены сети;
-        //   2) другая СЕТЬ телефона — лечит «держимся за мёртвый Wi-Fi, а рядом живая мобильная»;
-        //   3) другой СЕРВЕР — лечит недоступность узла (DPI режет порт 443 к его IP и т.п.).
-        // Ступень выбираем по ПРИЧИНЕ, а не только по счётчику.
-        //
-        // ★ Туннель мёртв (TCP-проба к 1.1.1.1 не прошла), а сеть телефона рабочая — значит
-        // виноват УЗЕЛ, а не сеть и не залипшие сокеты. Смену сети тут пропускаем (сеть-то
-        // живая) и после одного переподключения сразу идём на смену сервера. Иначе, как было в
-        // журнале 26.07: DPI режет 443 к части узлов, а сторож тратил цикл на бесполезную смену
-        // сети, растягивая простой.
-        when {
-            networkDead -> {
-                switchPhoneNetwork(what)
-            }
-
-            // ★ Туннель мёртв, сеть телефона жива → виноват УЗЕЛ. Начинаем с самого дешёвого:
-            // перевыбрать узел внутри работающего ядра. Это доли секунды и НЕ рвёт ядро, тогда
-            // как перезагрузка стоит ~35 секунд простоя (в журнале — событие «старт» после каждой).
-            // Делаем так, только если знаем узлы: иначе шаг был бы пустым.
-            tunnelDead && healAttempts == 0 && autoNodes.isNotEmpty() -> {
-                appendLog(str(R.string.watchdog_log_switch_server, what))
-                switchToFastestServer()
-            }
-
-            tunnelDead && healAttempts >= 2 -> {
-                appendLog(str(R.string.watchdog_log_switch_server, what))
-                switchToFastestServer()
-                runHeal(str(R.string.watchdog_act_switch_server))
-            }
-
-            tunnelDead -> {
-                appendLog(str(R.string.watchdog_log_reconnect, what))
-                runHeal(str(R.string.watchdog_act_reconnect))
-            }
-
-            // ★ Туннель ЖИВ, сыплется что-то одно (обычно DNS). Начинаем с самого дешёвого —
-            // смены узла. Раньше первой же ступенью шло переподключение: полная перезагрузка
-            // ядра, 20–30 секунд немоты и обрыв всего, что качается. Слишком дорогая плата за
-            // спотыкнувшийся резолв, тем более что смена узла теперь бесшовна — существующие
-            // соединения она не рвёт (interrupt_exist_connections снят в подписке).
-            healAttempts == 0 && autoNodes.isNotEmpty() -> {
-                appendLog(str(R.string.watchdog_log_switch_server, what))
-                switchToFastestServer()
-            }
-
-            healAttempts <= 1 -> {
-                appendLog(str(R.string.watchdog_log_reconnect, what))
-                runHeal(str(R.string.watchdog_act_reconnect))
-            }
-
-            healAttempts == 2 -> {
-                switchPhoneNetwork(what)
-            }
-
-            else -> {
-                appendLog(str(R.string.watchdog_log_switch_server, what))
-                switchToFastestServer()
-                runHeal(str(R.string.watchdog_act_switch_server))
-            }
+        // Network probe failure is not evidence that every application flow is
+        // dead. Keep the running core/TUN; only replace the route of NEW flows.
+        if (networkDead) {
+            switchPhoneNetwork(what)
+        } else {
+            appendLog(str(R.string.watchdog_log_switch_server, what))
+            switchToFastestServer()
         }
         healAttempts++
         delay(SETTLE_AFTER_HEAL_MS)
     }
 
-    /**
-     * Уводит на автоподбор и заставляет перемерить задержки — то же, что делает ручная смена
-     * сервера: если узел, на котором мы сидим, деградировал, urltest выберет живой и быстрый.
-     * Помогает и когда пользователь вручную закрепился на конкретной локации, которая отвалилась.
-     */
     /** Строки журнала берём из ресурсов: журнал видит пользователь, а языков у приложения пять. */
     private fun str(id: Int, vararg args: Any): String =
         runCatching { Application.application.getString(id, *args) }.getOrDefault("")
@@ -894,15 +840,6 @@ object ConnectivityWatchdog {
             if (via != null) str(R.string.watchdog_log_switch_network_via, what, via)
             else str(R.string.watchdog_log_switch_network, what),
         )
-        runHeal(str(R.string.watchdog_act_switch_network))
-    }
-
-    private suspend fun runHeal(what: String) {
-        val failure = runCatching { heal?.invoke() }.exceptionOrNull()
-        if (failure != null) {
-            appendLog(str(R.string.watchdog_log_failed, what, failure.message ?: failure.toString()))
-        }
-        // Ядро перезапущено — сессии OpenConnect и Hysteria2 поднимаются заново, как при старте.
         scheduleRemeasure()
     }
 
@@ -912,110 +849,69 @@ object ConnectivityWatchdog {
      *   1) залипший узел — в штрафной ящик;
      *   2) уводим на КОНКРЕТНЫЙ следующий узел с валидной задержкой, минуя штрафные, — а не
      *      переспрашиваем автоподбор (он вернул бы тот же залипший, ведь на пробу узел отвечает);
-     *   3) если рабочих узлов не осталось (все перепробованы) — чистим ящик и отдаём выбор
-     *      автоподбору заново: вдруг маршрут восстановился.
+     *   3) без проверенного резерва сохраняем текущий выбор; следующие попытки
+     *      продолжают обход, исчерпание пула сбрасывает штрафы без выбора вслепую.
      * Штрафы сбрасываются при смене сети — там маршруты другие, старые вердикты не актуальны.
      */
-    private fun switchToFastestServer() {
+    private suspend fun switchToFastestServer() {
         val selector = ProfileTags.selector ?: return
-        // Standalone-клиент здесь одноразовый (fire-and-forget), как во всех остальных местах
-        // проекта — connect/close не нужны.
-        runCatching {
-            val client = Libbox.newStandaloneCommandClient()
-            // Текущий узел — тот, на который смотрит СЕЛЕКТОР (через него и идёт трафик). Если он
-            // указывает на саму группу автоподбора, значит фактический узел выбирает она.
-            val current = selectorSelected
-                ?.takeIf { it != ProfileTags.auto }
-                ?: autoSelected
-
-            // ★ Штрафуем узел, только когда сеть телефона успела устояться. Сразу после смены
-            // интерфейса сбой почти наверняка местный (маршрутов ещё нет), и клеймить за него
-            // сервер — значит выбрасывать из выбора исправные узлы: см. BLAME_NODE_AFTER_NETWORK_MS.
-            // Узел при этом всё равно меняем — уйти с проблемного места полезно в любом случае,
-            // но дорогу назад не перекрываем.
+        val expected = selectorSelected ?: return
+        val owner = scope ?: return
+        val networkAt = lastNetworkChangeAt
+        val profile = Settings.selectedProfile
+        val choices = SoftSwitching.choices
+        val ticket = choices.automatic() ?: return // a manual request has priority
+        fun currentSession() = scope === owner && owner.isActive && Settings.selectedProfile == profile &&
+            ProfileTags.selector == selector && lastNetworkChangeAt == networkAt
+        try {
+            val current = expected.takeIf { it != ProfileTags.auto } ?: autoSelected
             val settled = System.currentTimeMillis() - lastNetworkChangeAt >= BLAME_NODE_AFTER_NETWORK_MS
             if (current != null && settled) stuckNodes.add(current)
-
-            // ★ Адрес и протокол узла — из конфига (NodeSites), а не из значка. Раньше протокол
-            // брали первым символом тега, а 🛡 VLESS и 🐺 AmneziaWG начинаются с одной половинки
-            // суррогатной пары — для карусели это был один протокол; а «та же локация» сравнивала
-            // хвост тега вместе с протоколом и не совпадала никогда. Подозрительны адрес и
-            // протокол текущего узла и всех штрафных.
             val sites = NodeSites.current
             val penalized = stuckNodes.toList() + listOfNotNull(current)
-
-            /**
-             * Кандидат: узел с ИЗМЕРЕННОЙ разумной задержкой, не в штрафном ящике. При равных
-             * условиях предпочитаем ДРУГОЙ протокол: если текущий не работает, чаще всего дело в
-             * протоколе целиком (UDP режут — падает весь AmneziaWG; TCP 443 режут — падает весь
-             * VLESS), и перебор соседних узлов того же типа только тратит время. Журнал 02–03.08:
-             * VLESS отваливался по `i/o timeout`, AmneziaWG — по `network is unreachable`,
-             * то есть у каждого свои периоды, и смена типа реально помогает.
-             */
-            // ★ Единый пул: узлы автоподбора И остальные узлы селектора. Раньше карусель знала
-            // только про автоподбор, а он у нас состоит ИСКЛЮЧИТЕЛЬНО из AmneziaWG — VLESS и
-            // Hysteria2 лежат в селекторе и были доступны лишь вручную. Поэтому при поломке WG
-            // сторож бесконечно крутил три мёртвых узла и трижды за сутки стаскивал человека с
-            // РАБОТАЮЩЕГО VLESS обратно на WG (журнал 02–03.08, все 12 переключений — на 🐺).
             val pool = (autoNodes + selectorNodes).distinctBy { it.first }
-            // Текущий узел исключаем ВСЕГДА, даже когда не штрафуем его: смысл вызова — уйти
-            // с проблемного места. Без этого при пропущенном штрафе он остался бы кандидатом
-            // и слепой перебор мог бы вернуть нас на то же самое.
-            val fresh = pool.filter { it.first !in stuckNodes && it.first != current }
-            val measured = fresh.filter { it.second in 1..MAX_NODE_DELAY_MS }
-
-            measurementsLine()?.let { appendLog(it) }
-
-            val candidate = if (measured.isNotEmpty()) {
-                // ★ Сперва ДРУГОЙ СЕРВЕР, потом другой протокол, потом задержка. Раньше было
-                // «другой протокол, потом задержка» — и сторож охотно уводил с VLESS на
-                // Shadowsocks того же сервера, хотя режут у нас чаще по адресу (Windows,
-                // 04.10.2026: 14 минут рваной связи на таком соседе).
-                WatchdogRules.order(measured, sites, penalized).first()
-            } else {
-                // ★ ЗАПАСНОЙ ХОД: замеров нет вообще — идём вслепую, по кругу.
-                //
-                // Ноль в замере значит «проба провалилась», и в 794 я запретил такие узлы совсем.
-                // Это оказалось хуже болезни: когда узел, через который идёт ВЕСЬ трафик, умирает,
-                // проба не может даже разрезолвить своё имя — и ноль становится у всех девяти
-                // разом. Кандидатов нет, сторож не делает ничего, человек залипает намертво:
-                // журнал 06.08 — шесть раз «меняю сервер» и НИ ОДНОГО переключения за четыре часа.
-                //
-                // Поэтому пробуем вслепую, но не наугад: текущий узел уже в штрафном ящике, так что
-                // каждый заход берёт СЛЕДУЮЩИЙ — получается перебор по кругу, а не топтание на
-                // одном месте (в 793 «последний рубеж» именно топтался и пять раз возвращал
-                // человека на 195.133.14.217). Сначала другая локация: умерший узел чаще всего
-                // тянет за собой все свои протоколы, ведь адрес у них общий.
-                // Замеров нет — задержки не в счёт: только «другой сервер, другой протокол».
-                WatchdogRules.order(fresh.map { it.first to 0 }, sites, penalized).firstOrNull()
-            }
-
-            if (candidate != null) {
-                // Принудительно на конкретный рабочий узел — уходим с залипшего.
-                client.selectOutbound(selector, candidate)
-                client.urlTest(selector)
-                // Помечаем слепой выбор: при разборе журнала это главный признак того, что замеры
-                // встали, — иначе «увёл на …» выглядит одинаково в обоих случаях.
-                val how = if (measured.isEmpty()) " · вслепую, замеров нет" else ""
-                // Отдельно помечаем случай «сеть только что менялась»: иначе при разборе журнала
-                // непонятно, почему прежний узел остался доступен для выбора.
-                val blame = if (settled) "" else " · сеть менялась, узел не штрафуем"
-                AppEventLog.log("узел", "увёл на «$candidate» (был «${current ?: "?"}»)$how$blame")
-            } else {
-                // Узлов не знаем (один сервер / группы ещё не пришли) или все перепробованы —
-                // чистим ящик и отдаём выбор автоподбору с чистого листа.
+            val candidates = pool.filter { it.first != current && it.first !in stuckNodes && it.first != ProfileTags.auto }
+            val order = WatchdogRules.order(candidates, sites, penalized).take(6)
+            if (order.isEmpty()) {
                 stuckNodes.clear()
-                ProfileTags.auto?.let { client.selectOutbound(selector, it) }
-                client.urlTest(selector)
-                // Круг пройден целиком и не помог. Считаем такие круги: после второго переходим
-                // на редкие попытки — см. POOL_CYCLES_BEFORE_SLOWDOWN.
                 poolCyclesWithoutSuccess++
-                AppEventLog.log(
-                    "узел",
-                    "все узлы перепробованы (круг $poolCyclesWithoutSuccess) — начинаю заново",
-                )
+                appendLog(str(R.string.soft_switch_no_reserve))
+                return
             }
-        }
+            // History orders candidates; only a fresh successful request permits
+            // selection. Reuse the bounded probe pool, always targeting LOCAL core.
+            val probe = LibboxProbeTransport.createLocal()
+            val measured = coroutineScope {
+                order.map { tag -> async {
+                    val delay = try { withTimeoutOrNull(9000) { probe.measure(tag, 1) ?: probe.measure(tag, 2) } }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { null }
+                    tag to delay
+                } }.awaitAll()
+            }
+            if (!currentSession() || !choices.valid(ticket) || selectorSelected != expected) return
+            val alive = measured.mapNotNull { (tag, delay) -> delay?.let { tag to it } }
+            val candidate = WatchdogRules.order(alive, sites, penalized).firstOrNull()
+            if (candidate == null) {
+                stuckNodes.addAll(order) // next heal advances beyond this tested batch
+                if (current != null) stuckNodes.remove(current)
+                appendLog(str(R.string.soft_switch_no_reserve))
+                return
+            }
+            val delay = alive.first { it.first == candidate }.second
+            val command = LibboxSelectionTransport.create(null)
+            val result = choices.select(ticket, candidate, expected, { selectorSelected }, ::currentSession,
+                probe = { delay }, commit = {
+                    command.select(selector, candidate) { currentSession() && choices.valid(ticket) && selectorSelected == expected }
+                })
+            if (result == SwitchOutcome.Switched) {
+                selectorSelected = candidate
+                AppEventLog.log("узел", "новые соединения через «$candidate»; старые сохраняют прежний выход")
+            } else if (result == SwitchOutcome.CommitError) {
+                appendLog(str(R.string.soft_switch_unconfirmed))
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { appendLog(str(R.string.soft_switch_probe_error)) }
     }
 
     /**

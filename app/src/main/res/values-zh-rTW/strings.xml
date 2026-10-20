@@ -678,7 +678,7 @@
 
     <!-- Howl onboarding -->
     <string name="howl_onboarding_title">歡迎使用 Howl</string>
-    <string name="howl_onboarding_body">開始前，請新增訂閱。在 vpn.how 開啟你的帳戶，找到 Howl 應用程式區塊並掃描其 QR 碼——或在手機上開啟並點按 Howl 連結。</string>
+    <string name="howl_onboarding_body">開始前，請新增你的 Howl 訂閱。開啟帳戶並掃描訂閱 QR 碼，或在手機上開啟帳戶並點按 Howl 連結。</string>
     <string name="howl_onboarding_scan">掃描 QR 碼</string>
     <string name="howl_onboarding_manual">手動輸入連結</string>
 </resources>

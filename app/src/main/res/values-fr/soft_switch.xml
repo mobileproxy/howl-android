@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="soft_switch_hint">Les nouvelles connexions utilisent le serveur choisi. Les connexions existantes restent sur le précédent jusqu’à leur fin. Si ce serveur tombe en panne, elles peuvent être coupées.</string>
+    <string name="soft_switch_checking">Vérification du trajet choisi. Les connexions existantes continuent…</string>
+    <string name="soft_switch_done">Les nouvelles connexions utilisent le serveur choisi. Les anciennes gardent le trajet précédent.</string>
+    <string name="soft_switch_no_response">Le trajet choisi ne répond pas. Le serveur actuel est conservé.</string>
+    <string name="soft_switch_changed">La sélection a déjà changé. Réessayez si nécessaire.</string>
+    <string name="soft_switch_probe_error">Impossible de vérifier le trajet choisi. Le choix actuel est conservé.</string>
+    <string name="soft_switch_unconfirmed">Le changement n’est pas confirmé. Vérifiez le choix actuel : la commande a pu parvenir au noyau.</string>
+    <string name="soft_switch_cancel">Annuler le choix</string>
+    <string name="soft_switch_no_reserve">Aucun secours vérifié trouvé. Le choix actuel est conservé.</string>
+</resources>

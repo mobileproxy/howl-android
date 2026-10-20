@@ -278,7 +278,7 @@
     <string name="per_app_proxy_select_none">Снять выделение</string>
     <string name="per_app_proxy_backup">Резервная копия</string>
     <string name="watchdog">Автопочинка соединения</string>
-    <string name="watchdog_description">Раз в минуту проверяет, что трафик реально идёт, и восстанавливает связь, если она зависла</string>
+    <string name="watchdog_description">Проверяет связь и выбирает проверенный резерв для новых соединений. Старые сеансы остаются на прежнем сервере до завершения. Падение ядра восстанавливается отдельно; сеансы через недоступный сервер могут оборваться.</string>
     <string name="watchdog_restart_note">Изменение применится при следующем подключении.</string>
     <string name="core_log">Журнал</string>
     <string name="core_log_description">События приложения (старт, сеть, автопочинка, серверы) и журнал ядра, слитые в одну хронологию, которая переживает переподключения. Поделитесь им, если со связью что-то не так — это самый быстрый способ разобраться.</string>
@@ -296,7 +296,7 @@
     <string name="watchdog_log_reconnect">%1$s — переподключаюсь</string>
     <string name="watchdog_log_switch_network">%1$s — не помогло, перехожу на другую сеть</string>
     <string name="watchdog_log_switch_network_via">%1$s — не помогло, перехожу на другую сеть (%2$s)</string>
-    <string name="watchdog_log_switch_server">%1$s — не помогло, меняю сервер</string>
+    <string name="watchdog_log_switch_server">%1$s — выбираю резерв для новых соединений</string>
     <string name="watchdog_act_reconnect">переподключиться</string>
     <string name="watchdog_act_switch_network">сменить сеть</string>
     <string name="watchdog_act_switch_server">сменить сервер</string>
@@ -762,7 +762,7 @@
 
     <!-- Howl onboarding -->
     <string name="howl_onboarding_title">Добро пожаловать в Howl</string>
-    <string name="howl_onboarding_body">Чтобы начать, добавьте подписку. Откройте личный кабинет на vpn.how, найдите раздел приложения Howl и отсканируйте QR-код — или откройте его на телефоне и нажмите ссылку Howl.</string>
+    <string name="howl_onboarding_body">Чтобы начать, добавьте подписку Howl. Откройте личный кабинет и отсканируйте QR-код подписки или откройте кабинет на телефоне и нажмите ссылку Howl.</string>
     <string name="howl_onboarding_scan">Сканировать QR-код</string>
     <string name="howl_onboarding_manual">Ввести ссылку вручную</string>
     <!-- HOWL-MENU: начало (tools/gen-menu-strings.js, руками не править) -->
@@ -771,7 +771,7 @@
     <string name="menu_sec_profile">Профиль</string>
     <string name="menu_sec_app">Приложение</string>
     <string name="menu_watchdog">Автопочинка соединения</string>
-    <string name="menu_watchdog_sub">Пропала связь — сам переподключит или сменит сервер</string>
+    <string name="menu_watchdog_sub">Новые соединения — через проверенный резерв, старые остаются на прежнем сервере</string>
     <string name="menu_kill_switch">Блокировка соединений без VPN</string>
     <string name="menu_kill_switch_sub">Настраивается в Android; здесь инструкция, а не статус</string>
     <string name="menu_autostart">Запускать при загрузке телефона</string>

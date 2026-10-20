@@ -32,7 +32,7 @@
     <string name="howl_hint_tap_disconnect">Toca para desconectar</string>
     <string name="howl_home_widgets_hint">Widgets adicionales para la pantalla principal. Aparecen cuando la VPN está activa y están ocultos por defecto. Arrastra por el asa para reordenar.</string>
     <string name="howl_no_server">Sin servidor</string>
-    <string name="howl_onboarding_body">Abre tu cuenta en vpn.how, ve a la sección Howl y escanea el código QR. Desde el teléfono también puedes pulsar el botón que hay allí.</string>
+    <string name="howl_onboarding_body">Para empezar, añada su suscripción Howl. Abra su cuenta y escanee el código QR de la suscripción o abra su cuenta en el teléfono y pulse el enlace de Howl.</string>
     <string name="howl_onboarding_manual">Introducir enlace manualmente</string>
     <string name="howl_onboarding_scan">Escanear código QR</string>
     <string name="howl_onboarding_title">Te damos la bienvenida a Howl</string>
@@ -135,7 +135,7 @@
     <string name="watchdog_act_reconnect">volver a conectar</string>
     <string name="watchdog_act_switch_network">cambiar de red</string>
     <string name="watchdog_act_switch_server">cambiar de servidor</string>
-    <string name="watchdog_description">Comprueba cada minuto que el tráfico fluye de verdad y restablece la conexión si se queda colgada</string>
+    <string name="watchdog_description">Comprueba la conexión y elige una alternativa verificada para conexiones nuevas. Las sesiones existentes siguen en el servidor anterior hasta terminar. Los fallos del núcleo se recuperan por separado; las sesiones de un servidor caído pueden cortarse.</string>
     <string name="watchdog_log">Registro de eventos</string>
     <string name="watchdog_log_captive">el wifi exige iniciar sesión: la VPN no pasará hasta que entres</string>
     <string name="watchdog_log_empty">Todavía no hay eventos: la conexión ha sido estable.</string>
@@ -148,7 +148,7 @@
     <string name="watchdog_log_stall_node_ok">el tráfico se detuvo, pero el nodo responde — parece una subida grande, no toco la conexión</string>
     <string name="watchdog_log_switch_network">%1$s: no ha servido, cambio de red</string>
     <string name="watchdog_log_switch_network_via">%1$s: no ha servido, cambio de red (%2$s)</string>
-    <string name="watchdog_log_switch_server">%1$s: no ha servido, cambio de servidor</string>
+    <string name="watchdog_log_switch_server">%1$s — eligiendo una alternativa para conexiones nuevas</string>
     <string name="watchdog_log_wait">%1$s: reparado hace poco, espero</string>
     <string name="watchdog_reason_direct">el dominio se abre, no hay canal directo</string>
     <string name="watchdog_reason_dns">el DNS no responde (el túnel funciona)</string>
@@ -697,7 +697,7 @@
     <string name="menu_sec_profile">Perfil</string>
     <string name="menu_sec_app">Aplicación</string>
     <string name="menu_watchdog">Reparación automática</string>
-    <string name="menu_watchdog_sub">Si se pierde la conexión, se reconecta o cambia de servidor solo</string>
+    <string name="menu_watchdog_sub">Las conexiones nuevas usan una alternativa verificada; las existentes conservan el servidor anterior</string>
     <string name="menu_kill_switch">Bloquear conexiones sin VPN</string>
     <string name="menu_kill_switch_sub">Se configura en Android; aquí hay instrucciones, no un estado</string>
     <string name="menu_autostart">Iniciar al encender el teléfono</string>

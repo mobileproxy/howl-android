@@ -1,0 +1,15 @@
+{
+  "applicationId": "how.vpn.howl",
+  "minSdk": 24,
+  "rotationApi": 33,
+  "newSubject": "CN=Howl",
+  "oldCertificateSha256": "8627a0876f3baf1dcf3bf7de297398fa65bc6256a8c6ef30132483995730faa7",
+  "newCertificateSha256": "b5068a213a65805793a2dc001423cc68dd6084a8118adb473cc37192889a3321",
+  "oldCapabilities": {
+    "installedData": true,
+    "permission": true,
+    "sharedUid": false,
+    "auth": false,
+    "rollback": false
+  }
+}

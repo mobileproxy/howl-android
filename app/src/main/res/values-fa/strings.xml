@@ -679,7 +679,7 @@
 
     <!-- Howl onboarding -->
     <string name="howl_onboarding_title">به Howl خوش آمدید</string>
-    <string name="howl_onboarding_body">برای شروع، اشتراک خود را اضافه کنید. حساب خود را در vpn.how باز کنید، بخش برنامهٔ Howl را پیدا کرده و کد QR آن را اسکن کنید — یا آن را روی گوشی باز کرده و روی پیوند Howl بزنید.</string>
+    <string name="howl_onboarding_body">برای شروع، اشتراک Howl خود را اضافه کنید. حساب خود را باز کنید و کد QR اشتراک را اسکن کنید؛ یا حساب را روی تلفن باز کرده و روی پیوند Howl بزنید.</string>
     <string name="howl_onboarding_scan">اسکن کد QR</string>
     <string name="howl_onboarding_manual">وارد کردن دستی پیوند</string>
 </resources>

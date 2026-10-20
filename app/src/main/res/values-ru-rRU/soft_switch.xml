@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="soft_switch_hint">Новые соединения идут через выбранный сервер. Уже открытые остаются на прежнем до завершения. Если прежний сервер недоступен, эти соединения могут оборваться.</string>
+    <string name="soft_switch_checking">Проверяем выбранный маршрут. Текущие соединения продолжают работать…</string>
+    <string name="soft_switch_done">Новые соединения — через выбранный сервер. Старые продолжают работать через прежний.</string>
+    <string name="soft_switch_no_response">Выбранный маршрут не ответил. Текущий сервер сохранён.</string>
+    <string name="soft_switch_changed">Выбор уже изменился. Повторите действие при необходимости.</string>
+    <string name="soft_switch_probe_error">Не удалось проверить выбранный маршрут. Текущий выбор сохранён.</string>
+    <string name="soft_switch_unconfirmed">Переключение не подтверждено. Проверьте текущий выбор: команда могла уже поступить в ядро.</string>
+    <string name="soft_switch_cancel">Отменить выбор</string>
+    <string name="soft_switch_no_reserve">Проверенный резерв не найден. Текущий выбор сохранён.</string>
+</resources>

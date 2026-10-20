@@ -426,17 +426,14 @@ object SubscriptionConverter {
     private fun build(outbounds: List<JSONObject>): String {
         val tags = JSONArray(outbounds.map { it.getString("tag") })
 
-        // interrupt_exist_connections — только у селектора: ручное переключение сервера должно
-        // применяться сразу. У urltest выбор меняется САМ, по шуму задержки, и обрыв всех
-        // соединений на каждом перескоке для человека выглядит как «пропал интернет»
-        // (журнал 24.07 21:25: девять соединений оборвались в одну секунду). За мёртвый узел
-        // отвечает сторож — он реагирует на доказанный сбой, а не на дрожание RTT.
+        // Both manual selection and URLTest keep established connections on the
+        // old outbound. Runtime hardening also enforces this for imported JSON.
         val selector = JSONObject()
             .put("type", "selector")
             .put("tag", SELECTOR_TAG)
             .put("outbounds", JSONArray(listOf(AUTO_TAG) + outbounds.map { it.getString("tag") }))
             .put("default", AUTO_TAG)
-            .put("interrupt_exist_connections", true)
+            .put("interrupt_exist_connections", false)
 
         val urltest = JSONObject()
             .put("type", "urltest")

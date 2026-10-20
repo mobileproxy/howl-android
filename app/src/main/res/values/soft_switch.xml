@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="soft_switch_hint">New connections use the selected server. Existing connections stay on the previous server until they finish. If the previous server fails, those connections may drop.</string>
+    <string name="soft_switch_checking">Checking the selected route. Existing connections keep running…</string>
+    <string name="soft_switch_done">New connections use the selected server. Existing connections keep the previous route.</string>
+    <string name="soft_switch_no_response">The selected route did not respond. The current server is unchanged.</string>
+    <string name="soft_switch_changed">The selection has already changed. Try again if needed.</string>
+    <string name="soft_switch_probe_error">Could not check the selected route. The current choice is unchanged.</string>
+    <string name="soft_switch_unconfirmed">The switch was not confirmed. Check the current selection; the command may already have reached the core.</string>
+    <string name="soft_switch_cancel">Cancel selection</string>
+    <string name="soft_switch_no_reserve">No verified fallback was found. The current choice is unchanged.</string>
+</resources>
