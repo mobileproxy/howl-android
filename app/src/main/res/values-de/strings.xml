@@ -136,7 +136,7 @@
     <string name="watchdog_act_reconnect">neu verbinden</string>
     <string name="watchdog_act_switch_network">Netzwerk wechseln</string>
     <string name="watchdog_act_switch_server">Server wechseln</string>
-    <string name="watchdog_description">Prüft jede Minute, ob wirklich Daten fließen, und stellt die Verbindung wieder her, wenn sie hängt</string>
+    <string name="watchdog_description">Prüft die Verbindung und wählt einen geprüften Ersatz für neue Verbindungen. Bestehende Sitzungen bleiben bis zum Ende beim bisherigen Server. Nach einem Kernabsturz erfolgt eine separate Wiederherstellung; Sitzungen über ausgefallene Server können abbrechen.</string>
     <string name="watchdog_log">Ereignisprotokoll</string>
     <string name="watchdog_log_captive">WLAN erfordert eine Anmeldung — das VPN kommt nicht durch, bevor Sie sich anmelden</string>
     <string name="watchdog_log_empty">Noch keine Ereignisse — die Verbindung war stabil.</string>
@@ -149,7 +149,7 @@
     <string name="watchdog_log_stall_node_ok">Datenverkehr steht, aber der Knoten antwortet — wohl ein großer Upload, ich lasse die Verbindung in Ruhe</string>
     <string name="watchdog_log_switch_network">%1$s — hat nicht geholfen, wechsle das Netzwerk</string>
     <string name="watchdog_log_switch_network_via">%1$s — hat nicht geholfen, wechsle das Netzwerk (%2$s)</string>
-    <string name="watchdog_log_switch_server">%1$s — hat nicht geholfen, wechsle den Server</string>
+    <string name="watchdog_log_switch_server">%1$s — Ersatz für neue Verbindungen wird gewählt</string>
     <string name="watchdog_log_wait">%1$s — kürzlich repariert, warte</string>
     <string name="watchdog_reason_direct">Domain öffnet sich, kein direkter Kanal</string>
     <string name="watchdog_reason_dns">DNS antwortet nicht (Tunnel lebt)</string>
@@ -697,7 +697,7 @@
     <string name="menu_sec_profile">Profil</string>
     <string name="menu_sec_app">App</string>
     <string name="menu_watchdog">Automatische Verbindungsreparatur</string>
-    <string name="menu_watchdog_sub">Bricht die Verbindung ab, verbindet es neu oder wechselt den Server</string>
+    <string name="menu_watchdog_sub">Neue Verbindungen nutzen einen geprüften Ersatz; bestehende behalten den bisherigen Server</string>
     <string name="menu_kill_switch">Verbindungen ohne VPN blockieren</string>
     <string name="menu_kill_switch_sub">In Android einstellen; hier Anleitung, keine Statusanzeige</string>
     <string name="menu_autostart">Beim Hochfahren des Telefons starten</string>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="soft_switch_hint">Le nuove connessioni usano il server scelto. Quelle esistenti restano sul precedente fino al termine. Se il vecchio server si guasta, possono interrompersi.</string>
+    <string name="soft_switch_checking">Verifica del percorso scelto. Le connessioni esistenti continuano…</string>
+    <string name="soft_switch_done">Le nuove connessioni usano il server scelto. Quelle esistenti mantengono il percorso precedente.</string>
+    <string name="soft_switch_no_response">Il percorso scelto non risponde. Il server attuale resta selezionato.</string>
+    <string name="soft_switch_changed">La selezione è già cambiata. Riprova se necessario.</string>
+    <string name="soft_switch_probe_error">Impossibile verificare il percorso scelto. La selezione attuale resta invariata.</string>
+    <string name="soft_switch_unconfirmed">Cambio non confermato. Controlla la selezione attuale: il comando potrebbe essere già arrivato al nucleo.</string>
+    <string name="soft_switch_cancel">Annulla selezione</string>
+    <string name="soft_switch_no_reserve">Nessuna riserva verificata trovata. La selezione attuale resta invariata.</string>
+</resources>

@@ -6,9 +6,16 @@ import io.nekohasekai.sfa.connections.CheckPhase
 import io.nekohasekai.sfa.connections.CheckTarget
 import io.nekohasekai.sfa.connections.ConnectionChecksController
 import io.nekohasekai.sfa.connections.LibboxProbeTransport
+import io.nekohasekai.sfa.connections.LibboxSelectionTransport
+import io.nekohasekai.sfa.connections.SoftSwitching
+import io.nekohasekai.sfa.connections.SwitchOutcome
+import io.nekohasekai.sfa.Application
+import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.bg.DefaultNetworkListener
 import io.nekohasekai.sfa.database.Settings
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import io.nekohasekai.sfa.constant.SettingsKey
 import io.nekohasekai.sfa.database.preference.OnPreferenceDataStoreChangeListener
 import io.nekohasekai.libbox.OutboundGroup
@@ -34,7 +41,8 @@ data class GroupsUiState(
     val groups: List<Group> = emptyList(),
     val isLoading: Boolean = false,
     val expandedGroups: Set<String> = emptySet(),
-    val showCloseConnectionsSnackbar: Boolean = false,
+    val showSoftSwitchSnackbar: Boolean = false,
+    val switchingTag: String? = null,
     val checks: CheckSnapshot = CheckSnapshot(),
     val checkPhase: CheckPhase = CheckPhase.Idle,
     val checksAvailable: Boolean = false,
@@ -53,6 +61,8 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     private val _serviceStatus = MutableStateFlow(Status.Stopped)
     val serviceStatus = _serviceStatus.asStateFlow()
     private var lastServiceStatus: Status = Status.Stopped
+    private var switchJob: Job? = null
+    private var switchSequence = 0L
 
     private val checks = ConnectionChecksController(viewModelScope,
         measureFactory = { val transport = LibboxProbeTransport.create(); { tag, attempt -> transport.measure(tag, attempt) } },
@@ -68,6 +78,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
             if (key == SettingsKey.SELECTED_PROFILE) {
                 groupEpoch.incrementAndGet()
                 viewModelScope.launch {
+                    cancelSoftSwitch()
                     checks.invalidate()
                     updateState { copy(groups = emptyList()) }
                     checkWhenReady = panelCount > 0
@@ -82,7 +93,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     }
     fun panelHidden() {
         panelCount = (panelCount - 1).coerceAtLeast(0)
-        if (panelCount == 0) { checkWhenReady = false; checks.stop() }
+        if (panelCount == 0) { checkWhenReady = false; checks.stop(); cancelSoftSwitch() }
     }
     private fun canCheck() = AppLifecycleObserver.isForeground.value &&
         if (CommandTarget.isRemote) RemoteControlManager.isConnected.value else _serviceStatus.value == Status.Started
@@ -97,7 +108,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         checkWhenReady = false; updateCheckTargets(); checks.start()
     }
     fun startConnectionChecks(retryOnly: Boolean = false) {
-        if (!canCheck() || panelCount == 0) return
+        if (!canCheck() || panelCount == 0 || uiState.value.switchingTag != null) return
         updateCheckTargets(); checks.start(retryOnly)
     }
     fun stopConnectionChecks() = checks.stop()
@@ -140,6 +151,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                 )
             }.distinctUntilChanged().collect { target ->
                 if (lastRemoteId != target.remoteServerId) {
+                    cancelSoftSwitch()
                     lastRemoteId = target.remoteServerId
                     groupEpoch.incrementAndGet()
                     checks.invalidate()
@@ -155,6 +167,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                         commandClient.connect()
                     }
                 } else {
+                    cancelSoftSwitch()
                     checks.stop()
                     if (isUsingSharedClient) {
                         commandClient.removeHandler(this@GroupsViewModel)
@@ -171,6 +184,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     override fun createInitialState() = GroupsUiState()
 
     override fun onCleared() {
+        cancelSoftSwitch()
         checks.stop()
         Settings.dataStore.unregisterChangeListener(profileListener)
         viewModelScope.launch(NonCancellable) { DefaultNetworkListener.stop(this@GroupsViewModel) }
@@ -187,6 +201,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
             return
         }
         if (status != Status.Started) {
+            cancelSoftSwitch()
             checks.invalidate()
             updateState {
                 copy(
@@ -249,73 +264,61 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     }
 
     fun selectGroupItem(groupTag: String, itemTag: String) {
+        if (!canCheck()) return
+        val group = uiState.value.groups.firstOrNull { it.tag == groupTag && it.selectable } ?: return
+        val expected = group.selected
+        if (group.items.none { it.tag == itemTag }) return
+        cancelSoftSwitch()
+        if (expected == itemTag) return
         checks.stop()
-        // Check if this is actually a different selection
-        val currentGroup = uiState.value.groups.find { it.tag == groupTag }
-        if (currentGroup?.selected == itemTag) {
-            // Same item selected, no need to do anything
-            return
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
+        val choice = SoftSwitching.choices
+        val ticket = choice.manual()
+        val sequence = ++switchSequence
+        val epoch = groupEpoch.get()
+        val profile = Settings.selectedProfile
+        val remote = CommandTarget.remoteServer
+        fun selected() = uiState.value.groups.firstOrNull { it.tag == groupTag }?.selected
+        fun sessionCurrent() = epoch == groupEpoch.get() && profile == Settings.selectedProfile &&
+            remote?.id == CommandTarget.remoteServer?.id && canCheck() &&
+            uiState.value.groups.any { it.tag == groupTag && it.items.any { item -> item.tag == itemTag } }
+        updateState { copy(switchingTag = itemTag, showSoftSwitchSnackbar = false) }
+        switchJob = viewModelScope.launch {
             try {
-                // Select the new outbound immediately
-                CommandTarget.standaloneClient().selectOutbound(groupTag, itemTag)
-
-                // ★ Рвём открытые соединения — но ТОЛЬКО здесь, при РУЧНОМ выборе человека.
-                // Раньше это делал сам селектор (interrupt_exist_connections=true в подписке),
-                // и потому обрыв случался и при АВТОМАТИЧЕСКОЙ смене узла сторожем: журнал
-                // 19–20.08 — 93 переключения за сутки, то есть загрузки и звонки рвались каждые
-                // несколько минут. Флаг снят, разрыв перенесён сюда: человек переключает сервер
-                // осознанно и ждёт, что старые соединения передоговорятся через новый, иначе
-                // получается «переключил, а не помогло» — keep-alive продолжает идти через
-                // мёртвый узел. Автоматика теперь меняет узел бесшовно.
-                runCatching { CommandTarget.standaloneClient().closeConnections() }
-
-                // Update local state and show snackbar
-                withContext(Dispatchers.Main) {
-                    updateState {
-                        copy(
-                            groups =
-                            groups.map { group ->
-                                if (group.tag == groupTag) {
-                                    group.copy(selected = itemTag)
-                                } else {
-                                    group
-                                }
-                            },
-                            showCloseConnectionsSnackbar = true,
-                        )
+                val probe = LibboxProbeTransport.createFor(remote)
+                val command = LibboxSelectionTransport.create(remote)
+                val result = choice.select(ticket, itemTag, expected, ::selected, ::sessionCurrent,
+                    probe = { tag -> probe.measure(tag, 1) ?: probe.measure(tag, 2) },
+                    commit = { command.select(groupTag, itemTag) { sessionCurrent() && choice.valid(ticket) && selected() == expected } })
+                when (result) {
+                    SwitchOutcome.Switched -> {
+                        updateState { copy(groups = groups.map { if (it.tag == groupTag) it.copy(selected = itemTag) else it }, showSoftSwitchSnackbar = true) }
+                        sendEvent(GroupsEvent.GroupSelected(groupTag, itemTag))
                     }
-                    sendEvent(GroupsEvent.GroupSelected(groupTag, itemTag))
+                    SwitchOutcome.Unchanged -> Unit
+                    SwitchOutcome.NoResponse -> switchError(R.string.soft_switch_no_response)
+                    SwitchOutcome.ProbeError -> switchError(R.string.soft_switch_probe_error)
+                    SwitchOutcome.CommitError -> switchError(R.string.soft_switch_unconfirmed)
+                    SwitchOutcome.Stale -> if (sequence == switchSequence && sessionCurrent()) switchError(R.string.soft_switch_changed)
                 }
-            } catch (e: Exception) {
-                sendError(e)
+            } catch (_: CancellationException) {
+                // Superseded/closed/profile/core session. Never select later.
+            } catch (_: Exception) { switchError(R.string.soft_switch_probe_error) }
+            finally {
+                choice.finish(ticket)
+                if (sequence == switchSequence) { switchJob = null; updateState { copy(switchingTag = null) } }
             }
         }
     }
 
-    fun closeConnections() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                CommandTarget.standaloneClient().closeConnections()
-                withContext(Dispatchers.Main) {
-                    dismissCloseConnectionsSnackbar()
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    dismissCloseConnectionsSnackbar()
-                }
-                sendError(e)
-            }
-        }
+    private fun switchError(id: Int) = sendErrorMessage(Application.application.getString(id))
+
+    fun cancelSoftSwitch() {
+        switchSequence++
+        switchJob?.cancel(); switchJob = null
+        updateState { copy(switchingTag = null) }
     }
 
-    fun dismissCloseConnectionsSnackbar() {
-        updateState {
-            copy(showCloseConnectionsSnackbar = false)
-        }
-    }
+    fun dismissSoftSwitchSnackbar() { updateState { copy(showSoftSwitchSnackbar = false) } }
 
     fun urlTest(@Suppress("UNUSED_PARAMETER") groupTag: String) = startConnectionChecks()
 
@@ -324,6 +327,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         val epoch = groupEpoch.incrementAndGet()
         viewModelScope.launch(Dispatchers.Main) {
             if (epoch != groupEpoch.get()) return@launch
+            cancelSoftSwitch()
             checks.invalidate()
             checkWhenReady = panelCount > 0
             updateState { copy(checksAvailable = canCheck()) }
@@ -334,6 +338,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
     override fun onDisconnected() {
         groupEpoch.incrementAndGet()
         viewModelScope.launch(Dispatchers.Main) {
+            cancelSoftSwitch()
             checks.invalidate()
             updateState {
                 copy(

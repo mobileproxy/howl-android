@@ -135,7 +135,7 @@
     <string name="watchdog_act_reconnect">se reconnecter</string>
     <string name="watchdog_act_switch_network">changer de réseau</string>
     <string name="watchdog_act_switch_server">changer de serveur</string>
-    <string name="watchdog_description">Vérifie chaque minute que le trafic passe réellement et rétablit la connexion si elle est bloquée</string>
+    <string name="watchdog_description">Vérifie la connexion et choisit un secours vérifié pour les nouvelles connexions. Les sessions existantes restent sur le serveur précédent jusqu’à leur fin. Les pannes du noyau sont traitées séparément ; les sessions d’un serveur indisponible peuvent être coupées.</string>
     <string name="watchdog_log">Journal des événements</string>
     <string name="watchdog_log_captive">le Wi-Fi exige une connexion : le VPN ne passera pas tant que vous ne vous serez pas identifié</string>
     <string name="watchdog_log_empty">Aucun événement pour l\'instant : la connexion est restée stable.</string>
@@ -148,7 +148,7 @@
     <string name="watchdog_log_stall_node_ok">trafic figé, mais le nœud répond — sans doute un gros envoi, je laisse la connexion tranquille</string>
     <string name="watchdog_log_switch_network">%1$s : sans effet, je change de réseau</string>
     <string name="watchdog_log_switch_network_via">%1$s : sans effet, je change de réseau (%2$s)</string>
-    <string name="watchdog_log_switch_server">%1$s : sans effet, je change de serveur</string>
+    <string name="watchdog_log_switch_server">%1$s — choix d’un secours pour les nouvelles connexions</string>
     <string name="watchdog_log_wait">%1$s : réparé récemment, j\'attends</string>
     <string name="watchdog_reason_direct">le domaine s\'ouvre, pas de canal direct</string>
     <string name="watchdog_reason_dns">le DNS ne répond pas (le tunnel fonctionne)</string>
@@ -697,7 +697,7 @@
     <string name="menu_sec_profile">Profil</string>
     <string name="menu_sec_app">Application</string>
     <string name="menu_watchdog">Réparation automatique</string>
-    <string name="menu_watchdog_sub">Si la connexion tombe, se reconnecte ou change de serveur tout seul</string>
+    <string name="menu_watchdog_sub">Les nouvelles connexions utilisent un secours vérifié ; les anciennes gardent le serveur précédent</string>
     <string name="menu_kill_switch">Bloquer les connexions sans VPN</string>
     <string name="menu_kill_switch_sub">À régler dans Android ; ici les instructions, pas l’état</string>
     <string name="menu_autostart">Démarrer au démarrage du téléphone</string>

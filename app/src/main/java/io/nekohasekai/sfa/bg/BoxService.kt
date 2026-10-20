@@ -126,6 +126,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private var lastProfileName = ""
 
     private suspend fun startService() {
+        io.nekohasekai.sfa.connections.SoftSwitching.choices.invalidate()
         try {
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_starting)
@@ -209,7 +210,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
             notification.start()
             // Ядро не замечает «подключено, но трафик не идёт» — за этим следит сторож.
-            ConnectivityWatchdog.start { serviceReload0() }
+            ConnectivityWatchdog.start()
             // Тихо подтягиваем свежий список «Режима Россия» (раз в сутки, неудача ни на что не
             // влияет — останемся на кэше или встроенном). Применится при следующей сборке конфига.
             if (Settings.russiaModeEnabled) {
@@ -272,6 +273,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
      * проверка посреди перезапуска ядра увела с рабочего узла). В журнал — длительность.
      */
     suspend fun serviceReload0() {
+        io.nekohasekai.sfa.connections.SoftSwitching.choices.invalidate()
         val startedAt = System.currentTimeMillis()
         ConnectivityWatchdog.pauseForReload()
         var applied = false
@@ -457,6 +459,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     private fun closeService() {
+        io.nekohasekai.sfa.connections.SoftSwitching.choices.invalidate()
         runCatching {
             commandServer.closeService()
         }.onFailure {

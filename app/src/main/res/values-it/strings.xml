@@ -135,7 +135,7 @@
     <string name="watchdog_act_reconnect">riconnettersi</string>
     <string name="watchdog_act_switch_network">cambiare rete</string>
     <string name="watchdog_act_switch_server">cambiare server</string>
-    <string name="watchdog_description">Controlla ogni minuto che il traffico passi davvero e ripristina la connessione se si blocca</string>
+    <string name="watchdog_description">Verifica la connessione e sceglie una riserva verificata per le nuove connessioni. Le sessioni esistenti restano sul vecchio server fino al termine. Gli arresti del nucleo sono gestiti separatamente; le sessioni su un server non disponibile possono interrompersi.</string>
     <string name="watchdog_log">Registro eventi</string>
     <string name="watchdog_log_captive">il Wi-Fi richiede l\'accesso: la VPN non passerà finché non accedi</string>
     <string name="watchdog_log_empty">Ancora nessun evento: la connessione è stata stabile.</string>
@@ -148,7 +148,7 @@
     <string name="watchdog_log_stall_node_ok">traffico fermo, ma il nodo risponde — sembra un grosso caricamento, non tocco la connessione</string>
     <string name="watchdog_log_switch_network">%1$s: non ha funzionato, cambio rete</string>
     <string name="watchdog_log_switch_network_via">%1$s: non ha funzionato, cambio rete (%2$s)</string>
-    <string name="watchdog_log_switch_server">%1$s: non ha funzionato, cambio server</string>
+    <string name="watchdog_log_switch_server">%1$s — scelta di una riserva per le nuove connessioni</string>
     <string name="watchdog_log_wait">%1$s: riparato da poco, attendo</string>
     <string name="watchdog_reason_direct">il dominio si apre, manca il canale diretto</string>
     <string name="watchdog_reason_dns">il DNS non risponde (il tunnel funziona)</string>
@@ -697,7 +697,7 @@
     <string name="menu_sec_profile">Profilo</string>
     <string name="menu_sec_app">App</string>
     <string name="menu_watchdog">Riparazione automatica</string>
-    <string name="menu_watchdog_sub">Se la connessione cade, si riconnette o cambia server da solo</string>
+    <string name="menu_watchdog_sub">Le nuove connessioni usano una riserva verificata; quelle esistenti mantengono il vecchio server</string>
     <string name="menu_kill_switch">Bloccare connessioni senza VPN</string>
     <string name="menu_kill_switch_sub">Si configura in Android; qui istruzioni, non lo stato</string>
     <string name="menu_autostart">Avvia all\'accensione del telefono</string>

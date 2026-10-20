@@ -28,6 +28,21 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
+internal fun SoftSwitchNotice(checking: Boolean, cancel: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Text(stringResource(R.string.soft_switch_hint), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (checking) {
+            Text(stringResource(R.string.soft_switch_checking), modifier = Modifier.testTag("soft-switch-progress"),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = cancel, modifier = Modifier.testTag("soft-switch-cancel")) {
+                Text(stringResource(R.string.soft_switch_cancel))
+            }
+        }
+    }
+}
+
+@Composable
 internal fun ConnectionCheckControls(snapshot: CheckSnapshot, phase: CheckPhase, enabled: Boolean,
     start: (Boolean) -> Unit, stop: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

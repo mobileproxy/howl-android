@@ -278,7 +278,7 @@
     <string name="per_app_proxy_select_none">Deselect all</string>
     <string name="per_app_proxy_backup">Backup</string>
     <string name="watchdog">Connection watchdog</string>
-    <string name="watchdog_description">Checks every minute that traffic really flows, and restores the connection if it stalls</string>
+    <string name="watchdog_description">Checks connectivity and selects a verified fallback for new connections. Existing sessions stay on their previous server until they finish. Core crashes are recovered separately; sessions through an unavailable server may drop.</string>
     <string name="watchdog_restart_note">The change takes effect the next time you connect.</string>
     <string name="core_log">Log</string>
     <string name="core_log_description">App events (start, network, watchdog, servers) and the core log merged into one timeline that survives reconnects. Share it if the connection misbehaves — it is the fastest way to diagnose.</string>
@@ -296,7 +296,7 @@
     <string name="watchdog_log_reconnect">%1$s — reconnecting</string>
     <string name="watchdog_log_switch_network">%1$s — did not help, switching network</string>
     <string name="watchdog_log_switch_network_via">%1$s — did not help, switching network (%2$s)</string>
-    <string name="watchdog_log_switch_server">%1$s — did not help, switching server</string>
+    <string name="watchdog_log_switch_server">%1$s — choosing a fallback for new connections</string>
     <string name="watchdog_act_reconnect">reconnect</string>
     <string name="watchdog_act_switch_network">switch network</string>
     <string name="watchdog_act_switch_server">switch server</string>
@@ -805,7 +805,7 @@
     <string name="menu_sec_profile">Profile</string>
     <string name="menu_sec_app">App</string>
     <string name="menu_watchdog">Connection self-repair</string>
-    <string name="menu_watchdog_sub">If the connection drops, reconnects or switches server by itself</string>
+    <string name="menu_watchdog_sub">New connections use a verified fallback; existing ones keep the previous server</string>
     <string name="menu_kill_switch">Block connections without VPN</string>
     <string name="menu_kill_switch_sub">Set in Android; instructions here, not a status indicator</string>
     <string name="menu_autostart">Start when the phone boots</string>

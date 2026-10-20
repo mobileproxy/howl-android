@@ -157,26 +157,12 @@ fun GroupsCard(
 
     // Show snackbar when needed. Строки берём заранее — stringResource нельзя звать внутри
     // LaunchedEffect (не @Composable), а хардкод «Close all connections?» не переводился.
-    val closeConnectionsMessage = stringResource(R.string.close_connections_confirm)
-    val closeActionLabel = stringResource(R.string.close)
-    LaunchedEffect(uiState.showCloseConnectionsSnackbar) {
-        if (uiState.showCloseConnectionsSnackbar) {
-            val result =
-                snackbarHostState.showSnackbar(
-                    message = closeConnectionsMessage,
-                    actionLabel = closeActionLabel,
-                    duration = androidx.compose.material3.SnackbarDuration.Indefinite,
-                    withDismissAction = true,
-                )
-            when (result) {
-                androidx.compose.material3.SnackbarResult.ActionPerformed -> {
-                    actualViewModel.closeConnections()
-                }
-
-                androidx.compose.material3.SnackbarResult.Dismissed -> {
-                    actualViewModel.dismissCloseConnectionsSnackbar()
-                }
-            }
+    val switchMessage = stringResource(R.string.soft_switch_done)
+    LaunchedEffect(uiState.showSoftSwitchSnackbar) {
+        if (uiState.showSoftSwitchSnackbar) {
+            snackbarHostState.showSnackbar(message = switchMessage,
+                duration = androidx.compose.material3.SnackbarDuration.Short, withDismissAction = true)
+            actualViewModel.dismissSoftSwitchSnackbar()
         }
     }
 
@@ -187,6 +173,7 @@ fun GroupsCard(
         onUrlTest = onUrlTest,
         onCheckStart = actualViewModel::startConnectionChecks,
         onCheckStop = actualViewModel::stopConnectionChecks,
+        onCancelSwitch = actualViewModel::cancelSoftSwitch,
         listHeaderContent = listHeaderContent,
         asSheet = asSheet,
         modifier = modifier,
@@ -202,6 +189,7 @@ private fun GroupsCardContent(
     onUrlTest: (String) -> Unit,
     onCheckStart: (Boolean) -> Unit,
     onCheckStop: () -> Unit,
+    onCancelSwitch: () -> Unit = {},
     listHeaderContent: (@Composable () -> Unit)? = null,
     asSheet: Boolean = false,
     modifier: Modifier = Modifier,
@@ -252,8 +240,11 @@ private fun GroupsCardContent(
 
         stickyHeader(key = "connection_check_controls") {
             Surface(color = MaterialTheme.colorScheme.surface) {
-                ConnectionCheckControls(uiState.checks, uiState.checkPhase, uiState.checksAvailable,
-                    onCheckStart, onCheckStop)
+                Column {
+                    SoftSwitchNotice(uiState.switchingTag != null, onCancelSwitch)
+                    ConnectionCheckControls(uiState.checks, uiState.checkPhase, uiState.checksAvailable && uiState.switchingTag == null,
+                        onCheckStart, onCheckStop)
+                }
             }
         }
         when {

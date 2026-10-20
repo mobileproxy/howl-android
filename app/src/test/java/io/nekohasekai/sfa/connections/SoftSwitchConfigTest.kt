@@ -20,14 +20,20 @@ class SoftSwitchConfigTest {
 
     @Test fun runtimePreservesExistingConnectionsInEverySelectorAndUrltest() {
         val runtime = JSONObject(ConfigHardening.apply(profile().toString())).getJSONArray("outbounds")
-        for (i in 0..2) assertFalse(runtime.getJSONObject(i).getBoolean("interrupt_exist_connections"))
+        for (i in 0..2) {
+            assertTrue(runtime.getJSONObject(i).has("interrupt_exist_connections"))
+            assertFalse(runtime.getJSONObject(i).getBoolean("interrupt_exist_connections"))
+        }
     }
 
     @Test fun missingFlagsAlsoGetAnExplicitSoftPolicy() {
         val source = profile()
         for (i in 0..2) source.getJSONArray("outbounds").getJSONObject(i).remove("interrupt_exist_connections")
         val runtime = JSONObject(ConfigHardening.apply(source.toString())).getJSONArray("outbounds")
-        for (i in 0..2) assertFalse(runtime.getJSONObject(i).getBoolean("interrupt_exist_connections"))
+        for (i in 0..2) {
+            assertTrue(runtime.getJSONObject(i).has("interrupt_exist_connections"))
+            assertFalse(runtime.getJSONObject(i).getBoolean("interrupt_exist_connections"))
+        }
     }
 
     @Test fun sourceProfileAndRouteChoiceStayUnchanged() {

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="soft_switch_hint">Neue Verbindungen nutzen den gewählten Server. Bestehende bleiben bis zum Ende beim bisherigen Server. Fällt er aus, können diese Verbindungen abbrechen.</string>
+    <string name="soft_switch_checking">Gewählte Route wird geprüft. Bestehende Verbindungen laufen weiter…</string>
+    <string name="soft_switch_done">Neue Verbindungen nutzen den gewählten Server. Bestehende behalten die bisherige Route.</string>
+    <string name="soft_switch_no_response">Die gewählte Route antwortet nicht. Der bisherige Server bleibt gewählt.</string>
+    <string name="soft_switch_changed">Die Auswahl hat sich bereits geändert. Bei Bedarf erneut versuchen.</string>
+    <string name="soft_switch_probe_error">Die gewählte Route konnte nicht geprüft werden. Die bisherige Auswahl bleibt bestehen.</string>
+    <string name="soft_switch_unconfirmed">Der Wechsel wurde nicht bestätigt. Prüfen Sie die aktuelle Auswahl; der Befehl könnte den Kern bereits erreicht haben.</string>
+    <string name="soft_switch_cancel">Auswahl abbrechen</string>
+    <string name="soft_switch_no_reserve">Kein geprüfter Ersatz gefunden. Die bisherige Auswahl bleibt bestehen.</string>
+</resources>
