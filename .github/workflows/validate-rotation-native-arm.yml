@@ -25,6 +25,7 @@ jobs:
           set -euo pipefail
           test "$(uname -m)" = arm64
           SDK="$ANDROID_HOME"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
           "$SDK/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' 'system-images;android-33;google_apis;arm64-v8a' >"$RUNNER_TEMP/sdk-images.log" 2>&1 || { cat "$RUNNER_TEMP/sdk-images.log"; exit 1; }
           export ANDROID_AVD_HOME="$RUNNER_TEMP/howl-rotation-native-avd"
           mkdir -p "$ANDROID_AVD_HOME"
