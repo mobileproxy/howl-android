@@ -29,6 +29,18 @@ class UpgradeEvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.remote_path_exists(lambda *args: answer, '/data/test.db-wal')
 
+    def test_package_uid_accepts_both_android_system_report_formats(self):
+        module = self.checker()
+        for label in [b'userId', b'appId']:
+            self.assertEqual(module.package_uid(b'Packages:\n  Package [how.vpn.howl]:\n    '
+                                               + label + b'=10167\r\n    versionCode=822\r\n'), b'10167')
+
+    def test_missing_or_ambiguous_package_uid_never_passes(self):
+        module = self.checker()
+        for dump in [b'', b'  userId=10167\n  appId=20209\n', b'  appId=0\n']:
+            with self.assertRaises(ValueError):
+                module.package_uid(dump)
+
 
 if __name__ == '__main__':
     unittest.main()

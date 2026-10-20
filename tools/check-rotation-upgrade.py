@@ -26,6 +26,14 @@ def remote_path_exists(adb, path):
     return answer == b'PRESENT'
 
 
+def package_uid(dump):
+    # New Android versions call this appId; user 0's UID is the app ID.
+    values = re.findall(rb'(?m)^[\t ]+(?:userId|appId)=(\d+)[\t ]*\r?$', dump)
+    if len(values) != 1 or int(values[0]) < 10000:
+        raise ValueError('Expected one application UID in the Android package report')
+    return values[0]
+
+
 def parcel_string(value):
     raw = struct.pack('<i', len(value)) + value.encode('utf-16-le') + b'\0\0'
     return raw + bytes((-len(raw)) % 4)
@@ -105,7 +113,7 @@ def main():
     if remote_path_exists(adb, DATA):
         raise ValueError('Refusing retained application data from a previous installation')
     adb('install', args.baseline)
-    uid = re.search(rb'userId=(\d+)', adb('shell', 'dumpsys', 'package', PACKAGE))[1]
+    uid = package_uid(adb('shell', 'dumpsys', 'package', PACKAGE))
     adb('shell', 'test', '-d', DATA)
     if adb('shell', 'stat', '-c', '%u', DATA).strip() != uid:
         raise ValueError('Installed application data must belong to its application UID')
@@ -153,7 +161,7 @@ def main():
                     values.append(database.execute(query).fetchall())
             if len(values[0]) != 2 or values[1] != [('selected_profile', 3, struct.pack('>q', 101))]:
                 raise ValueError('Profile identity or selected profile was not preserved')
-            if re.search(rb'userId=(\d+)', adb('shell', 'dumpsys', 'package', PACKAGE))[1] != uid:
+            if package_uid(adb('shell', 'dumpsys', 'package', PACKAGE)) != uid:
                 raise ValueError('Application UID changed')
             return values
 
