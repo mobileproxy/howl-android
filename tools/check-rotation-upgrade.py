@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shlex
 import sqlite3
 import struct
 import subprocess
@@ -14,6 +15,15 @@ import time
 PACKAGE = 'how.vpn.howl'
 DATA = '/data/user/0/' + PACKAGE
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def remote_file_exists(adb, path):
+    # ADB failure must not look like an absent WAL and hide uncheckpointed changes.
+    answer = adb('shell', 'if [ -f ' + shlex.quote(path)
+                 + ' ]; then echo PRESENT; else echo ABSENT; fi').strip()
+    if answer not in [b'PRESENT', b'ABSENT']:
+        raise ValueError('No trustworthy remote file-presence result')
+    return answer == b'PRESENT'
 
 
 def parcel_string(value):
@@ -127,7 +137,7 @@ def main():
                 local = destination / name
                 local.write_bytes(adb('exec-out', 'cat', DATA + '/databases/' + name))
                 wal = DATA + '/databases/' + name + '-wal'
-                exists = subprocess.run([*command, 'shell', 'test', '-f', wal], capture_output=True).returncode == 0
+                exists = remote_file_exists(adb, wal)
                 wal_data = adb('exec-out', 'cat', wal) if exists else b''
                 if wal_data:
                     local.with_name(local.name + '-wal').write_bytes(wal_data)

@@ -15,6 +15,7 @@ on:
       - "tools/signing-rotation.py"
       - "tools/test_signing_rotation.py"
       - "tools/test_release_signature_output.py"
+      - "tools/test_upgrade_evidence.py"
       - "tools/verify-release-apk.py"
       - "tools/check-signing-rotation-fixtures.py"
       - "tools/check-rotation-upgrade.py"
