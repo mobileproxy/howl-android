@@ -24,11 +24,17 @@ jobs:
           set -euo pipefail
           SDK="$ANDROID_SDK_ROOT"
           "$SDK/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpulse0 >/dev/null
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/howl-rotation-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           ls -l /dev/kvm
           sudo chmod 666 /dev/kvm
           "$SDK/emulator/emulator" -version || true
           "$SDK/emulator/emulator" -accel-check || true
           echo no | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd --name howl-rotation-diagnostic --package 'system-images;android-30;google_apis;x86_64' --device pixel_2 --force
+          test -f "$ANDROID_AVD_HOME/howl-rotation-diagnostic.ini"
+          "$SDK/emulator/emulator" -list-avds
           ADB="$SDK/platform-tools/adb"
           LOG="$RUNNER_TEMP/emulator.log"
           cleanup() {
