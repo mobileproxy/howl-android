@@ -49,6 +49,14 @@ jobs:
           SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
           "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-36' 'build-tools;36.0.0' >/dev/null
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+      - name: Prepare or validate the pinned production lineage before building
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+          ANDROID_ROTATION_KEYSTORE_BASE64: ${{ secrets.ANDROID_ROTATION_KEYSTORE_BASE64 }}
+          ANDROID_ROTATION_PROPERTIES: ${{ secrets.ANDROID_ROTATION_PROPERTIES }}
+        run: python3 tools/signing-rotation.py create-lineage --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
       - name: Fetch the existing core version (no core migration)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,7 +116,6 @@ jobs:
           ANDROID_ROTATION_PROPERTIES: ${{ secrets.ANDROID_ROTATION_PROPERTIES }}
         run: |
           set -euo pipefail
-          python3 tools/signing-rotation.py create-lineage --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
           APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*universal*.apk' -print -quit)
           python3 tools/signing-rotation.py sign --apk "$APK" --output "$RUNNER_TEMP/Howl-rotated.apk" --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
           mv "$RUNNER_TEMP/Howl-rotated.apk" "$APK"
