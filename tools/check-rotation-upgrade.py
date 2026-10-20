@@ -77,6 +77,8 @@ def main():
     parser.add_argument('--next', type=Path, required=True)
     parser.add_argument('--adb', required=True)
     parser.add_argument('--serial', default='emulator-5554')
+    parser.add_argument('--package-data-only', action='store_true',
+                        help='Check PackageInstaller/data retention only; explicitly does not verify app startup or Room reads')
     args = parser.parse_args()
     command = [args.adb, '-s', args.serial]
 
@@ -110,7 +112,8 @@ def main():
             raise ValueError('App did not remain running on the acceptance image')
         adb('shell', 'am', 'force-stop', PACKAGE)
 
-    launch()
+    if not args.package_data_only:
+        launch()
     with tempfile.TemporaryDirectory(prefix='howl-rotation-data-') as temporary:
         directory = Path(temporary)
         expected = fixtures(directory)
@@ -149,12 +152,14 @@ def main():
                 raise ValueError('Application UID changed')
             return values
 
-        launch()
+        if not args.package_data_only:
+            launch()
         original = snapshot()
         versions = []
         for apk in [args.candidate, args.next]:
             adb('install', '-r', apk)  # PackageInstaller upgrade, never uninstall/clear/downgrade.
-            launch()
+            if not args.package_data_only:
+                launch()
             if snapshot() != original:
                 raise ValueError('Stored profile/subscription data changed across upgrade')
             version = re.search(rb'versionCode=(\d+)', adb('shell', 'dumpsys', 'package', PACKAGE))[1]
@@ -163,7 +168,9 @@ def main():
             raise ValueError('The next acceptance APK must have a higher versionCode')
         print(json.dumps({'api': api, 'packageInstallerUpgrade': True, 'oldToCandidateToNext': versions,
                           'profilesPreserved': 2, 'selectedProfilePreserved': True, 'subscriptionPreserved': True,
-                          'workingReservesPreserved': 2, 'uidPreserved': True, 'appLaunchesVerified': True,
+                          'workingReservesPreserved': 2, 'uidPreserved': True,
+                          'acceptanceScope': 'package-installer-data-retention' if args.package_data_only else 'app-upgrade',
+                          'appLaunchesVerified': not args.package_data_only, 'appRoomReadVerified': not args.package_data_only,
                           'physicalDeviceTested': False, 'realVpnTested': False}, indent=2))
 
 

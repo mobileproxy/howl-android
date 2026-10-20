@@ -2,9 +2,6 @@ name: Diagnose rotation emulator environment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [android/signing-rotation]
-    paths: ['.github/workflows/validate-rotation-emulators.yml']
 
 permissions:
   contents: read
@@ -17,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - api: 31
+          - api: 30
             abi: arm64-v8a
           - api: 35
             abi: arm64-v8a
@@ -34,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           SDK="$ANDROID_SDK_ROOT"
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' "system-images;android-$API;google_apis;x86_64" >/dev/null
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' "system-images;android-$API;google_apis;x86_64" >"$RUNNER_TEMP/sdk-images.log" 2>&1 || { cat "$RUNNER_TEMP/sdk-images.log"; exit 1; }
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libpulse0 >/dev/null
           export ANDROID_AVD_HOME="$RUNNER_TEMP/howl-rotation-avd"

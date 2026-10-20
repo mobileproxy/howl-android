@@ -163,7 +163,7 @@ jobs:
         if: github.ref == 'refs/heads/android/signing-rotation'
         run: |
           HOWL_SIGNING_MODE=rotated python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
-      - name: Check PackageInstaller upgrades and synthetic profiles on Android 11 and 13
+      - name: Check PackageInstaller data retention on Android 11 and 15 (no native runtime acceptance)
         if: github.ref == 'refs/heads/android/signing-rotation'
         run: |
           set -euo pipefail
@@ -179,9 +179,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends libpulse0 >/dev/null
           export ANDROID_AVD_HOME="$RUNNER_TEMP/howl-rotation-avd"
           mkdir -p "$ANDROID_AVD_HOME"
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' 'system-images;android-33;google_apis;x86_64' >/dev/null
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' 'system-images;android-35;google_apis;x86_64' >"$RUNNER_TEMP/sdk-images.log" 2>&1 || { cat "$RUNNER_TEMP/sdk-images.log"; exit 1; }
           ADB="$ANDROID_SDK_ROOT/platform-tools/adb"
-          for API in 30 33; do
+          for API in 30 35; do
             AVD="howl-rotation-$API"
             echo no | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" create avd --name "$AVD" --package "system-images;android-$API;google_apis;x86_64" --device pixel_2 --force
             test -f "$ANDROID_AVD_HOME/$AVD.ini"
@@ -195,7 +195,8 @@ jobs:
               sleep 2
             done
             test "$BOOTED" = 1
-            python3 tools/check-rotation-upgrade.py --adb "$ADB" --baseline "$RUNNER_TEMP/Howl-baseline.apk" --candidate "$RUNNER_TEMP/Howl-candidate.apk" --next "$RUNNER_TEMP/Howl-next.apk"
+            # The unchanged published baseline crashes under ARM translation. Do not call this runtime/Room acceptance.
+            python3 tools/check-rotation-upgrade.py --package-data-only --adb "$ADB" --baseline "$RUNNER_TEMP/Howl-baseline.apk" --candidate "$RUNNER_TEMP/Howl-candidate.apk" --next "$RUNNER_TEMP/Howl-next.apk"
             "$ADB" -s emulator-5554 emu kill
             wait "$EMULATOR_PID" || true
             trap - EXIT
