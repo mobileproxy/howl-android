@@ -2,7 +2,7 @@ name: Validate Android candidate
 
 on:
   push:
-    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress, android/first-pass-location-checks, android/soft-switching, android/international-branding]
+    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress, android/first-pass-location-checks, android/soft-switching, android/international-branding, android/signing-rotation]
     paths:
       - "app/**"
       - ".github/workflows/validate-android-candidate.yml"
@@ -11,6 +11,13 @@ on:
       - "tools/test_apk_branding.py"
       - "tools/verify-signing-rotation-lab.py"
       - "tools/SigningRotationLab.java"
+      - "tools/AndroidSigning.java"
+      - "tools/signing-rotation.py"
+      - "tools/test_signing_rotation.py"
+      - "tools/verify-release-apk.py"
+      - "tools/check-signing-rotation-fixtures.py"
+      - "tools/check-rotation-upgrade.py"
+      - "signing/**"
 
 permissions:
   contents: read
@@ -22,7 +29,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,7 +43,7 @@ jobs:
           python3 tools/validate-candidate-resources.py
           python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Prepare build tools for signed branding verification
-        if: github.ref == 'refs/heads/android/international-branding'
+        if: github.ref == 'refs/heads/android/international-branding' || github.ref == 'refs/heads/android/signing-rotation'
         run: |
           set -euo pipefail
           SDK_ROOT="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
@@ -71,7 +78,7 @@ jobs:
           print('ALL TESTS:', dict(zip(('tests', 'failures', 'errors'), totals)))
           PYTEST
       - name: Check minified candidate with the existing release signer
-        if: github.ref == 'refs/heads/android/international-branding'
+        if: github.ref == 'refs/heads/android/international-branding' || github.ref == 'refs/heads/android/signing-rotation'
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
@@ -92,5 +99,92 @@ jobs:
           set -euo pipefail
           APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*.apk' -print -quit)
           python3 tools/verify-signing-rotation-lab.py "$APK" --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
-      # Signing uses the existing key only for this private candidate verification.
+      - name: Verify production rotation candidate without publishing
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+          ANDROID_ROTATION_KEYSTORE_BASE64: ${{ secrets.ANDROID_ROTATION_KEYSTORE_BASE64 }}
+          ANDROID_ROTATION_PROPERTIES: ${{ secrets.ANDROID_ROTATION_PROPERTIES }}
+        run: |
+          set -euo pipefail
+          python3 tools/signing-rotation.py create-lineage --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*universal*.apk' -print -quit)
+          python3 tools/signing-rotation.py sign --apk "$APK" --output "$RUNNER_TEMP/Howl-rotated.apk" --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          mv "$RUNNER_TEMP/Howl-rotated.apk" "$APK"
+      - name: Verify the rotated candidate without signing secrets
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*universal*.apk' -print -quit)
+          HOWL_SIGNING_MODE=rotated python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
+          python3 tools/verify-apk-branding.py "$APK" --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt"
+      - name: Reject wrong signing identity and modified APK using disposable fixtures
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        run: |
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*universal*.apk' -print -quit)
+          python3 tools/check-signing-rotation-fixtures.py "$APK" --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0" --java-home "$JAVA_HOME"
+      - name: Prepare the following signed version for upgrade acceptance
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*universal*.apk' -print -quit)
+          cp "$APK" "$RUNNER_TEMP/Howl-candidate.apk"
+          trap 'rm -f app/release.keystore' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          export HOWL_VERSION_CODE=$(python3 tools/next-version-code.py)
+          HOWL_VERSION_CODE=$((HOWL_VERSION_CODE + 1))
+          ./gradlew :app:assembleOtherRelease --stacktrace --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g
+      - name: Sign the following version with the same lineage
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+          ANDROID_ROTATION_KEYSTORE_BASE64: ${{ secrets.ANDROID_ROTATION_KEYSTORE_BASE64 }}
+          ANDROID_ROTATION_PROPERTIES: ${{ secrets.ANDROID_ROTATION_PROPERTIES }}
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/other/release -maxdepth 1 -name '*universal*.apk' -print -quit)
+          python3 tools/signing-rotation.py sign --apk "$APK" --output "$RUNNER_TEMP/Howl-next.apk" --build-tools "$ANDROID_SDK_ROOT/build-tools/36.0.0"
+          cp "$RUNNER_TEMP/Howl-next.apk" "$APK"
+      - name: Verify the following version without signing secrets
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        run: |
+          HOWL_SIGNING_MODE=rotated python3 tools/verify-release-apk.py app/build/outputs/apk/other/release
+      - name: Check PackageInstaller upgrades and synthetic profiles on Android 11 and 13
+        if: github.ref == 'refs/heads/android/signing-rotation'
+        run: |
+          set -euo pipefail
+          python3 - <<'PYBASELINE'
+          import hashlib, os, pathlib, urllib.request
+          target = pathlib.Path(os.environ['RUNNER_TEMP']) / 'Howl-baseline.apk'
+          urllib.request.urlretrieve('https://github.com/mobileproxy/howl-android/releases/download/ci-39134273181-1/Howl.apk', target)
+          assert hashlib.sha256(target.read_bytes()).hexdigest() == 'fcefe8c5c4a5556a7b72bca7abb642043dce9eac6a49dc4ed984a1acd4df65ea'
+          PYBASELINE
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' 'system-images;android-33;google_apis;x86_64' >/dev/null
+          ADB="$ANDROID_SDK_ROOT/platform-tools/adb"
+          for API in 30 33; do
+            AVD="howl-rotation-$API"
+            echo no | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" create avd --name "$AVD" --package "system-images;android-$API;google_apis;x86_64" --device pixel_2 --force
+            "$ANDROID_SDK_ROOT/emulator/emulator" -avd "$AVD" -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -memory 2048 >"$RUNNER_TEMP/emulator-$API.log" 2>&1 &
+            EMULATOR_PID=$!
+            trap '"$ADB" -s emulator-5554 emu kill || true' EXIT
+            timeout 180 "$ADB" -s emulator-5554 wait-for-device
+            BOOTED=0
+            for N in $(seq 1 120); do
+              if [ "$("$ADB" -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then BOOTED=1; break; fi
+              sleep 2
+            done
+            test "$BOOTED" = 1
+            python3 tools/check-rotation-upgrade.py --adb "$ADB" --baseline "$RUNNER_TEMP/Howl-baseline.apk" --candidate "$RUNNER_TEMP/Howl-candidate.apk" --next "$RUNNER_TEMP/Howl-next.apk"
+            "$ADB" -s emulator-5554 emu kill
+            wait "$EMULATOR_PID" || true
+            trap - EXIT
+          done
+      # Candidate signing is confined to step-scoped secrets; production signing uses memory only.
       # No artifact upload, release creation or deployment; contents permission is read-only.

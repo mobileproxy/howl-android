@@ -59,8 +59,19 @@ def main():
         current = inspect(matches[0], build_tools)
         if previous["package"] != "how.vpn.howl" or current["package"] != previous["package"]:
             raise ValueError("Package identity changed")
-        if current["signerSha256"] != previous["signerSha256"]:
-            raise ValueError("Release certificate differs from installed release")
+        mode = os.environ.get("HOWL_SIGNING_MODE", "legacy")
+        rotation = None
+        if mode == "legacy":
+            if current["signerSha256"] != previous["signerSha256"]:
+                raise ValueError("Release certificate differs from installed release")
+        elif mode == "rotated":
+            rotation = json.loads(run(sys.executable, Path(__file__).with_name("signing-rotation.py"),
+                "verify", "--apk", matches[0], "--build-tools", build_tools))
+            if (rotation["oldCertificateSha256"] != previous["signerSha256"]
+                    or rotation["newCertificateSha256"] != current["signerSha256"]):
+                raise ValueError("Rotation does not extend the pinned installed release")
+        else:
+            raise ValueError("Unknown signing mode")
         if current["versionCode"] <= previous["versionCode"]:
             raise ValueError("versionCode must increase")
         expected_name = f"{props['VERSION_NAME']} ({current['versionCode']})"
@@ -71,7 +82,8 @@ def main():
         if current["versionCode"] <= int(published["versionCode"]):
             raise ValueError("versionCode must exceed the current public update")
         report = {"previous": previous, "release": current, "compatibleSigner": True,
-                  "publicVersionCode": int(published["versionCode"]), "deviceAcceptance": "NOT_RUN"}
+                  "publicVersionCode": int(published["versionCode"]), "deviceAcceptance": "NOT_RUN",
+                  "signingMode": mode, "rotation": rotation}
         (folder / "release-verification.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report, indent=2))
     finally:
