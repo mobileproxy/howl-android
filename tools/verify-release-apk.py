@@ -16,18 +16,30 @@ def run(*args):
     return subprocess.check_output([str(arg) for arg in args], text=True)
 
 
+def signer_for_api(signature, api=36):
+    signature = '\n'.join(signature.splitlines())
+    classic = re.findall(r"^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$", signature, re.M)
+    targeted = re.findall(r"^Signer \(minSdkVersion=(\d+), maxSdkVersion=(\d+)\) certificate SHA-256 digest: ([0-9a-fA-F]{64})$", signature, re.M)
+    if classic and targeted:
+        raise ValueError("Mixed signer output formats")
+    if any(int(low) > int(high) for low, high, _ in targeted):
+        raise ValueError("Invalid signer SDK range")
+    selected = [cert for low, high, cert in targeted if int(low) <= api <= int(high)] if targeted else classic
+    if len(selected) != 1:
+        raise ValueError("Expected exactly one verified signer for the checked SDK")
+    return selected[0].lower()
+
+
 def inspect(apk, build_tools):
     signature = run(build_tools / "apksigner", "verify", "--verbose", "--print-certs", apk)
-    certs = re.findall(r"^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)$", signature, re.M)
-    if len(certs) != 1:
-        raise ValueError("Expected one verified APK signer")
+    cert = signer_for_api(signature)
     badging = run(build_tools / "aapt", "dump", "badging", apk)
     package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging, re.M)
     if package is None:
         raise ValueError("Missing package metadata")
     return {
         "package": package[1], "versionCode": int(package[2]), "versionName": package[3],
-        "signerSha256": certs[0].lower(), "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+        "signerSha256": cert, "signerForApi": 36, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
         "size": apk.stat().st_size, "debuggable": "application-debuggable" in badging,
     }
 

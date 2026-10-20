@@ -14,6 +14,7 @@ on:
       - "tools/AndroidSigning.java"
       - "tools/signing-rotation.py"
       - "tools/test_signing_rotation.py"
+      - "tools/test_release_signature_output.py"
       - "tools/verify-release-apk.py"
       - "tools/check-signing-rotation-fixtures.py"
       - "tools/check-rotation-upgrade.py"

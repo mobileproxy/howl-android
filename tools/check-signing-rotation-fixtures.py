@@ -2,6 +2,7 @@
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ def main():
     parser.add_argument('apk', type=Path)
     parser.add_argument('--build-tools', type=Path, required=True)
     parser.add_argument('--java-home', type=Path, required=True)
+    parser.add_argument('--signer-format-log', type=Path)
     args = parser.parse_args()
     suffix = '.exe' if os.name == 'nt' else ''
     java, keytool = [args.java_home / 'bin' / (name + suffix) for name in ['java', 'keytool']]
@@ -60,6 +62,17 @@ def main():
         assert first['lineageSha256'] == repeated['lineageSha256']
         signed = lab / 'rotated.apk'
         report = execute('sign', '--apk', args.apk, '--output', signed)
+        output = subprocess.check_output([str(java), '-jar', str(args.build_tools / 'lib/apksigner.jar'),
+                'verify', '--verbose', '--print-certs', '--min-sdk-version', '33', '--max-sdk-version', '36', str(signed)],
+                stderr=subprocess.STDOUT)
+        verifier_path = Path(__file__).with_name('verify-release-apk.py')
+        spec = importlib.util.spec_from_file_location('release', verifier_path)
+        verifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(verifier)
+        assert verifier.signer_for_api(output.decode(), 36) == fingerprints['next']
+        assert verifier.signer_for_api(output.decode(), 24) == fingerprints['previous']
+        if args.signer_format_log:
+            args.signer_format_log.write_bytes(output)
         execute('verify', '--apk', signed)
         assert list(map(int, report['selectedSignerByApi'])) == list(range(24, 37))
         for api in range(24, 37):
