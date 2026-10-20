@@ -174,18 +174,23 @@ jobs:
           PYBASELINE
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libpulse0 >/dev/null
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/howl-rotation-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install 'emulator' 'platform-tools' 'system-images;android-30;google_apis;x86_64' 'system-images;android-33;google_apis;x86_64' >/dev/null
           ADB="$ANDROID_SDK_ROOT/platform-tools/adb"
           for API in 30 33; do
             AVD="howl-rotation-$API"
             echo no | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager" create avd --name "$AVD" --package "system-images;android-$API;google_apis;x86_64" --device pixel_2 --force
+            test -f "$ANDROID_AVD_HOME/$AVD.ini"
             "$ANDROID_SDK_ROOT/emulator/emulator" -avd "$AVD" -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -memory 2048 >"$RUNNER_TEMP/emulator-$API.log" 2>&1 &
             EMULATOR_PID=$!
-            trap '"$ADB" -s emulator-5554 emu kill || true' EXIT
-            timeout 180 "$ADB" -s emulator-5554 wait-for-device
+            trap 'tail -n 80 "$RUNNER_TEMP/emulator-$API.log" || true; "$ADB" -s emulator-5554 emu kill || true' EXIT
             BOOTED=0
             for N in $(seq 1 120); do
-              if [ "$("$ADB" -s emulator-5554 shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then BOOTED=1; break; fi
+              kill -0 "$EMULATOR_PID" || { wait "$EMULATOR_PID"; exit 1; }
+              if [ "$("$ADB" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then BOOTED=1; break; fi
               sleep 2
             done
             test "$BOOTED" = 1
