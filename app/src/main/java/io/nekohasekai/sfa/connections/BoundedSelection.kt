@@ -5,6 +5,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -24,6 +25,7 @@ class BoundedSelection(private val factory: () -> OwnedSelectionClient,
         private val pool = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, ArrayBlockingQueue(1),
             { work -> Thread(work, "Howl route selection").apply { isDaemon = true } })
         private val closePool = Executors.newFixedThreadPool(2) { work -> Thread(work, "Howl selection cancellation").apply { isDaemon = true } }
+        private val ownedClients = Semaphore(3)
     }
     init { require(timeoutMs > 0) }
     suspend fun select(group: String, tag: String, stillCurrent: () -> Boolean) {
@@ -33,15 +35,21 @@ class BoundedSelection(private val factory: () -> OwnedSelectionClient,
     private suspend fun request(group: String, tag: String, stillCurrent: () -> Boolean): Unit = suspendCancellableCoroutine { continuation ->
         val cancelled = AtomicBoolean()
         val client = AtomicReference<OwnedSelectionClient?>()
+        val permit = AtomicBoolean()
+        fun releasePermit() { if (permit.compareAndSet(true, false)) ownedClients.release() }
         fun closeOwned() {
             val owned = client.getAndSet(null) ?: return
-            closers.execute { runCatching { owned.close() } }
+            closers.execute { try { runCatching { owned.close() } } finally { releasePermit() } }
         }
         val work = Runnable {
             if (cancelled.get()) return@Runnable
+            var created = false
             try {
                 check(stillCurrent()) { "Selection was superseded" }
+                check(ownedClients.tryAcquire()) { "Selection command clients are busy" }
+                permit.set(true)
                 val owned = factory()
+                created = true
                 client.set(owned)
                 if (cancelled.get()) return@Runnable
                 check(stillCurrent()) { "Selection was superseded" }
@@ -49,7 +57,7 @@ class BoundedSelection(private val factory: () -> OwnedSelectionClient,
                 if (continuation.isActive) continuation.resume(Unit)
             } catch (e: Exception) {
                 if (continuation.isActive) continuation.resumeWithException(e)
-            } finally { closeOwned() }
+            } finally { if (!created) releasePermit(); closeOwned() }
         }
         continuation.invokeOnCancellation {
             cancelled.set(true)

@@ -8,6 +8,20 @@ import org.junit.Test
 import java.util.concurrent.Executor
 
 class SoftSwitchSelectionTest {
+    @Test fun unreturnedDisconnectsCannotAccumulateUnlimitedOwnedClients() = runTest {
+        val work = Queue(); val closes = Queue(); var created = 0
+        val transport = BoundedSelection(factory = { created++; object : OwnedSelectionClient {
+            override fun select(group: String, tag: String) {}
+            override fun close() {}
+        } }, workers = work, closers = closes)
+        try {
+            repeat(4) {
+                val call = async(start = CoroutineStart.UNDISPATCHED) { runCatching { transport.select("Howl", "B") { true } } }
+                work.runAll(); call.await()
+            }
+            assertEquals(3, created)
+        } finally { closes.runAll() }
+    }
     private class Queue : Executor {
         val work = ArrayDeque<Runnable>()
         override fun execute(command: Runnable) { work.addLast(command) }

@@ -269,10 +269,10 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         val expected = group.selected
         if (group.items.none { it.tag == itemTag }) return
         cancelSoftSwitch()
-        if (expected == itemTag) return
-        checks.stop()
         val choice = SoftSwitching.choices
         val ticket = choice.manual()
+        if (expected == itemTag) { choice.finish(ticket); return }
+        checks.stop()
         val sequence = ++switchSequence
         val epoch = groupEpoch.get()
         val profile = Settings.selectedProfile
@@ -308,6 +308,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                 if (sequence == switchSequence) { switchJob = null; updateState { copy(switchingTag = null) } }
             }
         }
+        switchJob?.let { choice.track(ticket, it) }
     }
 
     private fun switchError(id: Int) = sendErrorMessage(Application.application.getString(id))

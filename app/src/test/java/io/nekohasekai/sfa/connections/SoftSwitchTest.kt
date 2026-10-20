@@ -2,11 +2,39 @@ package io.nekohasekai.sfa.connections
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
 class SoftSwitchTest {
+    @Test fun repeatingTheCurrentManualChoiceSupersedesAnOlderAutomaticDecision() {
+        val switch = SoftSwitch(); val automatic = switch.automatic()!!
+        val manual = switch.manual(); switch.finish(manual)
+        assertFalse(switch.valid(automatic)); assertNotNull(switch.automatic())
+    }
+    @Test fun coreReloadRejectsOldAndNewTicketsUntilItFinishes() = runTest {
+        val switch = SoftSwitch(); val before = switch.manual()
+        switch.pause()
+        assertFalse(switch.valid(before)); assertNull(switch.automatic())
+        val during = switch.manual()
+        assertFalse(switch.valid(during))
+        switch.resume()
+        assertFalse(switch.valid(during)); assertNotNull(switch.automatic())
+    }
+
+    @Test fun nestedCoreOperationsCannotResumeSelectionTooEarly() {
+        val switch = SoftSwitch(); switch.pause(); switch.pause(); switch.resume()
+        assertNull(switch.automatic())
+        switch.resume(); assertNotNull(switch.automatic())
+    }
+    @Test fun cancellationBeforeTheWorkerStartsReleasesManualPriority() = runTest {
+        val switch = SoftSwitch(); val ticket = switch.manual()
+        val job = launch(start = CoroutineStart.LAZY) { try { error("not started") } finally { switch.finish(ticket) } }
+        switch.track(ticket, job)
+        job.cancel(); job.join()
+        assertNotNull(switch.automatic())
+    }
     @Test fun preflightRunsBeforeSelectionAndHealthyOldFlowsAreNeverClosed() = runTest {
         val switch = SoftSwitch(); val ticket = switch.manual()
         val events = mutableListOf<String>(); var selected = "A"

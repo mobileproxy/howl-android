@@ -126,7 +126,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private var lastProfileName = ""
 
     private suspend fun startService() {
-        io.nekohasekai.sfa.connections.SoftSwitching.choices.invalidate()
+        val choices = io.nekohasekai.sfa.connections.SoftSwitching.choices
+        choices.pause()
+        try { startServiceWithSelectionPaused() } finally { choices.resume() }
+    }
+
+    private suspend fun startServiceWithSelectionPaused() {
         try {
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_starting)
@@ -273,13 +278,15 @@ class BoxService(private val service: Service, private val platformInterface: Pl
      * проверка посреди перезапуска ядра увела с рабочего узла). В журнал — длительность.
      */
     suspend fun serviceReload0() {
-        io.nekohasekai.sfa.connections.SoftSwitching.choices.invalidate()
+        val choices = io.nekohasekai.sfa.connections.SoftSwitching.choices
+        choices.pause()
         val startedAt = System.currentTimeMillis()
         ConnectivityWatchdog.pauseForReload()
         var applied = false
         try {
             applied = reloadCore()
         } finally {
+            choices.resume()
             ConnectivityWatchdog.resumeAfterReload()
             val took = (System.currentTimeMillis() - startedAt) / 100 / 10.0
             AppEventLog.log("ядро", if (applied) "конфигурация перезагружена за $took с" else "перезагрузка не подтверждена; рабочий резерв сохранён")
@@ -459,12 +466,13 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     private fun closeService() {
-        io.nekohasekai.sfa.connections.SoftSwitching.choices.invalidate()
-        runCatching {
-            commandServer.closeService()
-        }.onFailure {
-            commandServer.setError("android: close service: ${it.message}")
-        }
+        val choices = io.nekohasekai.sfa.connections.SoftSwitching.choices
+        choices.pause()
+        try {
+            runCatching { commandServer.closeService() }.onFailure {
+                commandServer.setError("android: close service: ${it.message}")
+            }
+        } finally { choices.resume() }
     }
 
     private suspend fun stopAndAlert(type: Alert, message: String? = null) {

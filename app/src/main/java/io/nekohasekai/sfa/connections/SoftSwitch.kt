@@ -1,6 +1,7 @@
 package io.nekohasekai.sfa.connections
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -15,12 +16,16 @@ class SoftSwitch(private val probeBudgetMs: Long = 9000) {
     private val commitGate = Mutex()
     private var revision = 0L
     private var manualRevision: Long? = null
+    private var pauseDepth = 0
     init { require(probeBudgetMs > 0) }
     @Synchronized fun manual(): Ticket = Ticket(++revision, true).also { manualRevision = it.revision }
-    @Synchronized fun automatic(): Ticket? = if (manualRevision == null) Ticket(revision, false) else null
+    @Synchronized fun automatic(): Ticket? = if (manualRevision == null && pauseDepth == 0) Ticket(revision, false) else null
     @Synchronized fun finish(ticket: Ticket) { if (ticket.manual && manualRevision == ticket.revision) manualRevision = null }
     @Synchronized fun invalidate() { revision++; manualRevision = null }
-    @Synchronized fun valid(ticket: Ticket): Boolean = ticket.revision == revision &&
+    @Synchronized fun pause() { pauseDepth++; invalidate() }
+    @Synchronized fun resume() { check(pauseDepth > 0); pauseDepth--; invalidate() }
+    fun track(ticket: Ticket, job: Job) { job.invokeOnCompletion { finish(ticket) } }
+    @Synchronized fun valid(ticket: Ticket): Boolean = pauseDepth == 0 && ticket.revision == revision &&
         if (ticket.manual) manualRevision == ticket.revision else manualRevision == null
 
     suspend fun select(ticket: Ticket, target: String, expected: String, current: () -> String?,

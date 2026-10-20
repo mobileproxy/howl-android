@@ -11,6 +11,7 @@ import io.nekohasekai.sfa.connections.LibboxProbeTransport
 import io.nekohasekai.sfa.connections.LibboxSelectionTransport
 import io.nekohasekai.sfa.connections.SoftSwitching
 import io.nekohasekai.sfa.connections.SwitchOutcome
+import io.nekohasekai.sfa.connections.CheckTarget
 import io.nekohasekai.sfa.subscription.NodeSites
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
@@ -65,14 +66,13 @@ import javax.net.ssl.SSLSocketFactory
  * Все триггеры лишь ЗАПУСКАЮТ пробу; чинит только реальный провал пробы, поэтому ложная тревога
  * безвредна.
  *
- * Починка идёт по нарастающей — три ступени, каждая лечит свою причину:
- *   1) переподключение — залипшие сокеты после смены сети;
- *   2) другая СЕТЬ телефона — телефон держится за мёртвый Wi-Fi, хотя рядом живая мобильная
- *      (по журналу 23.07: `dial wlan0: no route to host` за 6 мс — сеть отвергала пакеты сразу,
- *      при этом мобильная была доступна; reload не спасал, т.к. ядру отдавалась та же сеть);
- *   3) другой СЕРВЕР — деградация узла.
- * Пока идёт сбой, проверки чаще (15 с вместо 60), чтобы пройти лестницу за полминуты, а не
- * за минуты. Каждое событие — в журнал (Настройки → Автопочинка).
+ * При отказе узла выбирает проверенный резерв только для НОВЫХ соединений,
+ * сохраняя существующие сеансы и работающий core/TUN. История задержек задаёт
+ * порядок кандидатов; переключение разрешает только свежая проба. Повторные
+ * отказы не запускают reload ядра. При мёртвой физической сети перевыбирается
+ * сеть телефона через DefaultNetworkMonitor, без принудительной перезагрузки.
+ * Сохранность сеансов при потере физической сети зависит от транспорта.
+ * Пока идёт сбой, проверки чаще; каждое решение видно в журнале.
  *
  * ★ Правка 24.07.2026. Вердикт «у телефона нет интернета» раньше приводил к ВЫХОДУ из починки —
  * и лестница никогда не доходила до ступени 2 ровно в том случае, ради которого её и писали.
@@ -253,9 +253,8 @@ object ConnectivityWatchdog {
     // Когда последний раз писали «всё в порядке» — см. HEARTBEAT_INTERVAL_MS.
     @Volatile
     private var lastHeartbeatAt = 0L
-    // Сколько раз чинили подряд, не добившись успеха. 0 — свежий сбой, лечим мягко
-    // (просто переподключением); ≥1 — прошлый reload не помог, значит дело не в залипших
-    // сокетах, а в самом узле → уводим на автоподбор, как при ручной смене сервера.
+    // Сколько мягких починок подряд не восстановили связь: задаёт отступ,
+    // но не повышает действие до перезапуска работающего ядра.
     private var healAttempts = 0
     private var networkJob: Job? = null
 
@@ -477,7 +476,7 @@ object ConnectivityWatchdog {
                     while (selectorItems.hasNext()) {
                         val item = selectorItems.next()
                         // Сама группа автоподбора — не узел, на неё уводить бессмысленно.
-                        if (item.tag != ProfileTags.auto) all.add(item.tag to item.urlTestDelay)
+                        if (item.tag != ProfileTags.auto && CheckTarget(item.tag, item.type).checkable) all.add(item.tag to item.urlTestDelay)
                     }
                 }
                 selectorNodes = all
@@ -491,7 +490,7 @@ object ConnectivityWatchdog {
             val items = auto.items
             while (items.hasNext()) {
                 val item = items.next()
-                nodes.add(item.tag to item.urlTestDelay)
+                if (CheckTarget(item.tag, item.type).checkable) nodes.add(item.tag to item.urlTestDelay)
             }
             autoNodes = nodes
         }
@@ -826,11 +825,6 @@ object ConnectivityWatchdog {
         delay(SETTLE_AFTER_HEAL_MS)
     }
 
-    /**
-     * Уводит на автоподбор и заставляет перемерить задержки — то же, что делает ручная смена
-     * сервера: если узел, на котором мы сидим, деградировал, urltest выберет живой и быстрый.
-     * Помогает и когда пользователь вручную закрепился на конкретной локации, которая отвалилась.
-     */
     /** Строки журнала берём из ресурсов: журнал видит пользователь, а языков у приложения пять. */
     private fun str(id: Int, vararg args: Any): String =
         runCatching { Application.application.getString(id, *args) }.getOrDefault("")
@@ -855,8 +849,8 @@ object ConnectivityWatchdog {
      *   1) залипший узел — в штрафной ящик;
      *   2) уводим на КОНКРЕТНЫЙ следующий узел с валидной задержкой, минуя штрафные, — а не
      *      переспрашиваем автоподбор (он вернул бы тот же залипший, ведь на пробу узел отвечает);
-     *   3) если рабочих узлов не осталось (все перепробованы) — чистим ящик и отдаём выбор
-     *      автоподбору заново: вдруг маршрут восстановился.
+     *   3) без проверенного резерва сохраняем текущий выбор; следующие попытки
+     *      продолжают обход, исчерпание пула сбрасывает штрафы без выбора вслепую.
      * Штрафы сбрасываются при смене сети — там маршруты другие, старые вердикты не актуальны.
      */
     private suspend fun switchToFastestServer() {
