@@ -43,7 +43,7 @@ object ConfigHardening {
     }.getOrDefault(content)
 
     /** Runtime policy for owned/imported/nested groups; source profiles and reserves stay intact. */
-    private fun preserveConnections(root: JSONObject): Boolean {
+    internal fun preserveConnections(root: JSONObject): Boolean {
         val outbounds = root.optJSONArray("outbounds") ?: return false
         var changed = false
         for (i in 0 until outbounds.length()) {

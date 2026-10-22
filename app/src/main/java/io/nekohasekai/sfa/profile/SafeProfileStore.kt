@@ -95,9 +95,17 @@ class SafeProfileStore(
 
     fun summary(): Summary {
         val state = state() ?: return Summary(0, 0, false, false)
+        val receivedHash = state.optString("receivedHash")
+        val appliedHash = state.optString("appliedHash")
+        val received = state.optString("received")
+        val applied = state.optString("applied")
+        val pending = receivedHash != appliedHash && (
+            hash(received) != receivedHash || hash(applied) != appliedHash ||
+                ProfileChanges.requiresReload(applied, received)
+            )
         return Summary(
             state.optLong("receivedAt"), state.optLong("appliedAt"),
-            state.optString("receivedHash") != state.optString("appliedHash") || state.optBoolean("backupDisabled"),
+            pending || state.optBoolean("backupDisabled"),
             state.optBoolean("blocked"),
         )
     }

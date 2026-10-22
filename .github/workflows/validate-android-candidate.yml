@@ -2,7 +2,7 @@ name: Validate Android candidate
 
 on:
   push:
-    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress, android/first-pass-location-checks, android/soft-switching, android/international-branding, android/signing-rotation, android/release-1.0.5]
+    branches: [android/profile-safety-diagnostics, android/kill-switch-copy, android/integrated-candidate, android/server-check-progress, android/first-pass-location-checks, android/soft-switching, android/international-branding, android/signing-rotation, android/release-1.0.5, android/subscription-wake-fix-20261022]
     paths:
       - "app/**"
       - ".github/workflows/validate-android-candidate.yml"

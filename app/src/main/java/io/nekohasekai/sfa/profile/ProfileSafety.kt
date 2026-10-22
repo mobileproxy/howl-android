@@ -78,7 +78,7 @@ object ProfileSafety {
         current.typed.lastUpdated = Date()
         ProfileManager.update(current)
         profile.typed.lastUpdated = current.typed.lastUpdated
-        before != content
+        ProfileChanges.requiresReload(before, content)
     }
 
     suspend fun changeSource(profile: Profile, url: String) = mutex(profile).withLock {
