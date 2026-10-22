@@ -26,7 +26,7 @@ def upload_draft(repo, run, assets, platform):
     if any(not p.stat().st_size for p in assets.iterdir()):
         raise RuntimeError("Cannot stage empty binary")
     (assets / "SHA256SUMS.txt").write_text(
-        "".join(f"{digest}  {name}\n" for name, digest in checksums.items()), encoding="utf-8")
+        "".join(f"{digest}  {name}\n" for name, digest in checksums.items()), encoding="utf-8", newline="\n")
     if existing is None:
         publisher.gh("release", "create", tag, "--repo", repo, "--draft", "--target", run["head_sha"],
                      "--title", f"Howl {platform} - build {run['id']}",

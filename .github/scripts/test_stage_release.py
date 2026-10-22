@@ -85,6 +85,10 @@ class DraftReleaseTests(unittest.TestCase):
     def test_stage_uploads_only_draft_then_checks_remote_download(self):
         import stage_release
         events = []
+        def metadata(repo, tag, directory):
+            digest = hashlib.sha256(b"verified apk").hexdigest()
+            self.assertEqual((directory / "SHA256SUMS.txt").read_bytes(), f"{digest}  Howl.apk\n".encode())
+            events.append(("metadata",))
         def download(repo, run, specs, destination):
             events.append(("download",))
             for path in Path(temp).iterdir():
@@ -92,7 +96,7 @@ class DraftReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, \
              patch.object(publisher, "find_release", side_effect=[None, self.release()]), \
              patch.object(publisher, "gh", side_effect=lambda *args: events.append(args)), \
-             patch.object(publisher, "verify_assets", side_effect=lambda *args: events.append(("metadata",))), \
+             patch.object(publisher, "verify_assets", side_effect=metadata), \
              patch.object(publisher, "download_draft", side_effect=download):
             (Path(temp) / "Howl.apk").write_bytes(b"verified apk")
             stage_release.upload_draft(self.repo, self.build, Path(temp), "android")

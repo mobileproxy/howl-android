@@ -154,7 +154,7 @@ def main():
         }
         (assets / "SHA256SUMS.txt").write_text(
             "".join(f"{digest}  {name}\n" for name, digest in checksums.items()),
-            encoding="utf-8",
+            encoding="utf-8", newline="\n",
         )
         notes = root / "notes.md"
         notes.write_text(
