@@ -43,6 +43,55 @@ def single_file(root, pattern):
     return matches[0]
 
 
+def verify_current_build(repo, run, branch):
+    current = api(f"repos/{repo}/actions/runs/{run['id']}")
+    if (current["status"] != "completed" or current["conclusion"] != "success"
+            or any(current[key] != run[key] for key in ("head_sha", "run_attempt"))
+            or current["head_branch"] != branch
+            or current["head_repository"]["full_name"] != repo
+            or current["event"] not in {"push", "workflow_dispatch"}
+            or current["path"] != ".github/workflows/build.yml"):
+        raise RuntimeError("Build identity or successful attempt changed")
+    if api(f"repos/{repo}/branches/{quote(branch, safe='')}")["commit"]["sha"] != run["head_sha"]:
+        raise RuntimeError("Build is no longer the current trusted branch")
+
+
+def verify_draft_identity(release, run):
+    if (release is None or not release["draft"] or release.get("prerelease")
+            or release["tag_name"] != f"ci-{run['id']}-{run['run_attempt']}"
+            or release["target_commitish"] != run["head_sha"]):
+        raise RuntimeError("Expected this exact build's unpublished draft")
+
+
+def download_draft(repo, run, specs, directory):
+    tag = f"ci-{run['id']}-{run['run_attempt']}"
+    release = find_release(repo, tag)
+    verify_draft_identity(release, run)
+    names = {filename for _, _, filename in specs}
+    required = names | {"SHA256SUMS.txt"}
+    remote = {asset["name"]: asset for asset in release["assets"]}
+    if set(remote) != required or len(remote) != len(release["assets"]):
+        raise RuntimeError("Draft is missing assets or contains unexpected files")
+    patterns = [arg for name in sorted(required) for arg in ("--pattern", name)]
+    gh("release", "download", tag, "--repo", repo, "--dir", directory, "--clobber", *patterns)
+    for name in required:
+        path = directory / name
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        asset = remote[name]
+        if (not path.stat().st_size or asset.get("state") != "uploaded"
+                or asset["size"] != path.stat().st_size or asset.get("digest") != "sha256:" + digest):
+            raise RuntimeError(f"Draft download differs from uploaded asset: {name}")
+    manifest = {}
+    for line in (directory / "SHA256SUMS.txt").read_text(encoding="utf-8").splitlines():
+        digest, name = line.split("  ", 1)
+        if name not in names or name in manifest:
+            raise RuntimeError("Unexpected draft checksum entry")
+        manifest[name] = digest
+    if set(manifest) != names or any(hashlib.sha256((directory / name).read_bytes()).hexdigest() != digest
+                                          for name, digest in manifest.items()):
+        raise RuntimeError("Draft checksum manifest mismatch")
+
+
 def can_promote_run(repo, run):
     """Do not replace a newer manual release with an older successful dev build."""
     pages = json.loads(gh("api", f"repos/{repo}/releases?per_page=100", "--paginate", "--slurp"))
@@ -64,6 +113,7 @@ def main():
     repo = os.environ["GITHUB_REPOSITORY"]
     branch = os.environ["BUILD_BRANCH"]
     platform = os.environ["BUILD_PLATFORM"]
+    draft_transport = os.environ.get("BUILD_TRANSPORT") == "release-draft"
     # Only the existing build workflow on our trusted branch may supply binaries.
     data = api(f"repos/{repo}/actions/workflows/build.yml/runs?branch={branch}&status=success&per_page=100")
     run = select_run(data["workflow_runs"], branch, repo)
@@ -73,6 +123,9 @@ def main():
                     ("howl-portable", "*.zip", "Howl-Portable.zip")],
         "android": [("howl-apk", "*universal*.apk", "Howl.apk")],
     }[platform]
+
+    if draft_transport:
+        verify_current_build(repo, run, branch)
 
     if not can_promote_run(repo, run):
         print("A newer or divergent release is already published; keeping it unchanged")
@@ -87,14 +140,17 @@ def main():
         root = Path(temp)
         assets = root / "assets"
         assets.mkdir()
-        for artifact, pattern, filename in specs:
-            destination = root / artifact
-            gh("run", "download", run["id"], "--repo", repo,
-               "--name", artifact, "--dir", destination)
-            shutil.copyfile(single_file(destination, pattern), assets / filename)
+        if draft_transport:
+            download_draft(repo, run, specs, assets)
+        else:
+            for artifact, pattern, filename in specs:
+                destination = root / artifact
+                gh("run", "download", run["id"], "--repo", repo,
+                   "--name", artifact, "--dir", destination)
+                shutil.copyfile(single_file(destination, pattern), assets / filename)
         checksums = {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted(assets.iterdir())
+            for p in sorted(assets.iterdir()) if p.name != "SHA256SUMS.txt"
         }
         (assets / "SHA256SUMS.txt").write_text(
             "".join(f"{digest}  {name}\n" for name, digest in checksums.items()),
@@ -110,16 +166,23 @@ def main():
             encoding="utf-8",
         )
         # Find drafts too; do not turn an API outage into a duplicate release.
-        if existing is None:
+        if draft_transport:
+            # Build already uploaded the draft; publisher only verifies/promotes it.
+            verify_draft_identity(find_release(repo, tag), run)
+        elif existing is None:
             gh("release", "create", tag, "--repo", repo, "--draft",
                "--target", run["head_sha"], "--title", f"Howl {platform} - build {run['run_number']}",
                "--notes-file", notes)
         # Only a draft can be retried/overwritten; the previous public release stays intact.
-        gh("release", "upload", tag, *sorted(assets.iterdir()), "--repo", repo, "--clobber")
+        if not draft_transport:
+            gh("release", "upload", tag, *sorted(assets.iterdir()), "--repo", repo, "--clobber")
         verify_assets(repo, tag, assets)
         if not can_promote_run(repo, run):
             print("A newer release appeared during upload; leaving the draft unpromoted")
             return
+        if draft_transport:
+            verify_current_build(repo, run, branch)
+            verify_draft_identity(find_release(repo, tag), run)
         gh("release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
         finish_release(repo, tag, run, specs, platform, expected=assets)
         print(f"Published: https://github.com/{repo}/releases/latest")
@@ -203,6 +266,8 @@ def finish_release(repo, tag, run, specs, platform, expected=None):
     if not can_promote_run(repo, run):
         print("A newer release appeared during verification; keeping latest and artifacts unchanged")
         return
+    if os.environ.get("BUILD_TRANSPORT") == "release-draft":
+        verify_current_build(repo, run, os.environ["BUILD_BRANCH"])
     gh("release", "edit", tag, "--repo", repo, "--latest")
     allowed = {artifact for artifact, _, _ in specs}
     if platform == "android":
