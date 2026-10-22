@@ -10,8 +10,8 @@ import publish_latest as publisher
 
 SPECS = {
     "android": [("howl-apk", "*universal*.apk", "Howl.apk")],
-    "windows": [("howl-setup", "*.exe", "Howl-Setup.exe"),
-                ("howl-portable", "*.zip", "Howl-Portable.zip")],
+    "windows": [("howl-setup", "Howl-Setup-*.exe", "Howl-Setup.exe"),
+                ("howl-portable", "Howl-Portable-*.zip", "Howl-Portable.zip")],
 }
 
 
@@ -46,16 +46,17 @@ def upload_draft(repo, run, assets, platform):
 
 def main():
     repo = os.environ["GITHUB_REPOSITORY"]
+    platform = os.environ["BUILD_PLATFORM"]
+    branch = {"android": "dev", "windows": "main"}[platform]
     run = publisher.api(f"repos/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
-    if (os.environ["GITHUB_REF"] != "refs/heads/dev" or run["head_branch"] != "dev"
+    if (os.environ["GITHUB_REF"] != f"refs/heads/{branch}" or run["head_branch"] != branch
             or run["head_repository"]["full_name"] != repo
             or run["event"] not in {"push", "workflow_dispatch"}
             or run["head_sha"] != os.environ["GITHUB_SHA"]
             or run["run_attempt"] != int(os.environ["GITHUB_RUN_ATTEMPT"])
             or run["path"] != ".github/workflows/build.yml"
             or run["status"] != "in_progress"):
-        raise RuntimeError("Only this trusted dev production build can stage a draft")
-    platform = os.environ["BUILD_PLATFORM"]
+        raise RuntimeError("Only this trusted platform production build can stage a draft")
     source = Path(os.environ["BUILD_OUTPUT"])
     with tempfile.TemporaryDirectory() as temp:
         assets = Path(temp)

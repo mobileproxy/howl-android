@@ -151,6 +151,34 @@ class DraftReleaseTests(unittest.TestCase):
                 stage_release.main()
             upload.assert_not_called()
 
+    def test_windows_main_stages_only_distribution_files_despite_nested_executables(self):
+        import stage_release
+        trusted = {**self.build, "status": "in_progress", "head_branch": "main"}
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            (source / "Howl-Setup-1.0.39.exe").write_bytes(b"verified setup")
+            (source / "Howl-Portable-1.0.39.zip").write_bytes(b"verified portable")
+            (source / "app").mkdir()
+            (source / "app/Howl.exe").write_bytes(b"decoy gui")
+            (source / "app/HowlService.exe").write_bytes(b"decoy service")
+            (source / "app/core.zip").write_bytes(b"decoy zip")
+            env = {"GITHUB_REPOSITORY": self.repo, "GITHUB_REF": "refs/heads/main", "GITHUB_RUN_ID": "42",
+                   "GITHUB_RUN_ATTEMPT": "2", "GITHUB_SHA": self.build["head_sha"], "BUILD_PLATFORM": "windows",
+                   "BUILD_OUTPUT": str(source)}
+            staged = {}
+            def upload(repo, run, assets, platform):
+                staged.update({path.name: path.read_bytes() for path in assets.iterdir()})
+                self.assertEqual(platform, "windows")
+            with patch.dict(os.environ, env), patch.object(publisher, "api", return_value=trusted), \
+                 patch.object(stage_release, "upload_draft", side_effect=upload):
+                stage_release.main()
+            self.assertEqual(staged, {"Howl-Setup.exe": b"verified setup", "Howl-Portable.zip": b"verified portable"})
+            with patch.dict(os.environ, {**env, "GITHUB_REF": "refs/heads/dev"}), \
+                 patch.object(publisher, "api", return_value={**trusted, "head_branch": "dev"}), \
+                 patch.object(stage_release, "upload_draft") as upload_mock, self.assertRaises(RuntimeError):
+                stage_release.main()
+            upload_mock.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
