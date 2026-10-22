@@ -18,6 +18,33 @@ class DraftReleaseTests(unittest.TestCase):
            "path": ".github/workflows/build.yml"}
     specs = [("howl-apk", "*universal*.apk", "Howl.apk")]
 
+    def test_created_draft_waits_only_for_bounded_list_visibility(self):
+        import stage_release
+        with patch.object(publisher, 'find_release', side_effect=[None, None, self.release()]) as lookup, \
+             patch.object(stage_release.time, 'sleep') as sleep:
+            self.assertEqual(stage_release.wait_for_draft(self.repo, self.build), self.release())
+        self.assertEqual(lookup.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+
+    def test_created_draft_visibility_timeout_is_bounded(self):
+        import stage_release
+        with patch.object(publisher, 'find_release', return_value=None) as lookup, \
+             patch.object(stage_release.time, 'sleep') as sleep, \
+             self.assertRaisesRegex(RuntimeError, 'absent.*23 seconds'):
+            stage_release.wait_for_draft(self.repo, self.build)
+        self.assertEqual(lookup.call_count, 6)
+        self.assertEqual(sum(call.args[0] for call in sleep.call_args_list), 23)
+
+    def test_created_draft_wrong_identity_and_api_errors_never_retry(self):
+        import stage_release
+        for response in ({**self.release(), 'target_commitish': 'b' * 40}, RuntimeError('API error')):
+            with self.subTest(response=response), \
+                 patch.object(publisher, 'find_release', side_effect=[response]) as lookup, \
+                 patch.object(stage_release.time, 'sleep') as sleep, self.assertRaises(RuntimeError):
+                stage_release.wait_for_draft(self.repo, self.build)
+            self.assertEqual(lookup.call_count, 1)
+            sleep.assert_not_called()
+
     def release(self, files=None):
         files = files or {"Howl.apk": b"verified apk"}
         return {"draft": True, "prerelease": False, "tag_name": "ci-42-2",

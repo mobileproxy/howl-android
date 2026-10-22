@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import time
 
 import publish_latest as publisher
 
@@ -13,6 +14,20 @@ SPECS = {
     "windows": [("howl-setup", "Howl-Setup-*.exe", "Howl-Setup.exe"),
                 ("howl-portable", "Howl-Portable-*.zip", "Howl-Portable.zip")],
 }
+
+
+def wait_for_draft(repo, run):
+    # GitHub may not list a newly created draft immediately. Retry absence only;
+    # an API error or a visible draft with another identity must fail closed.
+    tag = f"ci-{run['id']}-{run['run_attempt']}"
+    for delay in (0, 1, 2, 4, 8, 8):
+        if delay:
+            time.sleep(delay)
+        release = publisher.find_release(repo, tag)
+        if release is not None:
+            publisher.verify_draft_identity(release, run)
+            return release
+    raise RuntimeError("Created draft remained absent from the release list after 23 seconds")
 
 
 def upload_draft(repo, run, assets, platform):
@@ -32,7 +47,7 @@ def upload_draft(repo, run, assets, platform):
                      "--title", f"Howl {platform} - build {run['id']}",
                      "--notes", f"Verified build candidate. Source commit: {run['head_sha']}")
     # Recheck immediately before overwrite. Only this run's unpublished draft is mutable.
-    publisher.verify_draft_identity(publisher.find_release(repo, tag), run)
+    wait_for_draft(repo, run)
     publisher.gh("release", "upload", tag, *sorted(assets.iterdir()), "--repo", repo, "--clobber")
     publisher.verify_assets(repo, tag, assets)
     with tempfile.TemporaryDirectory() as temp:

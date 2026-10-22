@@ -8,6 +8,18 @@ from unittest.mock import patch
 import publish_latest as publisher
 
 
+class GitHubEncodingTests(unittest.TestCase):
+    def test_release_json_uses_utf8_on_a_windows_legacy_codepage(self):
+        output = json.dumps({'body': 'Версия приложения'}, ensure_ascii=False).encode('utf-8')
+
+        def legacy_windows_output(args, **kwargs):
+            return output.decode(kwargs.get('encoding', 'cp1252'))
+
+        with patch.object(publisher.subprocess, 'check_output', side_effect=legacy_windows_output):
+            self.assertEqual(publisher.api('repos/owner/repo/releases/latest'),
+                             {'body': 'Версия приложения'})
+
+
 class ReleaseCleanupTests(unittest.TestCase):
     def setUp(self):
         self.repo = "owner/repo"
