@@ -271,12 +271,18 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         cancelSoftSwitch()
         val choice = SoftSwitching.choices
         val ticket = choice.manual()
-        if (expected == itemTag) { choice.finish(ticket); return }
+        if (io.nekohasekai.sfa.utils.CommandTarget.remoteServer == null) {
+            io.nekohasekai.sfa.health.HealthRuntime.stop()
+            io.nekohasekai.sfa.health.AndroidLifecycleDiagnostics.invalidate()
+        }
         checks.stop()
         val sequence = ++switchSequence
         val epoch = groupEpoch.get()
         val profile = Settings.selectedProfile
         val remote = CommandTarget.remoteServer
+        val preferences = io.nekohasekai.sfa.health.SelectionPreferenceRuntime.store
+        // Capture explicit intent before IPC, including a click on the current item.
+        val intent = preferences.beginManual(profile, groupTag, itemTag, local = remote == null)
         fun selected() = uiState.value.groups.firstOrNull { it.tag == groupTag }?.selected
         fun sessionCurrent() = epoch == groupEpoch.get() && profile == Settings.selectedProfile &&
             remote?.id == CommandTarget.remoteServer?.id && canCheck() &&
@@ -284,11 +290,16 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         updateState { copy(switchingTag = itemTag, showSoftSwitchSnackbar = false) }
         switchJob = viewModelScope.launch {
             try {
-                val probe = LibboxProbeTransport.createFor(remote)
+                val probe = LibboxProbeTransport.createFor(remote, io.nekohasekai.sfa.connections.ProbePriority.Active)
                 val command = LibboxSelectionTransport.create(remote)
                 val result = choice.select(ticket, itemTag, expected, ::selected, ::sessionCurrent,
                     probe = { tag -> probe.measure(tag, 1) ?: probe.measure(tag, 2) },
                     commit = { command.select(groupTag, itemTag) { sessionCurrent() && choice.valid(ticket) && selected() == expected } })
+                if (intent != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    preferences.acknowledgeManual(intent, result in setOf(SwitchOutcome.Switched, SwitchOutcome.Unchanged)) {
+                        choice.valid(ticket) && sessionCurrent() && selected() in setOf(expected, itemTag)
+                    }
+                }
                 when (result) {
                     SwitchOutcome.Switched -> {
                         updateState { copy(groups = groups.map { if (it.tag == groupTag) it.copy(selected = itemTag) else it }, showSoftSwitchSnackbar = true) }

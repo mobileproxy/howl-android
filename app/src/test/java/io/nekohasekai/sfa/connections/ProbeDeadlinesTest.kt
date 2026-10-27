@@ -117,30 +117,35 @@ class ProbeDeadlinesTest {
     }
 
     @Test fun actualBlockingCallsStayBoundedAcrossCancellationAndNewRuns() = runBlocking {
-        val release = CountDownLatch(1); val started = CountDownLatch(8)
+        val release = CountDownLatch(1); val started = CountDownLatch(8); val manualStarted = CountDownLatch(6)
         val calls = AtomicInteger(); val active = AtomicInteger(); val maximum = AtomicInteger()
-        fun transport() = ProbeTransport(factory = { object : OwnedProbeClient {
+        fun transport(priority: ProbePriority = ProbePriority.ManualScan) = ProbeTransport(factory = { object : OwnedProbeClient {
             override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
                 calls.incrementAndGet()
                 val current = active.incrementAndGet(); maximum.accumulateAndGet(current, ::maxOf)
                 started.countDown()
+                manualStarted.countDown()
                 try { check(release.await(10, TimeUnit.SECONDS)); return ProbeReply(120, false) }
                 finally { active.decrementAndGet() }
             }
             override fun close() {}
-        } })
+        } }, priority = priority)
         val first = transport(); val second = transport()
         val events = mutableListOf<CheckResult>()
         val job = async { ConnectionChecks.run((0..11).map { "fixture-$it" }, first::measure, events::add) }
+        val activeJobs = mutableListOf<Job>()
         try {
+            assertTrue(withContext(Dispatchers.IO) { manualStarted.await(5, TimeUnit.SECONDS) })
+            assertEquals(6, calls.get())
+            repeat(2) { activeJobs.add(launch { transport(ProbePriority.Active).measure("current-$it", 1) }) }
             assertTrue(withContext(Dispatchers.IO) { started.await(5, TimeUnit.SECONDS) })
-            job.cancelAndJoin()
+            job.cancelAndJoin(); activeJobs.forEach { it.cancelAndJoin() }
             val next = ConnectionChecks.run((0..11).map { "next-$it" }, second::measure, {}, totalDeadlineMs = 80)
             assertEquals(8, calls.get()); assertEquals(8, active.get()); assertEquals(8, maximum.get())
             assertTrue(next.all { it.state == CheckState.NotCompleted })
             assertFalse(events.any { it.state == CheckState.Working })
         } finally {
-            job.cancel(); release.countDown(); job.join()
+            job.cancel(); activeJobs.forEach { it.cancel() }; release.countDown(); job.join(); activeJobs.forEach { it.join() }
             withTimeout(5000) { while (active.get() != 0) delay(1) }
         }
     }

@@ -80,7 +80,9 @@ object ProfileManager {
 
     suspend fun delete(profile: Profile): Int {
         try {
-            return instance.profileDao().delete(profile)
+            return instance.profileDao().delete(profile).also { deleted ->
+                if (deleted > 0) io.nekohasekai.sfa.health.SelectionPreferenceRuntime.store.removeProfile(profile.id, true)
+            }
         } finally {
             for (callback in callbacks.toList()) {
                 callback()
@@ -90,7 +92,13 @@ object ProfileManager {
 
     suspend fun delete(profiles: List<Profile>): Int {
         try {
-            return instance.profileDao().delete(profiles)
+            return instance.profileDao().delete(profiles).also { deleted ->
+                // A partial delete must not erase preferences of a profile still present.
+                if (deleted > 0) profiles.forEach { profile ->
+                    if (instance.profileDao().get(profile.id) == null)
+                        io.nekohasekai.sfa.health.SelectionPreferenceRuntime.store.removeProfile(profile.id, true)
+                }
+            }
         } finally {
             for (callback in callbacks.toList()) {
                 callback()

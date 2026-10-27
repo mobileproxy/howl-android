@@ -56,8 +56,13 @@ import java.io.File
 import io.nekohasekai.sfa.profile.ProfileSafety
 import io.nekohasekai.sfa.profile.SafeProfileStore
 import io.nekohasekai.sfa.database.Profile
+import io.nekohasekai.sfa.health.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class BoxService(private val service: Service, private val platformInterface: PlatformInterface) : CommandServerHandler {
+    private val serviceMutex = Mutex()
+    private val startIntent = ServiceStartIntent()
     companion object {
         private const val PROFILE_UPDATE_INTERVAL = 15L * 60 * 1000 // 15 minutes in milliseconds
         private const val TAG = "BoxService"
@@ -65,7 +70,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         /**
          * Жива ли служба В ЭТОМ процессе. Нужен [ServiceGuard]: в процессе, только что созданном
          * ради доставки будильника, флаг false по определению — это и есть надёжный признак
-         * «нас убили». Через [status] так не проверишь: он приватный и у нового процесса свой.
+         * отсутствие подтверждённо запущенной службы, а не причину её остановки.
          */
         @Volatile
         var running = false
@@ -73,11 +78,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         @Volatile private var diagnosticProtocols: Map<String, String> = emptyMap()
         fun diagnosticProtocol(tag: String?): String? = tag?.let { diagnosticProtocols[it] }
 
-        fun start() {
+        fun start(kind: SessionStartKind = SessionStartKind.USER) {
             val intent =
                 runBlocking {
                     withContext(Dispatchers.IO) {
-                        Intent(Application.application, Settings.serviceClass())
+                        Intent(Application.application, Settings.serviceClass()).putExtra("howl_start_kind", kind.name)
                     }
                 }
             ContextCompat.startForegroundService(Application.application, intent)
@@ -125,13 +130,13 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
     private var lastProfileName = ""
 
-    private suspend fun startService() {
+    private suspend fun startService(ticket: Long) {
         val choices = io.nekohasekai.sfa.connections.SoftSwitching.choices
         choices.pause()
-        try { startServiceWithSelectionPaused() } finally { choices.resume() }
+        try { startServiceWithSelectionPaused(ticket) } finally { choices.resume() }
     }
 
-    private suspend fun startServiceWithSelectionPaused() {
+    private suspend fun startServiceWithSelectionPaused(ticket: Long) {
         try {
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_starting)
@@ -205,17 +210,22 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
 
             ProfileSafety.applied(profile, launched)
-            status.postValue(Status.Started)
-            // Служба поднялась — с этого момента сторож службы видит нас живыми, а его будильник
-            // должен тикать: он и воскресит нас, если оболочка телефона убьёт процесс.
-            running = true
-            ServiceGuard.schedule()
-            withContext(Dispatchers.Main) {
+            val published = withContext(Dispatchers.Main) {
+                if (!startIntent.current(ticket, Settings.startedByUser)) return@withContext false
+                status.value = Status.Started
+                running = true
+                AndroidLifecycleDiagnostics.serviceRunning()
+                ServiceGuard.schedule()
                 notification.show(lastProfileName, R.string.status_started)
+                notification.start()
+                if (!startIntent.current(ticket, Settings.startedByUser)) {
+                    notification.close()
+                    return@withContext false
+                }
+                ConnectivityWatchdog.start()
+                true
             }
-            notification.start()
-            // Ядро не замечает «подключено, но трафик не идёт» — за этим следит сторож.
-            ConnectivityWatchdog.start()
+            if (!published) return
             // Тихо подтягиваем свежий список «Режима Россия» (раз в сутки, неудача ни на что не
             // влияет — останемся на кэше или встроенном). Применится при следующей сборке конфига.
             if (Settings.russiaModeEnabled) {
@@ -278,18 +288,23 @@ class BoxService(private val service: Service, private val platformInterface: Pl
      * проверка посреди перезапуска ядра увела с рабочего узла). В журнал — длительность.
      */
     suspend fun serviceReload0() {
+        serviceMutex.withLock {
+        if (!Settings.startedByUser) return@withLock
         val choices = io.nekohasekai.sfa.connections.SoftSwitching.choices
         choices.pause()
         val startedAt = System.currentTimeMillis()
         ConnectivityWatchdog.pauseForReload()
+        AndroidLifecycleDiagnostics.plannedReload()
         var applied = false
         try {
             applied = reloadCore()
         } finally {
             choices.resume()
             ConnectivityWatchdog.resumeAfterReload()
+            if (Settings.startedByUser) AndroidLifecycleDiagnostics.reloaded()
             val took = (System.currentTimeMillis() - startedAt) / 100 / 10.0
             AppEventLog.log("ядро", if (applied) "конфигурация перезагружена за $took с" else "перезагрузка не подтверждена; рабочий резерв сохранён")
+        }
         }
     }
 
@@ -425,16 +440,20 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    private fun stopService() {
-        if (status.value != Status.Started) return
+    private fun stopService(reason: PlannedStop = PlannedStop.USER) {
+        if (status.value !in setOf(Status.Started, Status.Starting)) return
+        // Fence before asynchronous cleanup: sticky/guard/start completion cannot revive explicit Off.
+        startIntent.stop()
+        AndroidLifecycleDiagnostics.stop(reason)
+        Settings.startedByUser = false
         // ★ ШТАТНАЯ остановка — это ИМЕННО ЭТОТ путь: кнопка в приложении, действие в шторке,
         // отзыв разрешения VPN системой. Событие «[стоп]» писалось только в serviceStop(),
         // куда приходит запрос ОТ ЯДРА, — а он при обычном выключении не срабатывает. Из-за
         // этого журнал 07–09.08 показал 30 запусков и НИ ОДНОЙ остановки, и отличить
         // «человек выключил VPN на ночь» от «система убила службу» было нечем: 43% времени
         // простоя остались без объяснения. Теперь у каждого выключения есть своя строка,
-        // и молчание журнала однозначно значит «службу убили, она не прощалась».
-        AppEventLog.log("стоп", "выключено из приложения или системой")
+        // но отсутствие записи само по себе не устанавливает причину остановки.
+        AppEventLog.log("reliability", "plannedStop=${reason.name}")
         // Осознанная остановка: воскрешать не надо, будильник сторожа службы снимаем.
         running = false
         ServiceGuard.cancel()
@@ -446,21 +465,22 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         notification.close()
         ConnectivityWatchdog.stop()
         GlobalScope.launch(Dispatchers.IO) {
+            serviceMutex.withLock {
             val pfd = fileDescriptor
             if (pfd != null) {
                 pfd.close()
                 fileDescriptor = null
             }
             DefaultNetworkMonitor.stop()
-            closeService()
-            commandServer.apply {
-                close()
-//                Seq.destroyRef(refnum)
+            if (::commandServer.isInitialized) {
+                closeService()
+                commandServer.close()
             }
             Settings.startedByUser = false
             withContext(Dispatchers.Main) {
                 status.value = Status.Stopped
                 service.stopSelf()
+            }
             }
         }
     }
@@ -483,6 +503,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         // разбирать по журналу, а не гадать.
         AppEventLog.log("стоп", "остановлено из-за ошибки: $type${message?.let { " — $it" } ?: ""}")
         running = false
+        AndroidLifecycleDiagnostics.stop(if (Settings.startedByUser) PlannedStop.FAILURE else PlannedStop.USER)
+        startIntent.stop()
         ServiceGuard.cancel()
         Settings.startedByUser = false
         ConnectivityWatchdog.stop()
@@ -519,6 +541,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         // при таком старте нельзя слепо считать, что VPN хочет человек: он мог выключить его
         // раньше. Флаг startedByUser читаем ДО того, как перезапишем его ниже.
         val restartedBySystem = intent == null
+        val ticket = startIntent.begin()
+        if (!restartedBySystem) Settings.startedByUser = true
 
         if (!receiverRegistered) {
             ContextCompat.registerReceiver(
@@ -536,6 +560,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
 
         GlobalScope.launch(Dispatchers.IO) {
+            serviceMutex.withLock {
+            if (!startIntent.current(ticket, Settings.startedByUser)) {
+                withContext(Dispatchers.Main) { status.value = Status.Stopped; service.stopSelf() }
+                return@withLock
+            }
             if (restartedBySystem) {
                 if (!Settings.startedByUser) {
                     // VPN был выключен человеком — система просто восстанавливает службу по
@@ -544,18 +573,25 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                         status.value = Status.Stopped
                         service.stopSelf()
                     }
-                    return@launch
+                    return@withLock
                 }
-                AppEventLog.log("старт", "перезапуск службы системой после остановки")
+                AppEventLog.log("reliability", "startTrigger=STICKY previousCause=UNCONFIRMED")
             }
-            Settings.startedByUser = true
+            val kind = if (restartedBySystem) SessionStartKind.STICKY else
+                SessionStartKind.entries.firstOrNull { it.name == intent?.getStringExtra("howl_start_kind") } ?: SessionStartKind.USER
+            AndroidLifecycleDiagnostics.start(kind)
+            if (!startIntent.current(ticket, Settings.startedByUser)) {
+                AndroidLifecycleDiagnostics.stop(PlannedStop.USER)
+                return@withLock
+            }
             try {
                 startCommandServer()
             } catch (e: Exception) {
                 stopAndAlert(Alert.StartCommandServer, e.message)
-                return@launch
+                return@withLock
             }
-            startService()
+            startService(ticket)
+            }
         }
         // ★ START_STICKY, а не NOT_STICKY. Прежде система, убив службу, просто забывала о ней —
         // и VPN оставался выключенным, пока человек не заметит. Журнал 17–18.08: три таких смерти
@@ -571,7 +607,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     internal fun onRevoke() {
-        stopService()
+        stopService(PlannedStop.REVOKE)
     }
 
     internal fun sendNotification(notification: Notification) {

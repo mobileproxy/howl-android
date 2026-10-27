@@ -754,4 +754,41 @@
     <string name="diagnostics_safe_result">Pruebas correctas: %1$d/3. Descargados: %2$d bytes.</string>
     <string name="diagnostics_safe_node_changed">El nodo seleccionado cambió durante la prueba.</string>
     <string name="diagnostics_safe_save">Guardar informe anonimizado</string>
+
+    <!-- Current selected-server evidence; shared by UI and notification. -->
+    <string name="health_off">VPN desactivada</string>
+    <string name="health_off_hint">Toca para conectar.</string>
+    <string name="health_connecting">Iniciando VPN</string>
+    <string name="health_connecting_hint">El servicio se está iniciando; la conexión aún no está verificada.</string>
+    <string name="health_disconnecting">Deteniendo VPN</string>
+    <string name="health_disconnecting_hint">El servicio se está deteniendo.</string>
+    <string name="health_checking">Comprobando conexión</string>
+    <string name="health_checking_hint">La VPN está activa. Se comprueba una nueva solicitud por el servidor elegido.</string>
+    <string name="health_available">El servidor elegido responde</string>
+    <string name="health_available_hint">Una solicitud de control reciente por el servidor elegido tuvo éxito. Otros sitios y aplicaciones pueden variar.</string>
+    <string name="health_recovering">Restableciendo conexión</string>
+    <string name="health_recovering_hint">La VPN está activa. Se restablecen las nuevas solicitudes; puedes desconectar en cualquier momento.</string>
+    <string name="health_no_network">Sin red</string>
+    <string name="health_no_network_hint">No hay red física disponible. Revisa el Wi-Fi o los datos móviles.</string>
+    <string name="health_no_internet">Falló la comprobación de red</string>
+    <string name="health_no_internet_hint">Fallaron las solicitudes de control por la red física y el servidor elegido. Se desconoce la causa exacta.</string>
+    <string name="health_captive">Puede ser necesario iniciar sesión</string>
+    <string name="health_captive_hint">La red indica una página de acceso. Ábrela para comprobar el acceso.</string>
+    <string name="health_requests_failed">Fallaron las nuevas solicitudes</string>
+    <string name="health_requests_failed_hint">El servidor elegido no respondió a las solicitudes de control. Se desconoce la causa exacta.</string>
+    <string name="health_partial">Conexión parcialmente operativa</string>
+    <string name="health_partial_hint">Se detectó tráfico existente, pero fallaron las nuevas solicitudes de control.</string>
+    <string name="health_check_unavailable">Comprobación no disponible</string>
+    <string name="health_check_unavailable_hint">No se pudo completar la comprobación. Esto no demuestra un fallo del servidor.</string>
+    <string name="health_profile_problem">Revisa el perfil</string>
+    <string name="health_profile_problem_hint">No se pudo iniciar el perfil. Revisa el perfil elegido.</string>
+    <string name="health_unverified">Conexión sin verificar</string>
+    <string name="health_unverified_hint">La VPN está activa. No hay una comprobación actual del servidor elegido.</string>
+    <string name="health_expired_hint">La comprobación correcta anterior ha caducado. Se necesita un resultado nuevo.</string>
+    <string name="health_unsupported_hint">La selección actual no se puede verificar como salida VPN.</string>
+    <string name="health_system_dns_hint">Falló la consulta de nombres del sistema. Esto no diagnostica el DNS del perfil.</string>
+    <string name="health_system_tls_hint">La comprobación HTTPS del sistema falló en TLS. El resultado del servidor elegido es independiente.</string>
+    <string name="health_system_https_hint">Falló la solicitud HTTPS del sistema. El resultado del servidor elegido es independiente.</string>
+    <string name="health_temporary_fallback_hint">Se usa un respaldo temporal; tu selección manual está guardada.</string>
+    <string name="health_remote_hint">Esta pantalla no dispone de una comprobación actual de la conexión remota.</string>
 </resources>

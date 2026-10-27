@@ -23,7 +23,7 @@ class WatchdogObservation(val identity: WatchdogIdentity, val startedAt: Long) {
         belongsToSession(other) && now - startedAt in 0..30_000
 }
 
-class WatchdogSelectedPathProbe(private val transport: ProbeTransport, private val timeoutMs: Long = 6000) {
+class WatchdogSelectedPathProbe(private val transport: ProbeTransport, private val timeoutMs: Long = 9400) {
     private data class Reply(val delay: Int?)
     suspend fun confirm(tag: String): WatchdogProbeResult = try {
         // Attempt 2 tries both independent targets; a local IPC failure is not a failed endpoint.

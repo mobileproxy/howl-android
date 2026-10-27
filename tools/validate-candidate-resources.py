@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCALES = ("values", "values-ru-rRU", "values-de", "values-es", "values-fr", "values-it")
-PREFIXES = ("profile_safe_", "diagnostics_safe_", "kill_switch_", "checks_", "soft_switch_")
+PREFIXES = ("profile_safe_", "diagnostics_safe_", "kill_switch_", "checks_", "soft_switch_", "health_")
 FORMAT = re.compile(r"%(?:\d+\$)?[sd]")
 
 

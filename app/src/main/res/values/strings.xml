@@ -862,4 +862,41 @@
     <string name="diagnostics_safe_result">Successful probes: %1$d/3. Downloaded: %2$d bytes.</string>
     <string name="diagnostics_safe_node_changed">The selected node changed during the check.</string>
     <string name="diagnostics_safe_save">Save anonymized report</string>
+
+    <!-- Current selected-server evidence; shared by UI and notification. -->
+    <string name="health_off">VPN off</string>
+    <string name="health_off_hint">Tap to connect.</string>
+    <string name="health_connecting">Starting VPN</string>
+    <string name="health_connecting_hint">The service is starting; the connection is not verified yet.</string>
+    <string name="health_disconnecting">Stopping VPN</string>
+    <string name="health_disconnecting_hint">The service is stopping.</string>
+    <string name="health_checking">Checking connection</string>
+    <string name="health_checking_hint">VPN is enabled. Checking a new request via the selected server.</string>
+    <string name="health_available">Selected server responds</string>
+    <string name="health_available_hint">A recent control request via the selected server succeeded. Other sites and apps may differ.</string>
+    <string name="health_recovering">Restoring connection</string>
+    <string name="health_recovering_hint">VPN is enabled. Trying to restore new requests; you can disconnect at any time.</string>
+    <string name="health_no_network">No network</string>
+    <string name="health_no_network_hint">No physical network is available. Check Wi-Fi or mobile data.</string>
+    <string name="health_no_internet">Network check failed</string>
+    <string name="health_no_internet_hint">Control requests on the physical network and selected server failed. The exact cause is unknown.</string>
+    <string name="health_captive">Network sign-in may be needed</string>
+    <string name="health_captive_hint">The network reports a sign-in page. Open it to check access.</string>
+    <string name="health_requests_failed">New requests failed</string>
+    <string name="health_requests_failed_hint">The selected server did not answer the control requests. The exact cause is unknown.</string>
+    <string name="health_partial">Connection partly working</string>
+    <string name="health_partial_hint">Existing traffic was seen, but new control requests failed.</string>
+    <string name="health_check_unavailable">Check unavailable</string>
+    <string name="health_check_unavailable_hint">The check could not finish. This does not establish a server failure.</string>
+    <string name="health_profile_problem">Profile needs attention</string>
+    <string name="health_profile_problem_hint">The profile could not be started. Check the selected profile.</string>
+    <string name="health_unverified">Connection unverified</string>
+    <string name="health_unverified_hint">VPN is enabled. No current selected-server check is available.</string>
+    <string name="health_expired_hint">The previous successful check has expired. A fresh result is needed.</string>
+    <string name="health_unsupported_hint">The current selection cannot be verified as a VPN exit.</string>
+    <string name="health_system_dns_hint">The system name lookup check failed. This does not diagnose the profile DNS.</string>
+    <string name="health_system_tls_hint">The system HTTPS check failed at TLS. The selected-server result is separate.</string>
+    <string name="health_system_https_hint">The system HTTPS request failed. The selected-server result is separate.</string>
+    <string name="health_temporary_fallback_hint">Using a temporary fallback; your manual preference is saved.</string>
+    <string name="health_remote_hint">This screen has no current check for the remote connection.</string>
 </resources>

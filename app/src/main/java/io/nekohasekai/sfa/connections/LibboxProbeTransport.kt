@@ -6,8 +6,10 @@ import io.nekohasekai.sfa.database.RemoteServer
 
 object LibboxProbeTransport {
     fun create(): ProbeTransport = createFor(CommandTarget.remoteServer)
-    fun createLocal(): ProbeTransport = createFor(null)
-    fun createFor(remote: RemoteServer?): ProbeTransport {
+    fun createLocal(priority: ProbePriority = ProbePriority.ManualScan,
+        controlUrls: List<String> = ConnectionChecks.urls): ProbeTransport = createFor(null, priority, controlUrls)
+    fun createFor(remote: RemoteServer?, priority: ProbePriority = ProbePriority.ManualScan,
+        controlUrls: List<String> = ConnectionChecks.urls): ProbeTransport {
         // Capture the destination once; a later remote-session change must not redirect a probe.
         return ProbeTransport(factory = {
             val owned = if (remote == null) Libbox.newStandaloneCommandClient()
@@ -19,6 +21,6 @@ object LibboxProbeTransport {
                 }
                 override fun close() { owned.disconnect() }
             }
-        })
+        }, priority = priority, controlUrls = controlUrls)
     }
 }

@@ -14,6 +14,9 @@ import io.nekohasekai.sfa.connections.SoftSwitching
 import io.nekohasekai.sfa.connections.SoftSwitch
 import io.nekohasekai.sfa.connections.SwitchOutcome
 import io.nekohasekai.sfa.connections.CheckTarget
+import io.nekohasekai.sfa.connections.ProbePriority
+import io.nekohasekai.sfa.connections.ProbeTransport
+import io.nekohasekai.sfa.health.*
 import io.nekohasekai.sfa.subscription.NodeSites
 import io.nekohasekai.sfa.subscription.ProfileTags
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
@@ -47,44 +50,11 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
 /**
- * Сторож соединения: ловит состояние «подключено, но трафик не идёт».
- *
- * Зачем нужен. Пинг в списке серверов НЕ доказывает, что туннель жив: во-первых, это последнее
- * удачное измерение, а не текущее; во-вторых, проба urltest идёт мимо локального DNS — имя
- * разрешает сам прокси-сервер. Поэтому зависшее DNS-соединение внутри туннеля (или мёртвые
- * сокеты после смены Wi-Fi↔LTE) выглядят как «всё зелёное», хотя ни один сайт не открывается.
- * Ядро такое не замечает и само не чинит.
- *
- * Что делает. Прогоняет ДВЕ разные пробы — так видно, что именно сломалось:
- *   • TCP на 1.1.1.1:443 — без DNS, проверяет сам туннель;
- *   • запрос к домену — проверяет DNS и путь целиком.
- * Трафик приложения идёт через тот же tun, что и у браузера, — это честная сквозная проверка.
- *
- * Когда проверяет. Не по расписанию, а по СОБЫТИЯМ — чтобы реагировать за секунды, а не «когда-
- * нибудь на минутном тике»:
- *   • включился экран или открыли приложение — человек взялся за телефон, проверяем ЗАРАНЕЕ;
- *   • сменилась сеть (Wi-Fi ↔ мобильная) — самый частый момент тихой смерти сокетов;
- *   • залипание трафика — ядро сообщает, что мы шлём, а в ответ тишина (ловится за ~9 секунд).
- * Фоновый цикл раз в 1.5 минуты остаётся страховкой на случай, если ни одно событие не пришло.
- * Все триггеры лишь ЗАПУСКАЮТ пробу; чинит только реальный провал пробы, поэтому ложная тревога
- * безвредна.
- *
- * При отказе узла выбирает проверенный резерв только для НОВЫХ соединений,
- * сохраняя существующие сеансы и работающий core/TUN. История задержек задаёт
- * порядок кандидатов; переключение разрешает только свежая проба. Повторные
- * отказы не запускают reload ядра. При мёртвой физической сети перевыбирается
- * сеть телефона через DefaultNetworkMonitor, без принудительной перезагрузки.
- * Сохранность сеансов при потере физической сети зависит от транспорта.
- * Пока идёт сбой, проверки чаще; каждое решение видно в журнале.
- *
- * ★ Правка 24.07.2026. Вердикт «у телефона нет интернета» раньше приводил к ВЫХОДУ из починки —
- * и лестница никогда не доходила до ступени 2 ровно в том случае, ради которого её и писали.
- * В журнале ядра это видно как сотни `dial wlan0 (27): no route to host` подряд на протяжении
- * сорока минут; спасало только ручное переподключение. Теперь мёртвая сеть, наоборот, сразу
- * ведёт на ступень 2, минуя бесполезное переподключение. Вдобавок уходить стало КУДА: пока
- * телефон держится за Wi-Fi, Android гасит модем, поэтому мобильную сеть мы теперь поднимаем
- * заявкой сами, а сеть, через которую трафик не пошёл, попадает в штрафной ящик на три минуты,
- * чтобы следующий же системный колбэк не вернул нас на неё обратно.
+ * Checks typed system HTTPS and the explicitly selected exit separately. System DNS can bypass
+ * VPN by profile policy; old-flow bytes and cached delay do not prove that a new selected request works.
+ * Every decision is scoped to the original service/profile/config/network/manual ticket. Only
+ * fresh confirmed reserve requests may softly reroute NEW flows; no core/TUN reload for checks.
+ * Application-owned probes share finite admission. Native periodic groups have independent limits.
  */
 object ConnectivityWatchdog {
 
@@ -319,7 +289,9 @@ object ConnectivityWatchdog {
     private val observationGeneration = AtomicLong()
     private var counterIdentity: WatchdogIdentity? = null
     private var lastProbeDiagnosticAt = 0L
-    private val remeasureActive = AtomicBoolean()
+    private val preferredReturn = PreferredReturnPolicy()
+    private var activeHealth: Pair<WatchdogObservation, HealthObservation>? = null
+    private val systemHttpProbe = SystemHttpProbe()
     private fun now() = SystemClock.elapsedRealtime()
 
     private fun identity() = WatchdogIdentity(scope ?: this, Settings.selectedProfile, ProfileTags.selector,
@@ -409,6 +381,9 @@ object ConnectivityWatchdog {
 
     fun stop() {
         observationGeneration.incrementAndGet()
+        HealthRuntime.stop()
+        AndroidLifecycleDiagnostics.invalidate()
+        preferredReturn.reset()
         checkGate?.close()
         checkGate = null
         WatchdogAlarm.stop()
@@ -540,6 +515,7 @@ object ConnectivityWatchdog {
      * чувствительными.
      */
     private fun triggerImmediateCheck(trigger: String = "событие") {
+        HealthRuntime.refresh()
         val currentScope = scope ?: return
         val now = now()
         if (now - lastTriggerAt < MIN_TRIGGER_INTERVAL_MS) return
@@ -556,6 +532,9 @@ object ConnectivityWatchdog {
         // Сеть сменилась — маршруты к узлам стали другими, прошлые «плохие узлы» больше не
         // приговор. Чистим штрафной ящик, чтобы карусель могла снова пробовать любой узел.
         observationGeneration.incrementAndGet()
+        HealthRuntime.stop()
+        AndroidLifecycleDiagnostics.invalidate()
+        preferredReturn.reset()
         recoveryState = null
         lastNetworkChangeAt = now()
         networkJob?.cancel()
@@ -587,16 +566,8 @@ object ConnectivityWatchdog {
      * обновляет задержки, которые видят экран «Локации» и карусель.
      */
     private suspend fun remeasure() {
-        val selector = ProfileTags.selector ?: return
-        if (!remeasureActive.compareAndSet(false, true)) return
-        try {
-            probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { resources ->
-                val owned = Libbox.newStandaloneCommandClient()
-                resources.own(Closeable { owned.disconnect() })
-                owned.urlTest(selector)
-                true
-            }
-        } finally { remeasureActive.set(false) }
+        // Prevention is a coalesced current-path check, never another full native group sweep.
+        checkGate?.request("prevention")
     }
 
     /**
@@ -618,6 +589,9 @@ object ConnectivityWatchdog {
      */
     fun pauseForReload() {
         observationGeneration.incrementAndGet()
+        HealthRuntime.stop()
+        AndroidLifecycleDiagnostics.invalidate()
+        preferredReturn.reset()
         recoveryState = null
         suspendedUntil = now() + RELOAD_MAX_PAUSE_MS
     }
@@ -625,6 +599,9 @@ object ConnectivityWatchdog {
     /** Перезагрузка закончилась: ещё немного тишины, пока поднимаются соединения. */
     fun resumeAfterReload() {
         observationGeneration.incrementAndGet()
+        HealthRuntime.stop()
+        AndroidLifecycleDiagnostics.invalidate()
+        preferredReturn.reset()
         recoveryState = null
         suspendedUntil = now() + SETTLE_AFTER_RELOAD_MS
     }
@@ -646,6 +623,9 @@ object ConnectivityWatchdog {
                 startedAt - lastCheckEndedAt, consecutiveFailures > 0 || healAttempts > 0)) return
         lastCheckAt = startedAt
         val observation = WatchdogObservation(observedIdentity, startedAt)
+        val health = HealthRuntime.monitor.begin(HealthContext(observedIdentity.owner, observedIdentity.profile,
+            observedIdentity.generation, observedIdentity.selector, observedIdentity.node, observedIdentity.network, ticket.revision))
+        activeHealth = observation to health
         try {
             val completed = withTimeoutOrNull(30_000) { checkBody(trigger, observation, ticket); true }
             if (completed == null && scope === owner && owner.isActive && Settings.startedByUser &&
@@ -655,7 +635,16 @@ object ConnectivityWatchdog {
         catch (_: WatchdogProbeUnavailableException) {
             if (sameSession(observation, ticket)) probeUnavailable("unavailable", observation)
         } finally {
-            if (scope === owner) { lastCheckEndedAt = now(); scheduleNextAlarm() }
+            if (scope === owner) {
+                lastCheckEndedAt = now()
+                if (owner.isActive && Settings.startedByUser && SoftSwitching.choices.valid(ticket) && observedIdentity == identity()) {
+                    HealthRuntime.refresh()
+                    val snapshot = HealthRuntime.view()
+                    if (snapshot.context == health.context && snapshot.assessment.state == HealthState.CheckUnavailable)
+                        AndroidLifecycleDiagnostics.observation(health, snapshot)
+                }
+                scheduleNextAlarm()
+            }
         }
     }
 
@@ -664,82 +653,81 @@ object ConnectivityWatchdog {
         // Нет сети вообще (самолётный режим, нет сигнала) — не наша беда, чинить нечего.
         if (DefaultNetworkMonitor.currentNetwork == null) {
             consecutiveFailures = 0
+            publishHealth(observation, ticket, HealthEvidence(hasNetwork = false))
+            preferredReturn.reset()
             return
         }
 
         val protocol = NodeSites.current[observation.identity.node]?.proto
         val openConnect = protocol.equals("openconnect", ignoreCase = true)
-        val (tunnelResult, domainResult, selectedResult) = coroutineScope {
-            suspend fun observe(block: (WatchdogProbeResources) -> Boolean) = probeRunner.run(PROBE_TIMEOUT_MS.toLong(), block)
-            val tunnel = async { observe { tcpReachable(it) } }
-            val domain = async { observe { domainReachable(it) } }
+        val state = underlyingNetwork()
+        val vpnTarget = (autoNodes + selectorNodes).any { it.first == observation.identity.node }
+        val preference = observation.identity.selector?.let { SelectionPreferenceRuntime.store.read(observation.identity.profile, it) }
+        val preferredLeaf = preference?.target?.let { target ->
+            if (target == ProfileTags.auto) autoSelected?.takeIf { leaf -> autoNodes.any { it.first == leaf } }
+            else target.takeIf { value -> selectorNodes.any { it.first == value } }
+        }
+        val monitorPreferred = preferredLeaf != null && preference?.target != observation.identity.selection
+        data class Findings(val tunnel: WatchdogProbeResult, val system: SystemHttpFinding,
+            val selected: WatchdogProbeResult, val preferred: WatchdogProbeResult?, val physical: WatchdogProbeResult?)
+        val findings = coroutineScope {
+            val tunnel = async { probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { tcpReachable(it) } }
+            val system = async { systemHttpProbe.run() }
             val selected = async {
-                if (openConnect && observation.identity.node != null)
-                    WatchdogSelectedPathProbe(LibboxProbeTransport.createLocal()).confirm(observation.identity.node)
+                if (vpnTarget && observation.identity.node != null)
+                    WatchdogSelectedPathProbe(LibboxProbeTransport.createLocal(ProbePriority.Active, ProbeTransport.HEALTH_URLS)).confirm(observation.identity.node)
                 else WatchdogProbeResult.Unavailable
             }
-            Triple(tunnel.await(), domain.await(), selected.await())
+            val preferred = async {
+                if (monitorPreferred) WatchdogSelectedPathProbe(LibboxProbeTransport.createLocal(ProbePriority.Background, ProbeTransport.HEALTH_URLS)).confirm(preferredLeaf!!)
+                else null
+            }
+            val physical = async {
+                if (monitorPreferred && state == UnderlyingNetwork.OK) probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { underlyingReachable(it) }
+                else null
+            }
+            Findings(tunnel.await(), system.await(), selected.await(), preferred.await(), physical.await())
         }
         if (!observationCurrent(observation, ticket)) return
-        val state = underlyingNetwork()
-        var physicalResult: WatchdogProbeResult? = null
-        val selectedPathFailed = openConnect && selectedResult == WatchdogProbeResult.NoResponse
-        if (selectedPathFailed && state == UnderlyingNetwork.OK) {
+        val tunnelResult = findings.tunnel
+        val domainResult = findings.system.outcome
+        val selectedResult = findings.selected
+        val selectedPathFailed = vpnTarget && selectedResult == WatchdogProbeResult.NoResponse
+        var physicalResult = findings.physical
+        if (selectedPathFailed && state != UnderlyingNetwork.CAPTIVE_PORTAL && physicalResult == null)
             physicalResult = probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { underlyingReachable(it) }
-            if (!observationCurrent(observation, ticket)) return
-            if (recoverEarly(observation, ticket, protocol, selectedResult, physicalResult, false)) return
-            if (physicalResult == WatchdogProbeResult.Unavailable) {
-                probeUnavailable("physical-unavailable", observation)
-                return
-            }
+        if (!observationCurrent(observation, ticket)) return
+        fun WatchdogProbeResult?.finding() = when (this) {
+            WatchdogProbeResult.Reachable -> ProbeFinding.Responded
+            WatchdogProbeResult.NoResponse -> ProbeFinding.Failed
+            WatchdogProbeResult.Unavailable -> ProbeFinding.Unavailable
+            null -> ProbeFinding.NotChecked
         }
-        if (tunnelResult == WatchdogProbeResult.Unavailable || domainResult == WatchdogProbeResult.Unavailable) {
-            probeUnavailable("unavailable", observation)
+        val trafficAlive = lastTrafficAt > 0 && now() - lastTrafficAt in 0 until TRAFFIC_ALIVE_WINDOW_MS
+        publishHealth(observation, ticket, HealthEvidence(captiveHint = state == UnderlyingNetwork.CAPTIVE_PORTAL,
+            selected = selectedResult.finding(), physical = physicalResult.finding(), systemDns = findings.system.dns,
+            systemHttp = findings.system.http, tls = tunnelResult.finding(), oldTraffic = trafficAlive, vpnTarget = vpnTarget))
+        if (monitorPreferred && preference != null) {
+            maybeReturnPreferred(observation, ticket, preference, preferredLeaf!!, findings.preferred, physicalResult)
+            if (!observationCurrent(observation, ticket)) return
+        } else preferredReturn.reset()
+        if (!vpnTarget || selectedResult == WatchdogProbeResult.Unavailable) {
+            probeUnavailable("selected-unavailable", observation)
+            return
+        }
+        if (openConnect && selectedPathFailed && state == UnderlyingNetwork.OK) {
+            if (recoverEarly(observation, ticket, protocol, selectedResult, physicalResult ?: WatchdogProbeResult.Unavailable, false)) return
+        }
+        if (selectedPathFailed && physicalResult == WatchdogProbeResult.Unavailable) {
+            probeUnavailable("physical-unavailable", observation)
             return
         }
         val tunnelOk = tunnelResult == WatchdogProbeResult.Reachable
         val domainOk = domainResult == WatchdogProbeResult.Reachable
 
-        // ★ Успех определяет ТОЛЬКО domainOk. Это полный путь: резолв имени плюс живой
-        // HTTPS-запрос НАСКВОЗЬ через туннель. Если он прошёл — туннель работает по
-        // определению, спорить не о чем. Раньше здесь стояло `tunnelOk && domainOk`, и
-        // сбой объявлялся даже когда запрос доходил: достаточно было споткнуться более
-        // грубой пробе туннеля. В журнале 07–09.08 это два десятка ложных тревог, каждая
-        // из которых запускала лишний цикл лечения — переподключения на ровном месте.
-        // tunnelOk ниже остаётся, но уже только чтобы назвать ПРИЧИНУ настоящего сбоя.
-        //
-        // ★★ И второе доказательство жизни — ВСТРЕЧНЫЙ ТРАФИК. Если только что приходили байты,
-        // туннель работает, и неудачная проба этого не отменяет: она могла не уложиться в срок
-        // именно потому, что канал занят полезной передачей. Раньше сторож в такой момент решал,
-        // что туннель мёртв, и рвал соединения — то есть ронял ту самую передачу, из-за которой
-        // и не успел. Чем активнее человек пользовался связью, тем вернее сторож её ломал.
-        val trafficAlive = lastTrafficAt > 0 && now() - lastTrafficAt in 0 until TRAFFIC_ALIVE_WINDOW_MS
-
-        // ★★★ ТРЕТЬЕ доказательство жизни: имя пробы не разрешилось, а туннель отвечает.
-        //
-        // PROBE_HOST резолвится НАМЕРЕННО МИМО ТУННЕЛЯ (правило dns-local в подписке —
-        // защита от замкнутого круга: иначе мёртвый узел делал бы неизмеримыми все). Значит
-        // эта проба зависит от резолвера САМОГО ТЕЛЕФОНА, а он после переключения Wi-Fi ↔
-        // мобильной несколько секунд не готов. Пауза перед проверкой всего 5 секунд, и мы
-        // регулярно спрашивали имя раньше, чем телефон был способен ответить.
-        //
-        // Чем это обходилось (журнал 09–15.09.2026): 246 из 259 провалов резолва (95%)
-        // пришлись на первую минуту после смены сети; 38 из 114 объявлений «сбой» (33%)
-        // случились сразу после такого провала. Дальше лестница лечения принудительно меняла
-        // сеть — 43 раза, и за 37 из них (86%) в две минуты следовала новая смена сети.
-        // Круг замыкался: смена сети → резолвер не готов → «сбой» → смена сети.
-        //
-        // Различаем ДВА РАЗНЫХ «не получилось»: «имя не разрешилось на телефоне» и «туннель
-        // не работает». Рукопожатие tcpReachable() идёт до ЛИТЕРАЛЬНОГО адреса сквозь туннель
-        // и имени не требует — если оно прошло, туннель жив, и чинить нечего.
-        //
-        // Удлинять паузу вместо этого нельзя: смена сети — как раз тот момент, когда
-        // соединения умирают незаметно, ради него проверка тут и стоит.
-        val nameOk = domainOk || probe { InetAddress.getByName(PROBE_HOST) != null }
-        val nameNotReady = !nameOk && tunnelOk
-
-        if (!observationCurrent(observation, ticket)) return
-        if (!selectedPathFailed && (domainOk || trafficAlive || nameNotReady)) {
+        // Fresh response through the selected exit is distinct from bypass DNS and old flows.
+        // Old traffic may continue while NEW requests fail; do not let it hide that failure.
+        if (selectedResult == WatchdogProbeResult.Reachable) {
             // Проверку разбудило «залипание», а связь в порядке — так выглядит большая выгрузка:
             // наружу идут байты, а обратно только подтверждения TCP, которых счётчик ядра не
             // видит. Отмечаем в журнале (редко), чтобы при разборе было видно, почему сторож
@@ -762,11 +750,7 @@ object ConnectivityWatchdog {
                 // Помечаем, ПОЧЕМУ сбоя не объявили, хотя полная проба не прошла: по живому
                 // трафику или потому что не готов резолвер телефона. При разборе журнала это
                 // разные диагнозы, и без пометки они неотличимы.
-                val why = when {
-                    domainOk -> ""
-                    nameNotReady -> " · имя не разрешилось, но туннель отвечает"
-                    else -> " · проба не прошла, но трафик идёт"
-                }
+                val why = if (domainOk) "" else " · system_check=unconfirmed selected_exit=responding"
                 appendLog("всё в порядке · ${context(trigger)}$why")
                 // ★ Замеры пишем ВМЕСТЕ С ПУЛЬСОМ, а не только при переключении. Иначе видно
                 // исключительно аварийную картину: за 16–17.08 строк с замерами набралось 14 штук,
@@ -808,8 +792,7 @@ object ConnectivityWatchdog {
         // тут ровно два: не отвечает вообще ничего — или рукопожатие проходит, а настоящий
         // запрос сквозь туннель не доходит.
         val what =
-            if (tunnelOk) str(R.string.watchdog_reason_dns)
-            else str(R.string.watchdog_reason_tunnel)
+            str(R.string.soft_switch_no_response)
 
         // ★ Выясняем, ЧЬЯ это беда. Перезапуск лечит только зависший туннель; если у самого
         // телефона нет рабочего интернета, перезапуск бесполезен и вреден — он рвёт и те
@@ -830,8 +813,8 @@ object ConnectivityWatchdog {
         // числился валидным, а прямые соединения через wlan0 отваливались по таймауту — сторож
         // считал сеть телефона исправной и потому уходил в долгую паузу вместо смены сети.
         // Поэтому при мёртвом туннеле дополнительно проверяем САМУ сеть телефона, минуя туннель.
-        val networkDead = state == UnderlyingNetwork.NO_INTERNET ||
-            (!tunnelOk && !(physicalResult?.let { it == WatchdogProbeResult.Reachable } ?: probe { underlyingReachable(it) }))
+        // Android validation is a hint, not a completed failed request. No network blame without a fresh physical probe.
+        val networkDead = physicalResult == WatchdogProbeResult.NoResponse
         if (!observationCurrent(observation, ticket)) return
         if (networkDead) {
             // Пока телефон держится за Wi-Fi, Android гасит модем — и уходить физически некуда.
@@ -881,6 +864,7 @@ object ConnectivityWatchdog {
             return
         }
 
+        markRecovering(observation, ticket)
         recovery.lastHealAt = now
         consecutiveFailures = 0
 
@@ -899,6 +883,58 @@ object ConnectivityWatchdog {
         }
     }
 
+    private fun publishHealth(observation: WatchdogObservation, ticket: SoftSwitch.Ticket, evidence: HealthEvidence) {
+        if (!observationCurrent(observation, ticket)) return
+        val health = activeHealth?.takeIf { it.first === observation }?.second ?: return
+        if (HealthRuntime.monitor.observe(health, evidence)) {
+            val preference = observation.identity.selector?.let { SelectionPreferenceRuntime.store.read(observation.identity.profile, it) }
+            HealthRuntime.monitor.setTemporaryFallback(preference != null && preference.target != observation.identity.selection)
+            AndroidLifecycleDiagnostics.observation(health, HealthRuntime.view())
+        }
+    }
+
+    private fun markRecovering(observation: WatchdogObservation, ticket: SoftSwitch.Ticket) {
+        if (!observationCurrent(observation, ticket)) return
+        activeHealth?.takeIf { it.first === observation }?.second?.let { health ->
+            if (HealthRuntime.monitor.recovering(health)) AndroidLifecycleDiagnostics.observation(health, HealthRuntime.view(), attempted = true)
+        }
+    }
+
+    /** Stability is fresh samples, not elapsed time since the emergency switch. */
+    private suspend fun maybeReturnPreferred(observation: WatchdogObservation, ticket: SoftSwitch.Ticket,
+        preference: SelectionPreference, preferredLeaf: String, preferred: WatchdogProbeResult?, physical: WatchdogProbeResult?) {
+        val id = observation.identity
+        fun current() = observationCurrent(observation, ticket) &&
+            SelectionPreferenceRuntime.store.read(id.profile, preference.selector) == preference &&
+            (if (preference.target == ProfileTags.auto) autoSelected == preferredLeaf && autoNodes.any { it.first == preferredLeaf }
+             else selectorNodes.any { it.first == preference.target })
+        fun WatchdogProbeResult?.finding() = when (this) {
+            WatchdogProbeResult.Reachable -> PreferredReturnFinding.Success
+            WatchdogProbeResult.NoResponse -> PreferredReturnFinding.Failed
+            WatchdogProbeResult.Unavailable -> PreferredReturnFinding.Unavailable
+            null -> PreferredReturnFinding.Missing
+        }
+        val checkedAt = now()
+        val decision = preferredReturn.observe(PreferredReturnContext(id.owner, id.owner, id.profile, preference.selector,
+            id.generation, id.network, ticket.revision, preference.revision, preference.target,
+            eligiblePreferred = true, active = Settings.startedByUser),
+            PreferredReturnObservation(preferred.finding(), physical.finding(), checkedAt, checkedAt, current()), checkedAt)
+        if (!decision.eligible || !current()) return
+        val selector = id.selector ?: return
+        val expected = id.selection ?: return
+        val command = LibboxSelectionTransport.create(null)
+        val result = SoftSwitching.choices.select(ticket, preference.target, expected, { selectorSelected }, ::current,
+            probe = { if (preferred == WatchdogProbeResult.Reachable && current()) 0 else null },
+            commit = { command.select(selector, preference.target) { current() && selectorSelected == expected } })
+        if (result == SwitchOutcome.Switched) {
+            selectorSelected = preference.target
+            preferredReturn.reset()
+            HealthRuntime.stop()
+            AndroidLifecycleDiagnostics.invalidate()
+            AppEventLog.log("reliability", "preferredReturn=ACKNOWLEDGED oldFlows=RETAINED")
+        }
+    }
+
     /** Two fresh failures through the selected endpoint cannot be masked by old-flow traffic. */
     private suspend fun recoverEarly(observation: WatchdogObservation, ticket: SoftSwitch.Ticket,
         protocol: String?, selected: WatchdogProbeResult, physical: WatchdogProbeResult, restrictedNetwork: Boolean): Boolean {
@@ -907,6 +943,7 @@ object ConnectivityWatchdog {
         val recovery = recoveryFor(observation, ticket) ?: return false
         val wait = if (recovery.poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN) EXHAUSTED_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
         if (now() - recovery.lastHealAt < wait) return true
+        markRecovering(observation, ticket)
         recovery.lastHealAt = now()
         appendLog(str(R.string.watchdog_log_switch_server, str(R.string.watchdog_reason_tunnel)))
         switchToFastestServer(observation, ticket)
@@ -972,7 +1009,7 @@ object ConnectivityWatchdog {
             }
             // History orders candidates; only a fresh successful request permits
             // selection. Reuse the bounded probe pool, always targeting LOCAL core.
-            val probe = LibboxProbeTransport.createLocal()
+            val probe = LibboxProbeTransport.createLocal(ProbePriority.Recovery, ProbeTransport.HEALTH_URLS)
             data class Measurement(val tag: String, val delay: Int?, val completed: Boolean)
             val measured = coroutineScope {
                 order.map { tag -> async {
@@ -1001,6 +1038,10 @@ object ConnectivityWatchdog {
                 })
             if (result == SwitchOutcome.Switched) {
                 selectorSelected = candidate
+                HealthRuntime.stop()
+                AndroidLifecycleDiagnostics.invalidate()
+                val preference = SelectionPreferenceRuntime.store.read(observation.identity.profile, selector)
+                HealthRuntime.monitor.setTemporaryFallback(preference != null && preference.target != candidate)
                 AppEventLog.log("узел", "новые соединения через «$candidate»; старые сохраняют прежний выход")
             } else if (result == SwitchOutcome.CommitError) {
                 appendLog(str(R.string.soft_switch_unconfirmed))

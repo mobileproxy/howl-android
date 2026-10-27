@@ -828,4 +828,41 @@
     <string name="diagnostics_safe_result">Успешные пробы: %1$d/3. Загружено: %2$d байт.</string>
     <string name="diagnostics_safe_node_changed">Во время проверки изменился выбранный узел.</string>
     <string name="diagnostics_safe_save">Сохранить обезличенный отчёт</string>
+
+    <!-- Current selected-server evidence; shared by UI and notification. -->
+    <string name="health_off">VPN выключен</string>
+    <string name="health_off_hint">Нажмите для подключения.</string>
+    <string name="health_connecting">Запускаем VPN</string>
+    <string name="health_connecting_hint">Служба запускается; соединение ещё не проверено.</string>
+    <string name="health_disconnecting">Выключаем VPN</string>
+    <string name="health_disconnecting_hint">Служба останавливается.</string>
+    <string name="health_checking">Проверяем соединение</string>
+    <string name="health_checking_hint">VPN включён. Проверяем новый запрос через выбранный сервер.</string>
+    <string name="health_available">Сервер отвечает</string>
+    <string name="health_available_hint">Свежий контрольный запрос через выбранный сервер выполнен. Другие сайты и приложения могут работать иначе.</string>
+    <string name="health_recovering">Восстанавливаем связь</string>
+    <string name="health_recovering_hint">VPN включён. Восстанавливаем новые запросы; отключить VPN можно в любой момент.</string>
+    <string name="health_no_network">Нет сети</string>
+    <string name="health_no_network_hint">Нет физической сети. Проверьте Wi-Fi или мобильный интернет.</string>
+    <string name="health_no_internet">Проверка сети не прошла</string>
+    <string name="health_no_internet_hint">Контрольные запросы через физическую сеть и выбранный сервер не прошли. Точная причина неизвестна.</string>
+    <string name="health_captive">Возможно, нужен вход в сеть</string>
+    <string name="health_captive_hint">Сеть сообщает о странице входа. Откройте её для проверки доступа.</string>
+    <string name="health_requests_failed">Новые запросы не прошли</string>
+    <string name="health_requests_failed_hint">Выбранный сервер не ответил на контрольные запросы. Точная причина неизвестна.</string>
+    <string name="health_partial">Связь работает частично</string>
+    <string name="health_partial_hint">Есть прежний трафик, но новые контрольные запросы не прошли.</string>
+    <string name="health_check_unavailable">Проверка недоступна</string>
+    <string name="health_check_unavailable_hint">Проверку не удалось завершить. Это не доказывает отказ сервера.</string>
+    <string name="health_profile_problem">Проверьте профиль</string>
+    <string name="health_profile_problem_hint">Профиль не удалось запустить. Проверьте выбранный профиль.</string>
+    <string name="health_unverified">Соединение не проверено</string>
+    <string name="health_unverified_hint">VPN включён. Актуальной проверки выбранного сервера нет.</string>
+    <string name="health_expired_hint">Срок успешной проверки истёк. Нужен свежий результат.</string>
+    <string name="health_unsupported_hint">Текущий выбор нельзя проверить как VPN-выход.</string>
+    <string name="health_system_dns_hint">Системная проверка DNS не прошла. Это не диагноз DNS профиля.</string>
+    <string name="health_system_tls_hint">Системная проверка HTTPS не прошла на этапе TLS. Результат выбранного сервера учитывается отдельно.</string>
+    <string name="health_system_https_hint">Системный HTTPS-запрос не прошёл. Результат выбранного сервера учитывается отдельно.</string>
+    <string name="health_temporary_fallback_hint">Работает временный резерв; ваш ручной выбор сохранён.</string>
+    <string name="health_remote_hint">На этом экране нет актуальной проверки удалённого соединения.</string>
 </resources>

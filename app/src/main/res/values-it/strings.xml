@@ -754,4 +754,41 @@
     <string name="diagnostics_safe_result">Prove riuscite: %1$d/3. Scaricati: %2$d byte.</string>
     <string name="diagnostics_safe_node_changed">Il nodo selezionato è cambiato durante la verifica.</string>
     <string name="diagnostics_safe_save">Salva rapporto anonimizzato</string>
+
+    <!-- Current selected-server evidence; shared by UI and notification. -->
+    <string name="health_off">VPN disattivata</string>
+    <string name="health_off_hint">Tocca per connetterti.</string>
+    <string name="health_connecting">Avvio della VPN</string>
+    <string name="health_connecting_hint">Il servizio si sta avviando; la connessione non è ancora verificata.</string>
+    <string name="health_disconnecting">Arresto della VPN</string>
+    <string name="health_disconnecting_hint">Il servizio si sta arrestando.</string>
+    <string name="health_checking">Verifica della connessione</string>
+    <string name="health_checking_hint">La VPN è attiva. Verifica di una nuova richiesta tramite il server scelto.</string>
+    <string name="health_available">Il server scelto risponde</string>
+    <string name="health_available_hint">Una richiesta di controllo recente tramite il server scelto è riuscita. Altri siti e app possono comportarsi diversamente.</string>
+    <string name="health_recovering">Ripristino della connessione</string>
+    <string name="health_recovering_hint">La VPN è attiva. Ripristino delle nuove richieste; puoi disconnetterti in qualsiasi momento.</string>
+    <string name="health_no_network">Nessuna rete</string>
+    <string name="health_no_network_hint">Nessuna rete fisica disponibile. Controlla il Wi-Fi o i dati mobili.</string>
+    <string name="health_no_internet">Verifica della rete non riuscita</string>
+    <string name="health_no_internet_hint">Le richieste di controllo tramite la rete fisica e il server scelto sono fallite. La causa esatta è sconosciuta.</string>
+    <string name="health_captive">Potrebbe servire l’accesso alla rete</string>
+    <string name="health_captive_hint">La rete segnala una pagina di accesso. Aprila per verificare l’accesso.</string>
+    <string name="health_requests_failed">Nuove richieste non riuscite</string>
+    <string name="health_requests_failed_hint">Il server scelto non ha risposto alle richieste di controllo. La causa esatta è sconosciuta.</string>
+    <string name="health_partial">Connessione parzialmente funzionante</string>
+    <string name="health_partial_hint">È stato rilevato traffico esistente, ma le nuove richieste di controllo sono fallite.</string>
+    <string name="health_check_unavailable">Verifica non disponibile</string>
+    <string name="health_check_unavailable_hint">Impossibile completare la verifica. Questo non dimostra un guasto del server.</string>
+    <string name="health_profile_problem">Controlla il profilo</string>
+    <string name="health_profile_problem_hint">Impossibile avviare il profilo. Controlla il profilo scelto.</string>
+    <string name="health_unverified">Connessione non verificata</string>
+    <string name="health_unverified_hint">La VPN è attiva. Non è disponibile una verifica attuale del server scelto.</string>
+    <string name="health_expired_hint">La precedente verifica riuscita è scaduta. Serve un nuovo risultato.</string>
+    <string name="health_unsupported_hint">La selezione attuale non può essere verificata come uscita VPN.</string>
+    <string name="health_system_dns_hint">La risoluzione dei nomi del sistema è fallita. Questo non diagnostica il DNS del profilo.</string>
+    <string name="health_system_tls_hint">La verifica HTTPS del sistema è fallita nella fase TLS. Il risultato del server scelto è indipendente.</string>
+    <string name="health_system_https_hint">La richiesta HTTPS del sistema è fallita. Il risultato del server scelto è indipendente.</string>
+    <string name="health_temporary_fallback_hint">È in uso una riserva temporanea; la tua scelta manuale è salvata.</string>
+    <string name="health_remote_hint">Questa schermata non dispone di una verifica attuale della connessione remota.</string>
 </resources>

@@ -69,6 +69,7 @@ object ConnectionDiagnostics {
                 startedAt, System.currentTimeMillis(), before, snapshot(), delays, downloaded?.coerceAtLeast(0) ?: 0,
                 if (downloaded != null && downloaded > 0) (System.nanoTime() - downloadStart) / 1_000_000 else null,
                 EventSummary.from(AppEventLog.history(2000)),
+                io.nekohasekai.sfa.health.AndroidLifecycleDiagnostics.report(),
             )
         } finally {
             running = false

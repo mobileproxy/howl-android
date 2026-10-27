@@ -18,13 +18,20 @@ import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.MainActivity
+import io.nekohasekai.sfa.compose.component.connectionHealthText
 import io.nekohasekai.sfa.constant.Action
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.health.HealthRuntime
 import io.nekohasekai.sfa.utils.CommandClient
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ServiceNotification(private val status: MutableLiveData<Status>, private val service: Service) :
@@ -48,6 +55,9 @@ class ServiceNotification(private val status: MutableLiveData<Status>, private v
     private val commandClient =
         CommandClient(GlobalScope, CommandClient.ConnectionType.Status, this, localOnly = true)
     private var receiverRegistered = false
+    @Volatile private var notificationScope: CoroutineScope? = null
+    private var servicePhase = Status.Stopped
+    private var traffic: String? = null
 
     private val notificationBuilder by lazy {
         NotificationCompat.Builder(service, notificationChannel).setShowWhen(false).setOngoing(true)
@@ -82,6 +92,12 @@ class ServiceNotification(private val status: MutableLiveData<Status>, private v
     }
 
     fun show(lastProfileName: String, @StringRes contentTextId: Int) {
+        // Preserve the existing show API while keeping lifecycle and probe evidence separate.
+        servicePhase = when (contentTextId) {
+            R.string.status_starting -> Status.Starting
+            R.string.status_started -> Status.Started
+            else -> status.value ?: Status.Stopped
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Application.notification.createNotificationChannel(
                 NotificationChannel(
@@ -95,8 +111,17 @@ class ServiceNotification(private val status: MutableLiveData<Status>, private v
             notificationId,
             notificationBuilder
                 .setContentTitle(lastProfileName.takeIf { it.isNotBlank() } ?: "Howl")
-                .setContentText(service.getString(contentTextId)).build(),
+                .apply { updateHealthText() }.build(),
         )
+        if (notificationScope == null) {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+            notificationScope = scope
+            // Health is always visible, including when speed notifications are disabled.
+            // HealthMonitor owns a single expiry timer; this collector never polls.
+            scope.launch {
+                HealthRuntime.state.collect { refresh() }
+            }
+        }
     }
 
     suspend fun start() {
@@ -109,6 +134,7 @@ class ServiceNotification(private val status: MutableLiveData<Status>, private v
     }
 
     private fun registerReceiver() {
+        if (receiverRegistered) return
         service.registerReceiver(
             this,
             IntentFilter().apply {
@@ -122,9 +148,28 @@ class ServiceNotification(private val status: MutableLiveData<Status>, private v
     override fun updateStatus(status: StatusMessage) {
         val content =
             Libbox.formatBytes(status.uplink) + "/s ↑\t" + Libbox.formatBytes(status.downlink) + "/s ↓"
+        notificationScope?.launch {
+            traffic = content
+            refresh()
+        }
+    }
+
+    private fun updateHealthText() {
+        val health = connectionHealthText(servicePhase, HealthRuntime.view(), Settings.watchdogEnabled)
+        val label = service.getString(health.label)
+        val details = health.hints.joinToString("\n") { service.getString(it) }
+        notificationBuilder
+            .setContentText(label)
+            .setSubText(traffic)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$label\n$details"))
+    }
+
+    private fun refresh() {
+        if (notificationScope == null || !checkPermission()) return
+        updateHealthText()
         Application.notificationManager.notify(
             notificationId,
-            notificationBuilder.setContentText(content).build(),
+            notificationBuilder.build(),
         )
     }
 
@@ -141,6 +186,11 @@ class ServiceNotification(private val status: MutableLiveData<Status>, private v
     }
 
     fun close() {
+        val scope = notificationScope
+        notificationScope = null
+        scope?.cancel()
+        traffic = null
+        servicePhase = Status.Stopped
         commandClient.disconnect()
         ServiceCompat.stopForeground(service, ServiceCompat.STOP_FOREGROUND_REMOVE)
         if (receiverRegistered) {

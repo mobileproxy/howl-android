@@ -754,4 +754,41 @@
     <string name="diagnostics_safe_result">Tests réussis : %1$d/3. Téléchargement : %2$d octets.</string>
     <string name="diagnostics_safe_node_changed">Le nœud sélectionné a changé pendant le test.</string>
     <string name="diagnostics_safe_save">Enregistrer le rapport anonymisé</string>
+
+    <!-- Current selected-server evidence; shared by UI and notification. -->
+    <string name="health_off">VPN désactivé</string>
+    <string name="health_off_hint">Appuyez pour vous connecter.</string>
+    <string name="health_connecting">Démarrage du VPN</string>
+    <string name="health_connecting_hint">Le service démarre ; la connexion n’est pas encore vérifiée.</string>
+    <string name="health_disconnecting">Arrêt du VPN</string>
+    <string name="health_disconnecting_hint">Le service est en cours d’arrêt.</string>
+    <string name="health_checking">Vérification de la connexion</string>
+    <string name="health_checking_hint">Le VPN est actif. Vérification d’une nouvelle requête via le serveur choisi.</string>
+    <string name="health_available">Le serveur choisi répond</string>
+    <string name="health_available_hint">Une requête de contrôle récente via le serveur choisi a réussi. D’autres sites et applications peuvent différer.</string>
+    <string name="health_recovering">Rétablissement de la connexion</string>
+    <string name="health_recovering_hint">Le VPN est actif. Les nouvelles requêtes sont rétablies ; vous pouvez vous déconnecter à tout moment.</string>
+    <string name="health_no_network">Aucun réseau</string>
+    <string name="health_no_network_hint">Aucun réseau physique disponible. Vérifiez le Wi-Fi ou les données mobiles.</string>
+    <string name="health_no_internet">Échec du contrôle réseau</string>
+    <string name="health_no_internet_hint">Les requêtes de contrôle via le réseau physique et le serveur choisi ont échoué. La cause exacte est inconnue.</string>
+    <string name="health_captive">Connexion au réseau peut-être requise</string>
+    <string name="health_captive_hint">Le réseau signale une page de connexion. Ouvrez-la pour vérifier l’accès.</string>
+    <string name="health_requests_failed">Échec des nouvelles requêtes</string>
+    <string name="health_requests_failed_hint">Le serveur choisi n’a pas répondu aux requêtes de contrôle. La cause exacte est inconnue.</string>
+    <string name="health_partial">Connexion partiellement disponible</string>
+    <string name="health_partial_hint">Du trafic existant a été détecté, mais les nouvelles requêtes de contrôle ont échoué.</string>
+    <string name="health_check_unavailable">Vérification indisponible</string>
+    <string name="health_check_unavailable_hint">La vérification n’a pas pu se terminer. Cela ne prouve pas une panne du serveur.</string>
+    <string name="health_profile_problem">Vérifiez le profil</string>
+    <string name="health_profile_problem_hint">Le profil n’a pas pu démarrer. Vérifiez le profil choisi.</string>
+    <string name="health_unverified">Connexion non vérifiée</string>
+    <string name="health_unverified_hint">Le VPN est actif. Aucun contrôle actuel du serveur choisi n’est disponible.</string>
+    <string name="health_expired_hint">Le dernier contrôle réussi a expiré. Un nouveau résultat est nécessaire.</string>
+    <string name="health_unsupported_hint">La sélection actuelle ne peut pas être vérifiée comme sortie VPN.</string>
+    <string name="health_system_dns_hint">La résolution de noms du système a échoué. Cela ne diagnostique pas le DNS du profil.</string>
+    <string name="health_system_tls_hint">Le contrôle HTTPS du système a échoué à l’étape TLS. Le résultat du serveur choisi est indépendant.</string>
+    <string name="health_system_https_hint">La requête HTTPS du système a échoué. Le résultat du serveur choisi est indépendant.</string>
+    <string name="health_temporary_fallback_hint">Un secours temporaire est utilisé ; votre choix manuel reste enregistré.</string>
+    <string name="health_remote_hint">Cet écran ne dispose d’aucun contrôle actuel de la connexion distante.</string>
 </resources>

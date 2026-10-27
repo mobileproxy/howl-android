@@ -41,6 +41,12 @@ object Settings {
     var selectedProfile by dataStore.long(SettingsKey.SELECTED_PROFILE) { -1L }
     var serviceMode by dataStore.string(SettingsKey.SERVICE_MODE) { ServiceMode.NORMAL }
     var startedByUser by dataStore.boolean(SettingsKey.STARTED_BY_USER)
+    // Separate versioned records; no profile/config migration or native selection inference.
+    var serviceSessionMarker by dataStore.string("reliability_service_session_v1") { "" }
+    var selectionPreferences by dataStore.string("reliability_selection_preferences_v1") { "" }
+    fun writeSelectionPreferences(value: String) {
+        instance.keyValuePairDao().put(io.nekohasekai.sfa.database.preference.KeyValueEntity("reliability_selection_preferences_v1").put(value))
+    }
 
     var updateSource by dataStore.string(SettingsKey.UPDATE_SOURCE) { "github" }
     var checkUpdateEnabled by dataStore.boolean(SettingsKey.CHECK_UPDATE_ENABLED) { false }

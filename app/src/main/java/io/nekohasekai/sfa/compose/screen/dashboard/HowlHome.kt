@@ -57,23 +57,26 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.constant.Status
+import io.nekohasekai.sfa.compose.component.ConnectionHealthText
 
 /**
  * Big central connect / disconnect button — the hero of the Howl home screen.
  *
- * Purely status-driven visuals: a mint-filled disc with a soft glow when connected,
- * a mint-outlined disc when idle, and a progress ring while transitioning. The actual
+ * A verified selected-server response earns the mint fill; other states stay neutral.
+ * Service lifecycle still determines the action and progress ring. The actual
  * decision of what a tap does lives in the caller (connect, disconnect, or add a server).
  */
 @Composable
-fun HowlConnectButton(status: Status, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val mint = MaterialTheme.colorScheme.primary
-    val connected = status == Status.Started
+fun HowlConnectButton(status: Status, onClick: () -> Unit, modifier: Modifier = Modifier,
+    healthVerified: Boolean = false) {
+    val connected = status == Status.Started && healthVerified
+    val mint = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val transitioning = status == Status.Starting || status == Status.Stopping
 
     // Gentle breathing glow while connected.
@@ -147,9 +150,32 @@ fun HowlConnectButton(status: Status, onClick: () -> Unit, modifier: Modifier = 
         ) {
             Icon(
                 imageVector = Icons.Outlined.PowerSettingsNew,
-                contentDescription = null,
+                contentDescription = stringResource(if (status == Status.Started || status == Status.Starting) R.string.stop else R.string.action_start),
                 tint = iconTint,
                 modifier = Modifier.size(84.dp),
+            )
+        }
+    }
+}
+
+/** Uses the same resource mapping as the service notification. */
+@Composable
+fun HowlConnectionStatus(health: ConnectionHealthText, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = stringResource(health.label),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (health.verified) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        health.hints.forEach { hint ->
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
     }

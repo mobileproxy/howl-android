@@ -42,13 +42,14 @@ data class ConnectionReport(
     val bytes: Int,
     val downloadMs: Long?,
     val events: EventSummary,
+    val reliability: ReliabilityReport? = null,
 ) {
     fun json(): String {
         fun node(value: NodeSnapshot) = JSONObject()
             .put("alias", value.alias?.takeIf { it.matches(Regex("node-[0-9a-f]{12}")) } ?: JSONObject.NULL)
             .put("protocol", value.protocol?.takeIf { it in NodeSnapshot.protocols } ?: JSONObject.NULL)
         val successful = delays.filterNotNull().sorted()
-        return JSONObject()
+        val report = JSONObject()
             .put("schema", 1).put("appVersion", appVersion).put("coreVersion", coreVersion).put("androidSdk", sdk)
             .put("startedAtEpochMs", startedAt).put("finishedAtEpochMs", finishedAt)
             .put("route", "application_route_with_user_routing_rules")
@@ -61,7 +62,10 @@ data class ConnectionReport(
             .put("downloadBytes", bytes).put("downloadMs", downloadMs ?: JSONObject.NULL)
             .put("events", JSONObject().put("sampledLines", events.samples).put("networkChanges", events.networkChanges)
                 .put("watchdogEvents", events.recoveries).put("coreEvents", events.coreEvents))
-            .toString(2)
+        reliability?.json()?.let { extra ->
+            for (key in listOf("health", "serviceRecovery", "recovery")) report.put(key, extra.get(key))
+        }
+        return report.toString(2)
     }
 }
 

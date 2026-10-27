@@ -4,9 +4,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.Semaphore
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
@@ -33,16 +35,24 @@ class ProbeRequestNotStartedException : IllegalStateException("Probe executor is
 class ProbeTransport(private val factory: () -> OwnedProbeClient,
     private val workers: Executor = pool, private val closers: Executor = closePool,
     private val firstTimeoutMs: Int = 4500, private val retryTimeoutMs: Int = 4000,
-    private val requestSlackMs: Long = 250, private val cancellationGraceMs: Long = 100) {
+    private val requestSlackMs: Long = 250, private val cancellationGraceMs: Long = 100,
+    controlUrls: List<String> = ConnectionChecks.urls,
+    private val priority: ProbePriority = ProbePriority.ManualScan,
+    private val coordinator: ProbeCoordinator = ProbeCoordinator.shared) {
     companion object {
-        // Shared across screens/runs: a cancelled native call still occupies its worker.
-        private val pool = Executors.newFixedThreadPool(ConnectionChecks.PARALLELISM) { Thread(it, "Howl connection probe").apply { isDaemon = true } }
-        private val closePool = Executors.newFixedThreadPool(4) { Thread(it, "Howl probe cancellation").apply { isDaemon = true } }
+        val HEALTH_URLS: List<String> = listOf("https://www.gstatic.com/generate_204", "https://cp.cloudflare.com/generate_204")
+        // Shared zero-queue pools: uncooperative native work/cleanup keeps a real worker.
+        private fun pool(name: String) = ThreadPoolExecutor(8, 8, 0, TimeUnit.MILLISECONDS,
+            SynchronousQueue(), { Thread(it, name).apply { isDaemon = true } }, ThreadPoolExecutor.AbortPolicy())
+        private val pool = pool("Howl connection probe")
+        private val closePool = pool("Howl probe cancellation")
         // A returned native test may still have a blocked disconnect. Keep its
         // ownership permit until disconnect really ends, across all screens/runs.
         private val ownedClients = Semaphore(12)
     }
+    private val urls = controlUrls.toList()
     init {
+        require(urls.isNotEmpty() && urls.all { it.isNotBlank() })
         require(firstTimeoutMs > 0 && retryTimeoutMs > 0 && requestSlackMs >= 0 && cancellationGraceMs > 0)
         require(firstTimeoutMs + requestSlackMs + cancellationGraceMs < ConnectionChecks.FIRST_ATTEMPT_MS)
         require(2 * (retryTimeoutMs + requestSlackMs + cancellationGraceMs) < ConnectionChecks.RETRY_ATTEMPT_MS)
@@ -58,8 +68,8 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
         val timeout = if (attempt == 1) firstTimeoutMs else retryTimeoutMs
         val budget = if (attempt == 1) ConnectionChecks.FIRST_ATTEMPT_MS else ConnectionChecks.RETRY_ATTEMPT_MS
         val measurement = withTimeoutOrNull(budget) {
-            val urls = if (attempt == 1) ConnectionChecks.urls.take(1) else ConnectionChecks.urls.reversed()
-            for (url in urls) {
+            val targets = if (attempt == 1) urls.take(1) else urls.reversed()
+            for (url in targets) {
                 val call = Call()
                 val reply = withTimeoutOrNull(timeout + requestSlackMs) { request(tag, url, timeout, call) }
                 if (reply == null) {
@@ -78,43 +88,96 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
         } ?: throw ProbeRequestDidNotStopException()
         return measurement.delayMs
     }
-    private suspend fun request(tag: String, url: String, timeout: Int, call: Call): ProbeReply = suspendCancellableCoroutine { continuation ->
-        val client = AtomicReference<OwnedProbeClient?>()
-        val cancelled = AtomicBoolean()
-        val permit = AtomicBoolean()
-        fun releasePermit() { if (permit.compareAndSet(true, false)) ownedClients.release() }
-        fun closeAsync() {
-            val owned = client.getAndSet(null) ?: return
-            closers.execute { try { runCatching { owned.close() } } finally { releasePermit() } }
-        }
-        val work = Runnable {
-            if (cancelled.get()) { call.returned.complete(Unit); return@Runnable }
-            call.started.set(true)
-            var created = false
-            try {
-                if (!ownedClients.tryAcquire()) throw ProbeRequestNotStartedException()
-                permit.set(true)
-                val owned = factory()
-                created = true
-                client.set(owned)
-                if (cancelled.get()) return@Runnable
-                val reply = owned.test(tag, url, timeout)
-                if (continuation.isActive) continuation.resume(reply)
-            } catch (error: Exception) {
-                call.error.set(error)
-                if (continuation.isActive) continuation.resumeWithException(error)
-            } finally {
-                if (!created) releasePermit()
-                call.returned.complete(Unit)
-                closeAsync()
+    private suspend fun request(tag: String, url: String, timeout: Int, call: Call): ProbeReply {
+        val lease = try { coordinator.acquire(priority) }
+        catch (_: ProbeAdmissionBusyException) { throw ProbeRequestNotStartedException() }
+        return suspendCancellableCoroutine { continuation ->
+            val lock = Any()
+            val claimed = AtomicBoolean()
+            var cancelled = false
+            var client: OwnedProbeClient? = null
+            var ownsClientPermit = false
+            var workReturned = false
+            var closeStarted = false
+            var closeFinished = false
+            var released = false
+
+            fun releaseFinishedOwnership() {
+                var releaseClientPermit = false
+                val releaseLease = synchronized(lock) {
+                    if (released || !workReturned || (client != null && !closeFinished)) false
+                    else { released = true; releaseClientPermit = ownsClientPermit; ownsClientPermit = false; true }
+                }
+                if (releaseClientPermit) ownedClients.release()
+                if (releaseLease) lease.close()
+            }
+
+            // Caller holds lock while claiming/submitting close. On rejection only
+            // the originating native worker may close inline; never cancellation/Main.
+            fun submitClose(fromWorker: Boolean): Runnable? {
+                val owned = client ?: return null
+                if (closeStarted) return null
+                closeStarted = true
+                val executed = AtomicBoolean()
+                val close = Runnable {
+                    if (!executed.compareAndSet(false, true)) return@Runnable
+                    try { runCatching { owned.close() } }
+                    finally {
+                        synchronized(lock) { closeFinished = true }
+                        releaseFinishedOwnership()
+                    }
+                }
+                try { closers.execute(close) }
+                catch (_: RejectedExecutionException) {
+                    if (fromWorker) return close
+                    closeStarted = false // The running worker will retry/fall back on return.
+                }
+                return null
+            }
+
+            val work = Runnable {
+                if (!claimed.compareAndSet(false, true)) return@Runnable
+                try {
+                    if (synchronized(lock) { cancelled }) return@Runnable
+                    call.started.set(true)
+                    if (!ownedClients.tryAcquire()) throw ProbeRequestNotStartedException()
+                    synchronized(lock) { ownsClientPermit = true }
+                    val owned = factory()
+                    synchronized(lock) { client = owned }
+                    if (synchronized(lock) { cancelled }) return@Runnable
+                    val reply = owned.test(tag, url, timeout)
+                    if (continuation.isActive) continuation.resume(reply)
+                } catch (error: Exception) {
+                    call.error.set(error)
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                } finally {
+                    call.returned.complete(Unit)
+                    val inlineClose = synchronized(lock) { workReturned = true; submitClose(fromWorker = true) }
+                    inlineClose?.run()
+                    releaseFinishedOwnership()
+                }
+            }
+            continuation.invokeOnCancellation {
+                synchronized(lock) { cancelled = true; submitClose(fromWorker = false) }
+                if (claimed.compareAndSet(false, true)) {
+                    // The pending runnable is inert even for injected executors without remove().
+                    if (workers is ThreadPoolExecutor) workers.remove(work)
+                    synchronized(lock) { workReturned = true }
+                    call.returned.complete(Unit)
+                    releaseFinishedOwnership()
+                }
+            }
+            try { workers.execute(work) }
+            catch (_: RejectedExecutionException) {
+                if (claimed.compareAndSet(false, true)) {
+                    val error = ProbeRequestNotStartedException()
+                    call.error.set(error)
+                    synchronized(lock) { workReturned = true }
+                    call.returned.complete(Unit)
+                    releaseFinishedOwnership()
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                }
             }
         }
-        continuation.invokeOnCancellation {
-            cancelled.set(true)
-            if (workers is ThreadPoolExecutor && workers.remove(work)) call.returned.complete(Unit)
-            closeAsync()
-        }
-        workers.execute(work)
-        if (cancelled.get() && workers is ThreadPoolExecutor && workers.remove(work)) call.returned.complete(Unit)
     }
 }

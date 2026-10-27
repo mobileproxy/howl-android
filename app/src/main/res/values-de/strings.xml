@@ -754,4 +754,41 @@
     <string name="diagnostics_safe_result">Erfolgreiche Prüfungen: %1$d/3. Heruntergeladen: %2$d Byte.</string>
     <string name="diagnostics_safe_node_changed">Der ausgewählte Knoten hat sich während der Prüfung geändert.</string>
     <string name="diagnostics_safe_save">Anonymisierten Bericht speichern</string>
+
+    <!-- Current selected-server evidence; shared by UI and notification. -->
+    <string name="health_off">VPN aus</string>
+    <string name="health_off_hint">Zum Verbinden tippen.</string>
+    <string name="health_connecting">VPN wird gestartet</string>
+    <string name="health_connecting_hint">Der Dienst startet; die Verbindung ist noch nicht geprüft.</string>
+    <string name="health_disconnecting">VPN wird beendet</string>
+    <string name="health_disconnecting_hint">Der Dienst wird beendet.</string>
+    <string name="health_checking">Verbindung wird geprüft</string>
+    <string name="health_checking_hint">VPN ist aktiv. Eine neue Anfrage über den gewählten Server wird geprüft.</string>
+    <string name="health_available">Gewählter Server antwortet</string>
+    <string name="health_available_hint">Eine aktuelle Kontrollanfrage über den gewählten Server war erfolgreich. Andere Websites und Apps können abweichen.</string>
+    <string name="health_recovering">Verbindung wird wiederhergestellt</string>
+    <string name="health_recovering_hint">VPN ist aktiv. Neue Anfragen werden wiederhergestellt; Trennen ist jederzeit möglich.</string>
+    <string name="health_no_network">Kein Netzwerk</string>
+    <string name="health_no_network_hint">Kein physisches Netzwerk verfügbar. WLAN oder mobile Daten prüfen.</string>
+    <string name="health_no_internet">Netzwerkprüfung fehlgeschlagen</string>
+    <string name="health_no_internet_hint">Kontrollanfragen über das physische Netzwerk und den gewählten Server scheiterten. Die genaue Ursache ist unbekannt.</string>
+    <string name="health_captive">Netzwerkanmeldung eventuell nötig</string>
+    <string name="health_captive_hint">Das Netzwerk meldet eine Anmeldeseite. Für die Zugriffsprüfung öffnen.</string>
+    <string name="health_requests_failed">Neue Anfragen fehlgeschlagen</string>
+    <string name="health_requests_failed_hint">Der gewählte Server beantwortete die Kontrollanfragen nicht. Die genaue Ursache ist unbekannt.</string>
+    <string name="health_partial">Verbindung teilweise verfügbar</string>
+    <string name="health_partial_hint">Bestehender Datenverkehr wurde erkannt, neue Kontrollanfragen scheiterten jedoch.</string>
+    <string name="health_check_unavailable">Prüfung nicht verfügbar</string>
+    <string name="health_check_unavailable_hint">Die Prüfung konnte nicht abgeschlossen werden. Das belegt keinen Serverausfall.</string>
+    <string name="health_profile_problem">Profil prüfen</string>
+    <string name="health_profile_problem_hint">Das Profil konnte nicht gestartet werden. Das gewählte Profil prüfen.</string>
+    <string name="health_unverified">Verbindung nicht geprüft</string>
+    <string name="health_unverified_hint">VPN ist aktiv. Keine aktuelle Prüfung des gewählten Servers verfügbar.</string>
+    <string name="health_expired_hint">Die letzte erfolgreiche Prüfung ist abgelaufen. Ein neues Ergebnis ist nötig.</string>
+    <string name="health_unsupported_hint">Die aktuelle Auswahl kann nicht als VPN-Ausgang geprüft werden.</string>
+    <string name="health_system_dns_hint">Die Systemprüfung der Namensauflösung scheiterte. Dies ist keine Diagnose des Profil-DNS.</string>
+    <string name="health_system_tls_hint">Die HTTPS-Systemprüfung scheiterte bei TLS. Das Ergebnis des gewählten Servers ist unabhängig.</string>
+    <string name="health_system_https_hint">Die HTTPS-Systemanfrage scheiterte. Das Ergebnis des gewählten Servers ist unabhängig.</string>
+    <string name="health_temporary_fallback_hint">Ein temporärer Ersatz wird genutzt; Ihre manuelle Auswahl bleibt gespeichert.</string>
+    <string name="health_remote_hint">Für die entfernte Verbindung liegt auf diesem Bildschirm keine aktuelle Prüfung vor.</string>
 </resources>

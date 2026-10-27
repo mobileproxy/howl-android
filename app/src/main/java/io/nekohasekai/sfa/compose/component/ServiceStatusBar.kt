@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,18 +26,28 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.constant.Status
+import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.health.HealthRuntime
+import io.nekohasekai.sfa.health.HealthSnapshot
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import io.nekohasekai.sfa.utils.RemoteControlManager
 import kotlinx.coroutines.delay
 
 @Composable
@@ -52,6 +63,9 @@ fun ServiceStatusBar(
     onStopClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val snapshot = rememberConnectionHealthSnapshot()
+    val remote by RemoteControlManager.remoteServer.collectAsState()
+    val health = connectionHealthText(serviceStatus, snapshot, Settings.watchdogEnabled, remote != null)
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically { it } + fadeIn(),
@@ -73,12 +87,7 @@ fun ServiceStatusBar(
             ) {
                 // Status text
                 StatusItem(
-                    text = when (serviceStatus) {
-                        Status.Starting -> stringResource(R.string.status_starting)
-                        Status.Started -> stringResource(R.string.status_started)
-                        Status.Stopping -> stringResource(R.string.status_stopping)
-                        else -> ""
-                    },
+                    health = health,
                     modifier = Modifier.weight(1f),
                 )
 
@@ -163,15 +172,41 @@ fun ServiceStatusBar(
     }
 }
 
+/** Re-read elapsedRealtime after sleep; no periodic UI or background polling. */
 @Composable
-private fun StatusItem(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = modifier,
-    )
+fun rememberConnectionHealthSnapshot(): HealthSnapshot {
+    val snapshot by HealthRuntime.state.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) HealthRuntime.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) HealthRuntime.refresh()
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // A resumed composition may precede the effect. Never draw an expired success.
+    val current = HealthRuntime.view()
+    return if (current != snapshot) current else snapshot
+}
+
+@Composable
+private fun StatusItem(health: ConnectionHealthText, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = stringResource(health.label),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            color = if (health.verified) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = stringResource(health.hints.first()),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable

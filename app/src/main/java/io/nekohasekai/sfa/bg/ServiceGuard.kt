@@ -24,11 +24,9 @@ import kotlinx.coroutines.withContext
  * Простой составил 717 минут из 1403, то есть больше половины суток. Энергосбережение при этом
  * было отключено: убивает не режим экономии, а сама оболочка.
  *
- * Как. Будильник `AlarmManager` живёт в системе, а не в нашем процессе, и приёмник объявлен в
- * манифесте — значит при срабатывании Android СОЗДАСТ процесс заново, даже если тот был убит.
- * Дальше смотрим на [BoxService.running]: в свежесозданном процессе он false по определению, и
- * это надёжный признак «нас убили». Поднимаем службу и пишем строку в журнал, чтобы в следующем
- * разборе было видно, сколько раз сработало воскрешение.
+ * Будильник переживает процесс. running=false означает отсутствие подтверждённо
+ * запущенной службы, но не доказывает убийство системой. Причина определяется отдельно
+ * по подходящей записи ApplicationExitInfo; при нехватке доказательств остаётся UNKNOWN.
  *
  * Почему не только START_STICKY. Тот работает, когда система убивает службу штатно, но
  * агрессивные оболочки (OnePlus, Xiaomi, Huawei) умеют «замораживать» приложение так, что
@@ -100,10 +98,12 @@ class ServiceGuardReceiver : BroadcastReceiver() {
                 ServiceGuard.cancel()
                 return@launch
             }
-            AppEventLog.log("старт", "служба была убита системой — поднимаю заново")
+            // Absence alone cannot distinguish crash, OS action, startup or same-process restart.
+            AppEventLog.log("reliability", "startTrigger=GUARD_RESTART previousCause=UNCONFIRMED")
             withContext(Dispatchers.Main) {
-                runCatching { BoxService.start() }
-                    .onFailure { AppEventLog.log("старт", "поднять не удалось: ${it.message}") }
+                if (!Settings.startedByUser || BoxService.running) return@withContext
+                runCatching { BoxService.start(io.nekohasekai.sfa.health.SessionStartKind.GUARD_RESTART) }
+                    .onFailure { AppEventLog.log("reliability", "serviceRestore=START_REJECTED") }
             }
         }
     }

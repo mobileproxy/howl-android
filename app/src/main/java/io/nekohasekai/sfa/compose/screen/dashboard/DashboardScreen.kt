@@ -50,6 +50,8 @@ import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.component.RemoteControlMenuItems
 import io.nekohasekai.sfa.compose.component.rememberRemoteServers
+import io.nekohasekai.sfa.compose.component.connectionHealthText
+import io.nekohasekai.sfa.compose.component.rememberConnectionHealthSnapshot
 import io.nekohasekai.sfa.compose.navigation.NewProfileArgs
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
 import io.nekohasekai.sfa.constant.Status
@@ -275,18 +277,8 @@ private fun HowlHomeContent(
         else -> null
     }
 
-    val statusLabel = when (serviceStatus) {
-        Status.Started -> stringResource(R.string.howl_status_connected)
-        Status.Starting -> stringResource(R.string.howl_status_connecting)
-        Status.Stopping -> stringResource(R.string.howl_status_disconnecting)
-        Status.Stopped -> stringResource(R.string.howl_status_disconnected)
-    }
-    val hintText = when {
-        !hasProfile -> stringResource(R.string.howl_hint_add_server)
-        serviceStatus == Status.Started -> stringResource(R.string.howl_hint_tap_disconnect)
-        serviceStatus == Status.Stopped -> stringResource(R.string.howl_hint_tap_connect)
-        else -> ""
-    }
+    val healthSnapshot = rememberConnectionHealthSnapshot()
+    val healthText = connectionHealthText(serviceStatus, healthSnapshot, Settings.watchdogEnabled)
 
     val localCards = visibleDashboardCards(uiState, isRemote = false, excludeProfiles = true)
 
@@ -343,6 +335,7 @@ private fun HowlHomeContent(
             ) {
                 HowlConnectButton(
                     status = serviceStatus,
+                    healthVerified = healthText.verified,
                     onClick = {
                         if (hasProfile) {
                             viewModel.toggleService()
@@ -354,27 +347,7 @@ private fun HowlHomeContent(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                Text(
-                    text = statusLabel,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (serviceStatus == Status.Started) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    textAlign = TextAlign.Center,
-                )
-
-                if (hintText.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = hintText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                HowlConnectionStatus(healthText)
 
 
                 // Адрес, под которым человек виден сайтам. Показываем только при рабочей
