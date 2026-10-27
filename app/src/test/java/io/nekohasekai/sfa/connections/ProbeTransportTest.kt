@@ -8,6 +8,29 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class ProbeTransportTest {
+    @Test fun stalledCommandCleanupCannotAccumulateUnlimitedOwnedClientsAcrossTransports() = runBlocking {
+        val pendingCloses = mutableListOf<Runnable>()
+        val factories = AtomicInteger()
+        val workers = java.util.concurrent.Executor { it.run() }
+        val closers = java.util.concurrent.Executor { pendingCloses.add(it) }
+        fun transport() = ProbeTransport(factory = { factories.incrementAndGet(); object : OwnedProbeClient {
+            override fun test(tag: String, url: String, timeoutMs: Int) = ProbeReply(10, false)
+            override fun close() {}
+        } }, workers = workers, closers = closers)
+        val first = transport(); val second = transport()
+        var busy = 0
+        try {
+            repeat(32) { index ->
+                try { assertEquals(10, (if (index % 2 == 0) first else second).measure("fixture", 1)) }
+                catch (_: ProbeRequestNotStartedException) { busy++ }
+            }
+            assertTrue("Owned command clients grew without bound", factories.get() <= 12)
+            assertTrue(busy > 0)
+            assertEquals(factories.get(), pendingCloses.size)
+        } finally { pendingCloses.forEach(Runnable::run) }
+        assertEquals(10, transport().measure("fixture", 1))
+        pendingCloses.last().run()
+    }
     @Test fun missingCoreTargetIsAnErrorWithoutItsRawTag() {
         val error = runCatching { ProbeReply.fromCore(0, "outbound or endpoint not found: private-fixture") }.exceptionOrNull()
         assertTrue(error is IllegalStateException)

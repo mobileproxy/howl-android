@@ -32,22 +32,22 @@
 
 **Interfaces:** Produces a cancellable bounded runner with per-call owned closeables and explicit success/no-response/unavailable outcomes. Callers retain ownership of application sockets and command clients.
 
-- [ ] Reproduce the old private `probe` running beyond its timeout with a real blocking operation, using an isolated JVM boundary harness; compilation errors do not count as RED.
-- [ ] Add behavioral tests for deadline, cancellation/late success, resource closure, bounded workers, rejected execution and ordinary success/failure.
-- [ ] Implement owned cancellation, global bounded workers and cleanup; adapt actual TLS/HTTP/physical probes and run independent initial probes together.
-- [ ] Run focused tests and existing JVM suite; commit the coherent task and record exact command/output in the ledger.
+- [x] Reproduce the old private `probe` running beyond its timeout with a real blocking operation, using an isolated JVM boundary harness; compilation errors do not count as RED.
+- [x] Add behavioral tests for deadline, cancellation/late success, resource closure, bounded workers, rejected execution and ordinary success/failure.
+- [x] Implement owned cancellation, global bounded workers and cleanup; adapt actual TLS/HTTP/physical probes and run independent initial probes together.
+- [x] Run focused tests and existing JVM suite; commit the coherent task and record exact command/output in the ledger.
 
 ### Task 2: Bounded, current recovery from unready OpenConnect
 
-**Files:** new `bg/WatchdogRecoveryPolicy.kt` and `bg/WatchdogCheckGate.kt` with their tests; modify `bg/ConnectivityWatchdog.kt`, `connections/ProbeTransport.kt` and targeted transport tests only as needed.
+**Files:** new `bg/WatchdogRecoveryPolicy.kt` and `bg/WatchdogCheckGate.kt` with their tests; modify `bg/ConnectivityWatchdog.kt`, `connections/ProbeTransport.kt` and targeted transport tests only as needed. Also expose the already tracked physical Network through a read-only `DefaultNetworkMonitor.currentNetwork` accessor.
 
 **Interfaces:** Consume Task 1 outcomes. Confirm local selected endpoint readiness on two independent targets. Preserve the original soft-switch ticket/expected selection through recovery; normal unknown failures retain conservative confirmation.
 
-- [ ] Add tests showing persistent not-ready recovers without the old three long check cycles; healthy, unknown/busy, captive/offline, startup grace and superseded cases do not take the fast path.
-- [ ] Add coalescing/cancellation tests and current-session tests for disconnect, network/profile/selector/manual changes.
-- [ ] Integrate the fast path with owned LOCAL command clients, fresh reserve probes and existing soft selection. No raw error text is exported; generic failures are not guessed as endpoint-not-ready.
-- [ ] Bound repeated remeasurement commands; do not alter native auto-selection policy or user routing. Record any remaining limits.
-- [ ] Run focused transport/recovery/integration checks and existing JVM suite; commit and record results.
+- [x] Add tests showing persistent not-ready recovers without the old three long check cycles; healthy, unknown/busy, captive/offline, startup grace and superseded cases do not take the fast path.
+- [x] Add coalescing/cancellation tests and current-session tests for disconnect, network/profile/selector/manual changes.
+- [x] Integrate the fast path with owned LOCAL command clients, fresh reserve probes and existing soft selection. No raw error text is exported; generic failures are not guessed as endpoint-not-ready.
+- [x] Bound repeated remeasurement commands; do not alter native auto-selection policy or user routing. Record any remaining limits.
+- [x] Run focused transport/recovery/integration checks and existing JVM suite; commit and record results.
 
 ### Task 3: Candidate verification and delivery
 

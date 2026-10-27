@@ -272,4 +272,7 @@ object DefaultNetworkMonitor {
      */
     @Volatile
     private var reportedNetwork: Network? = null
+
+    /** The physical network handed to the core can differ from Android's default. */
+    val currentNetwork: Network? get() = reportedNetwork ?: defaultNetwork
 }

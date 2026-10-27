@@ -6,6 +6,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
@@ -37,6 +38,9 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
         // Shared across screens/runs: a cancelled native call still occupies its worker.
         private val pool = Executors.newFixedThreadPool(ConnectionChecks.PARALLELISM) { Thread(it, "Howl connection probe").apply { isDaemon = true } }
         private val closePool = Executors.newFixedThreadPool(4) { Thread(it, "Howl probe cancellation").apply { isDaemon = true } }
+        // A returned native test may still have a blocked disconnect. Keep its
+        // ownership permit until disconnect really ends, across all screens/runs.
+        private val ownedClients = Semaphore(12)
     }
     init {
         require(firstTimeoutMs > 0 && retryTimeoutMs > 0 && requestSlackMs >= 0 && cancellationGraceMs > 0)
@@ -77,15 +81,21 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
     private suspend fun request(tag: String, url: String, timeout: Int, call: Call): ProbeReply = suspendCancellableCoroutine { continuation ->
         val client = AtomicReference<OwnedProbeClient?>()
         val cancelled = AtomicBoolean()
+        val permit = AtomicBoolean()
+        fun releasePermit() { if (permit.compareAndSet(true, false)) ownedClients.release() }
         fun closeAsync() {
             val owned = client.getAndSet(null) ?: return
-            closers.execute { runCatching { owned.close() } }
+            closers.execute { try { runCatching { owned.close() } } finally { releasePermit() } }
         }
         val work = Runnable {
             if (cancelled.get()) { call.returned.complete(Unit); return@Runnable }
             call.started.set(true)
+            var created = false
             try {
+                if (!ownedClients.tryAcquire()) throw ProbeRequestNotStartedException()
+                permit.set(true)
                 val owned = factory()
+                created = true
                 client.set(owned)
                 if (cancelled.get()) return@Runnable
                 val reply = owned.test(tag, url, timeout)
@@ -93,7 +103,11 @@ class ProbeTransport(private val factory: () -> OwnedProbeClient,
             } catch (error: Exception) {
                 call.error.set(error)
                 if (continuation.isActive) continuation.resumeWithException(error)
-            } finally { call.returned.complete(Unit); closeAsync() }
+            } finally {
+                if (!created) releasePermit()
+                call.returned.complete(Unit)
+                closeAsync()
+            }
         }
         continuation.invokeOnCancellation {
             cancelled.set(true)

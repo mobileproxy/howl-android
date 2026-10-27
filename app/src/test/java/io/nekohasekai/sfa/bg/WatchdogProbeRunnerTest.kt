@@ -5,6 +5,9 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.Closeable
 import java.io.IOException
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
@@ -100,5 +103,27 @@ class WatchdogProbeRunnerTest {
             .run(100) { called = true; true }
         assertEquals(WatchdogProbeResult.Unavailable, result)
         assertFalse(called)
+    }
+    @Test fun deadlineClosesARealBlockedLoopbackSocket() = runBlocking {
+        ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
+            val accepted = CompletableDeferred<Socket>()
+            val acceptor = launch(Dispatchers.IO) { accepted.complete(server.accept()) }
+            var client: Socket? = null
+            try {
+                val result = WatchdogProbeRunner(cancellationGraceMs = 500).run(100) { resources ->
+                    resources.own(Socket()).also { socket ->
+                        client = socket
+                        socket.connect(java.net.InetSocketAddress(InetAddress.getLoopbackAddress(), server.localPort))
+                        socket.getInputStream().read()
+                    }
+                    true
+                }
+                assertEquals(WatchdogProbeResult.NoResponse, result)
+                assertTrue(client?.isClosed == true)
+            } finally {
+                client?.close(); server.close(); acceptor.join()
+                if (accepted.isCompleted) accepted.await().close()
+            }
+        }
     }
 }

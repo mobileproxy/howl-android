@@ -1,6 +1,7 @@
 package io.nekohasekai.sfa.bg
 
 import android.net.NetworkCapabilities
+import android.os.SystemClock
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OutboundGroup
 import io.nekohasekai.libbox.StatusMessage
@@ -10,6 +11,7 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.connections.LibboxProbeTransport
 import io.nekohasekai.sfa.connections.LibboxSelectionTransport
 import io.nekohasekai.sfa.connections.SoftSwitching
+import io.nekohasekai.sfa.connections.SoftSwitch
 import io.nekohasekai.sfa.connections.SwitchOutcome
 import io.nekohasekai.sfa.connections.CheckTarget
 import io.nekohasekai.sfa.subscription.NodeSites
@@ -31,8 +33,6 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.Closeable
 import java.net.HttpURLConnection
@@ -41,6 +41,8 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -92,7 +94,7 @@ object ConnectivityWatchdog {
     private const val CHECK_INTERVAL_MS = 90_000L
     // Пока идёт сбой, проверяем чаще: минута простоя — это уже «интернет пропал» для человека.
     private const val CHECK_INTERVAL_FAILING_MS = 15_000L
-    private const val FIRST_CHECK_DELAY_MS = 30_000L      // дать туннелю подняться
+    private const val FIRST_CHECK_DELAY_MS = WatchdogRules.MIN_FIRST_CHECK_MS      // дать туннелю подняться
 
     // Внеплановые проверки (экран, передний план, залипание) не должны идти лавиной: между ними
     // выдерживаем паузу. Проба и так занимает до ~16с, чаще смысла нет, а поток событий (каждое
@@ -317,9 +319,31 @@ object ConnectivityWatchdog {
     // потоки, нужна согласованная видимость. (newKeySet не годится — требует API 24, minSdk 23.)
     private val stuckNodes: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
 
-    // Проверки не должны накладываться: фоновый цикл, смена сети и событийные триггеры могут
-    // прийтись на один момент, а каждая занимает до 20 секунд.
-    private val checkMutex = Mutex()
+    // One owner applies decisions; repeated alarm/network/presence events coalesce.
+    private var checkGate: WatchdogCheckGate? = null
+    private val observationGeneration = AtomicLong()
+    private var counterIdentity: WatchdogIdentity? = null
+    private var lastProbeDiagnosticAt = 0L
+    private val remeasureActive = AtomicBoolean()
+    private fun now() = SystemClock.elapsedRealtime()
+
+    private fun identity() = WatchdogIdentity(scope ?: this, Settings.selectedProfile, ProfileTags.selector,
+        selectorSelected, selectorSelected?.takeIf { it != ProfileTags.auto } ?: autoSelected, observationGeneration.get(),
+        DefaultNetworkMonitor.currentNetwork)
+
+    private fun observationCurrent(observation: WatchdogObservation, ticket: SoftSwitch.Ticket) =
+        scope?.isActive == true && Settings.watchdogEnabled && Settings.startedByUser &&
+            SoftSwitching.choices.valid(ticket) && observation.current(identity(), now())
+
+    private fun sameSession(observation: WatchdogObservation, ticket: SoftSwitch.Ticket) =
+        scope?.isActive == true && Settings.watchdogEnabled && Settings.startedByUser &&
+            SoftSwitching.choices.valid(ticket) && observation.sessionCurrent(identity(), now())
+
+    private fun probeUnavailable(outcome: String, observation: WatchdogObservation) {
+        if (now() - lastProbeDiagnosticAt < RARE_LOG_INTERVAL_MS) return
+        lastProbeDiagnosticAt = now()
+        appendLog("${str(R.string.soft_switch_probe_error)} · check=$outcome · elapsedMs=${now() - observation.startedAt}")
+    }
     private val probeRunner = WatchdogProbeRunner()
 
     fun start() {
@@ -329,9 +353,13 @@ object ConnectivityWatchdog {
         scope = newScope
         consecutiveFailures = 0
         healAttempts = 0
-        // Первые FIRST_CHECK_DELAY_MS не триггерим: туннель ещё поднимается, ложный «сбой» тут
-        // привёл бы к починке поднимающегося туннеля. Троттл, выставленный «в будущее», это гасит.
-        lastTriggerAt = System.currentTimeMillis() + FIRST_CHECK_DELAY_MS
+        // The gate keeps the initial 10-second stabilization period. Signals coalesce;
+        // moving the throttle into the future would suppress useful checks after startup.
+        lastTriggerAt = now() - MIN_TRIGGER_INTERVAL_MS
+        lastHealAt = now() - MIN_HEAL_INTERVAL_MS
+        lastProbeDiagnosticAt = now() - RARE_LOG_INTERVAL_MS
+        lastTrafficAt = 0L
+        counterIdentity = null
         trafficStalledSince = 0L
         stuckNodes.clear()
         autoNodes = emptyList()
@@ -339,7 +367,7 @@ object ConnectivityWatchdog {
         selectorSelected = null
         lastCheckAt = 0L
         lastCheckEndedAt = 0L
-        watchdogStartedAt = System.currentTimeMillis()
+        watchdogStartedAt = now()
         suspendedUntil = 0L
         lastStallOkLogAt = 0L
         lastHeartbeatAt = 0L
@@ -348,7 +376,10 @@ object ConnectivityWatchdog {
         // «продолжается», и «связь восстановилась» больше не печаталось. Со стороны выглядело как
         // многочасовой обрыв, которого не было.
         appendLog("сторож запущен, счётчики сброшены")
-        newScope.launch { loop() }
+        checkGate = WatchdogCheckGate(newScope, FIRST_CHECK_DELAY_MS,
+            { if (consecutiveFailures > 0 || healAttempts > 0) CHECK_INTERVAL_FAILING_MS else CHECK_INTERVAL_MS }) {
+            checkOnce(it, newScope)
+        }
         newScope.launch { watchUserPresence() }
         DefaultNetworkMonitor.onNetworkChanged = { onNetworkChanged() }
         startTrafficMonitor(newScope)
@@ -366,11 +397,8 @@ object ConnectivityWatchdog {
      * ставим следующий будильник: интервал зависит от того, идёт ли сейчас сбой.
      */
     private fun onAlarmTick() {
-        val currentScope = scope ?: return
-        currentScope.launch {
-            runCatching { checkOnce("будильник") }
-            scheduleNextAlarm()
-        }
+        checkGate?.request("будильник")
+        scheduleNextAlarm()
     }
 
     private fun scheduleNextAlarm() {
@@ -379,6 +407,9 @@ object ConnectivityWatchdog {
     }
 
     fun stop() {
+        observationGeneration.incrementAndGet()
+        checkGate?.close()
+        checkGate = null
         WatchdogAlarm.stop()
         DefaultNetworkMonitor.onNetworkChanged = null
         // Модем поднимали только ради починки — держать его дальше незачем.
@@ -427,9 +458,9 @@ object ConnectivityWatchdog {
             val receiving = status.downlink > 0
             // Пришли байты — засекаем момент. Дальше это защитит от ложной тревоги: см.
             // lastTrafficAt и TRAFFIC_ALIVE_WINDOW_MS.
-            if (receiving) lastTrafficAt = System.currentTimeMillis()
+            if (receiving) lastTrafficAt = now()
             if (sending && !receiving) {
-                val now = System.currentTimeMillis()
+                val now = now()
                 if (trafficStalledSince == 0L) {
                     trafficStalledSince = now
                 } else if (now - trafficStalledSince >= TRAFFIC_STALL_MS) {
@@ -509,10 +540,10 @@ object ConnectivityWatchdog {
      */
     private fun triggerImmediateCheck(trigger: String = "событие") {
         val currentScope = scope ?: return
-        val now = System.currentTimeMillis()
+        val now = now()
         if (now - lastTriggerAt < MIN_TRIGGER_INTERVAL_MS) return
         lastTriggerAt = now
-        currentScope.launch { runCatching { checkOnce(trigger) } }
+        checkGate?.request(trigger)
     }
 
     /**
@@ -523,17 +554,18 @@ object ConnectivityWatchdog {
         val currentScope = scope ?: return
         // Сеть сменилась — маршруты к узлам стали другими, прошлые «плохие узлы» больше не
         // приговор. Чистим штрафной ящик, чтобы карусель могла снова пробовать любой узел.
+        observationGeneration.incrementAndGet()
         stuckNodes.clear()
-        lastNetworkChangeAt = System.currentTimeMillis()
+        lastNetworkChangeAt = now()
         networkJob?.cancel()
         networkJob = currentScope.launch {
             delay(SETTLE_AFTER_NETWORK_MS)
             // Сеть сменилась в первые секунды после запуска сторожа — первую проверку всё равно
             // не раньше WatchdogRules.MIN_FIRST_CHECK_MS: туннель ещё поднимается.
-            val wait = WatchdogRules.firstCheckWaitMs(System.currentTimeMillis() - watchdogStartedAt)
+            val wait = WatchdogRules.firstCheckWaitMs(now() - watchdogStartedAt)
             if (wait > 0) delay(wait)
             appendLog(str(R.string.watchdog_log_network_changed))
-            runCatching { checkOnce("смена сети") }
+            checkGate?.request("смена сети")
         }
         // Ядро перемерило узлы в момент смены — рано для OpenConnect и Hysteria2. Сети, что
         // сменяются чаще раза в полминуту, перенос отложит замер до последней из них.
@@ -553,24 +585,17 @@ object ConnectivityWatchdog {
      * Заново мерит все узлы селектора. Выбор узла это не меняет: для селектора ядро только
      * обновляет задержки, которые видят экран «Локации» и карусель.
      */
-    private fun remeasure() {
+    private suspend fun remeasure() {
         val selector = ProfileTags.selector ?: return
-        runCatching { Libbox.newStandaloneCommandClient().urlTest(selector) }
-    }
-
-    private suspend fun loop() {
-        delay(FIRST_CHECK_DELAY_MS)
-        val currentScope = scope ?: return
-        while (currentScope.isActive) {
-            runCatching { checkOnce() }
-            // Держим будильник в согласии с циклом: если устройство сейчас заснёт, следующая
-            // проверка всё равно состоится — уже по будильнику.
-            scheduleNextAlarm()
-            // Всё хорошо — проверяем раз в минуту; идёт сбой — каждые 15 секунд, чтобы пройти
-            // лестницу починки быстро, а не растягивать простой на минуты.
-            val failing = consecutiveFailures > 0 || healAttempts > 0
-            delay(if (failing) CHECK_INTERVAL_FAILING_MS else CHECK_INTERVAL_MS)
-        }
+        if (!remeasureActive.compareAndSet(false, true)) return
+        try {
+            probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { resources ->
+                val owned = Libbox.newStandaloneCommandClient()
+                resources.own(Closeable { owned.disconnect() })
+                owned.urlTest(selector)
+                true
+            }
+        } finally { remeasureActive.set(false) }
     }
 
     /**
@@ -591,50 +616,85 @@ object ConnectivityWatchdog {
      * не трогаем — это продолжение той же сессии, штрафы карусели остаются в силе.
      */
     fun pauseForReload() {
-        suspendedUntil = System.currentTimeMillis() + RELOAD_MAX_PAUSE_MS
+        observationGeneration.incrementAndGet()
+        suspendedUntil = now() + RELOAD_MAX_PAUSE_MS
     }
 
     /** Перезагрузка закончилась: ещё немного тишины, пока поднимаются соединения. */
     fun resumeAfterReload() {
-        suspendedUntil = System.currentTimeMillis() + SETTLE_AFTER_RELOAD_MS
+        observationGeneration.incrementAndGet()
+        suspendedUntil = now() + SETTLE_AFTER_RELOAD_MS
     }
 
-    private suspend fun checkOnce(trigger: String = "цикл") = checkMutex.withLock {
-        val startedAt = System.currentTimeMillis()
-        // Ядро перезагружается — туннеля сейчас нет по определению, проверять нечего.
-        if (startedAt < suspendedUntil) return@withLock
-        // Только что проверяли (сошлись будильник и цикл), сторож только запущен или идёт сбой,
-        // а прошлая проверка кончилась только что — см. WatchdogRules.skipCheck.
-        val failing = consecutiveFailures > 0 || healAttempts > 0
-        if (WatchdogRules.skipCheck(
-                sinceStartMs = startedAt - watchdogStartedAt,
-                sinceLastStartMs = startedAt - lastCheckAt,
-                sinceLastEndMs = startedAt - lastCheckEndedAt,
-                failing = failing,
-            )
-        ) {
-            return@withLock
+    private suspend fun checkOnce(trigger: String, owner: CoroutineScope) {
+        if (scope !== owner) return
+        val startedAt = now()
+        if (startedAt < suspendedUntil) return
+        val ticket = SoftSwitching.choices.automatic() ?: return
+        val observedIdentity = identity()
+        if (counterIdentity != observedIdentity) {
+            consecutiveFailures = 0
+            healAttempts = 0
+            lastCheckAt = 0
+            lastCheckEndedAt = 0
+            counterIdentity = observedIdentity
         }
+        if (WatchdogRules.skipCheck(startedAt - watchdogStartedAt, startedAt - lastCheckAt,
+                startedAt - lastCheckEndedAt, consecutiveFailures > 0 || healAttempts > 0)) return
         lastCheckAt = startedAt
+        val observation = WatchdogObservation(observedIdentity, startedAt)
         try {
-            checkBody(trigger)
+            val completed = withTimeoutOrNull(30_000) { checkBody(trigger, observation, ticket); true }
+            if (completed == null && scope === owner && owner.isActive && Settings.startedByUser &&
+                SoftSwitching.choices.valid(ticket) && observation.belongsToSession(identity()))
+                probeUnavailable("deadline", observation)
+        } catch (e: CancellationException) { throw e }
+        catch (_: WatchdogProbeUnavailableException) {
+            if (sameSession(observation, ticket)) probeUnavailable("unavailable", observation)
         } finally {
-            lastCheckEndedAt = System.currentTimeMillis()
+            if (scope === owner) { lastCheckEndedAt = now(); scheduleNextAlarm() }
         }
     }
 
-    private suspend fun checkBody(trigger: String) {
+    private suspend fun checkBody(trigger: String, observation: WatchdogObservation, ticket: SoftSwitch.Ticket) {
         // Нет сети вообще (самолётный режим, нет сигнала) — не наша беда, чинить нечего.
-        if (DefaultNetworkMonitor.defaultNetwork == null) {
+        if (DefaultNetworkMonitor.currentNetwork == null) {
             consecutiveFailures = 0
             return
         }
 
-        val (tunnelOk, domainOk) = coroutineScope {
-            val tunnel = async { probe { tcpReachable(it) } }
-            val domain = async { probe { domainReachable(it) } }
-            tunnel.await() to domain.await()
+        val protocol = NodeSites.current[observation.identity.node]?.proto
+        val openConnect = protocol.equals("openconnect", ignoreCase = true)
+        val (tunnelResult, domainResult, selectedResult) = coroutineScope {
+            suspend fun observe(block: (WatchdogProbeResources) -> Boolean) = probeRunner.run(PROBE_TIMEOUT_MS.toLong(), block)
+            val tunnel = async { observe { tcpReachable(it) } }
+            val domain = async { observe { domainReachable(it) } }
+            val selected = async {
+                if (openConnect && observation.identity.node != null)
+                    WatchdogSelectedPathProbe(LibboxProbeTransport.createLocal()).confirm(observation.identity.node)
+                else WatchdogProbeResult.Unavailable
+            }
+            Triple(tunnel.await(), domain.await(), selected.await())
         }
+        if (!observationCurrent(observation, ticket)) return
+        val state = underlyingNetwork()
+        var physicalResult: WatchdogProbeResult? = null
+        val selectedPathFailed = openConnect && selectedResult == WatchdogProbeResult.NoResponse
+        if (selectedPathFailed && state == UnderlyingNetwork.OK) {
+            physicalResult = probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { underlyingReachable(it) }
+            if (!observationCurrent(observation, ticket)) return
+            if (recoverEarly(observation, ticket, protocol, selectedResult, physicalResult, false)) return
+            if (physicalResult == WatchdogProbeResult.Unavailable) {
+                probeUnavailable("physical-unavailable", observation)
+                return
+            }
+        }
+        if (tunnelResult == WatchdogProbeResult.Unavailable || domainResult == WatchdogProbeResult.Unavailable) {
+            probeUnavailable("unavailable", observation)
+            return
+        }
+        val tunnelOk = tunnelResult == WatchdogProbeResult.Reachable
+        val domainOk = domainResult == WatchdogProbeResult.Reachable
 
         // ★ Успех определяет ТОЛЬКО domainOk. Это полный путь: резолв имени плюс живой
         // HTTPS-запрос НАСКВОЗЬ через туннель. Если он прошёл — туннель работает по
@@ -649,7 +709,7 @@ object ConnectivityWatchdog {
         // именно потому, что канал занят полезной передачей. Раньше сторож в такой момент решал,
         // что туннель мёртв, и рвал соединения — то есть ронял ту самую передачу, из-за которой
         // и не успел. Чем активнее человек пользовался связью, тем вернее сторож её ломал.
-        val trafficAlive = System.currentTimeMillis() - lastTrafficAt < TRAFFIC_ALIVE_WINDOW_MS
+        val trafficAlive = lastTrafficAt > 0 && now() - lastTrafficAt in 0 until TRAFFIC_ALIVE_WINDOW_MS
 
         // ★★★ ТРЕТЬЕ доказательство жизни: имя пробы не разрешилось, а туннель отвечает.
         //
@@ -674,13 +734,14 @@ object ConnectivityWatchdog {
         val nameOk = domainOk || probe { InetAddress.getByName(PROBE_HOST) != null }
         val nameNotReady = !nameOk && tunnelOk
 
-        if (domainOk || trafficAlive || nameNotReady) {
+        if (!observationCurrent(observation, ticket)) return
+        if (!selectedPathFailed && (domainOk || trafficAlive || nameNotReady)) {
             // Проверку разбудило «залипание», а связь в порядке — так выглядит большая выгрузка:
             // наружу идут байты, а обратно только подтверждения TCP, которых счётчик ядра не
             // видит. Отмечаем в журнале (редко), чтобы при разборе было видно, почему сторож
             // ничего не тронул.
             if (trigger == STALL_TRIGGER) {
-                val now = System.currentTimeMillis()
+                val now = now()
                 if (now - lastStallOkLogAt >= RARE_LOG_INTERVAL_MS) {
                     lastStallOkLogAt = now
                     appendLog(str(R.string.watchdog_log_stall_node_ok))
@@ -691,7 +752,7 @@ object ConnectivityWatchdog {
             // связь была в порядке, то ли сторож вообще не работал (телефон спал). При разборе
             // журнала 31.07–02.08 это дало фантомные «обрывы» на 194 и 491 минуту, которых на
             // деле не было. Раз в 15 минут — 4 строки в час, журнал не раздувают.
-            val now = System.currentTimeMillis()
+            val now = now()
             if (now - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
                 lastHeartbeatAt = now
                 // Помечаем, ПОЧЕМУ сбоя не объявили, хотя полная проба не прошла: по живому
@@ -749,7 +810,7 @@ object ConnectivityWatchdog {
         // ★ Выясняем, ЧЬЯ это беда. Перезапуск лечит только зависший туннель; если у самого
         // телефона нет рабочего интернета, перезапуск бесполезен и вреден — он рвёт и те
         // соединения, что ещё проходят.
-        val state = underlyingNetwork()
+        if (!observationCurrent(observation, ticket)) return
 
         // Каптивный Wi-Fi ждёт, пока человек войдёт на страницу гостевой сети. Тут мы бессильны.
         if (state == UnderlyingNetwork.CAPTIVE_PORTAL) {
@@ -766,7 +827,8 @@ object ConnectivityWatchdog {
         // считал сеть телефона исправной и потому уходил в долгую паузу вместо смены сети.
         // Поэтому при мёртвом туннеле дополнительно проверяем САМУ сеть телефона, минуя туннель.
         val networkDead = state == UnderlyingNetwork.NO_INTERNET ||
-            (!tunnelOk && !probe { underlyingReachable(it) })
+            (!tunnelOk && !(physicalResult?.let { it == WatchdogProbeResult.Reachable } ?: probe { underlyingReachable(it) }))
+        if (!observationCurrent(observation, ticket)) return
         if (networkDead) {
             // Пока телефон держится за Wi-Fi, Android гасит модем — и уходить физически некуда.
             // Просим систему поднять мобильную заранее: к следующей проверке она уже поднимется.
@@ -789,7 +851,7 @@ object ConnectivityWatchdog {
         // попытки не помогли, дело почти наверняка в качестве канала, а не в туннеле, и частые
         // перезапуски только рвут те соединения, что ещё проходят.
         // Лестницу (0→1→2) проходим быстро; дальше, если ничего не помогло, — редкие попытки.
-        val now = System.currentTimeMillis()
+        val now = now()
         val tunnelDead = !tunnelOk
         // Пауза уместна ТОЛЬКО когда туннель жив, а сыплется что-то одно (например DNS) — там
         // частые перезапуски рвут работающие соединения. Мёртвый туннель и мёртвая сеть под это
@@ -821,13 +883,35 @@ object ConnectivityWatchdog {
         // Network probe failure is not evidence that every application flow is
         // dead. Keep the running core/TUN; only replace the route of NEW flows.
         if (networkDead) {
-            switchPhoneNetwork(what)
+            if (observationCurrent(observation, ticket)) switchPhoneNetwork(what)
         } else {
             appendLog(str(R.string.watchdog_log_switch_server, what))
-            switchToFastestServer()
+            switchToFastestServer(observation, ticket)
         }
-        healAttempts++
-        delay(SETTLE_AFTER_HEAL_MS)
+        if (sameSession(observation, ticket)) {
+            healAttempts++
+            counterIdentity = identity()
+            suspendedUntil = now() + SETTLE_AFTER_HEAL_MS
+        }
+    }
+
+    /** Two fresh failures through the selected endpoint cannot be masked by old-flow traffic. */
+    private suspend fun recoverEarly(observation: WatchdogObservation, ticket: SoftSwitch.Ticket,
+        protocol: String?, selected: WatchdogProbeResult, physical: WatchdogProbeResult, restrictedNetwork: Boolean): Boolean {
+        if (!WatchdogRecoveryPolicy.canProbeReserveEarly(protocol, selected, physical, restrictedNetwork,
+                now() - watchdogStartedAt, observationCurrent(observation, ticket))) return false
+        val wait = if (poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN) EXHAUSTED_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
+        if (now() - lastHealAt < wait) return true
+        lastHealAt = now()
+        appendLog(str(R.string.watchdog_log_switch_server, str(R.string.watchdog_reason_tunnel)))
+        switchToFastestServer(observation, ticket)
+        if (sameSession(observation, ticket)) {
+            healAttempts++
+            consecutiveFailures = 0
+            counterIdentity = identity()
+            suspendedUntil = now() + SETTLE_AFTER_HEAL_MS
+        }
+        return true
     }
 
     /** Строки журнала берём из ресурсов: журнал видит пользователь, а языков у приложения пять. */
@@ -836,6 +920,7 @@ object ConnectivityWatchdog {
 
     /** Ступень «уйти на другую сеть телефона» — вынесена, т.к. зовётся из двух веток лестницы. */
     private suspend fun switchPhoneNetwork(what: String) {
+        val previous = DefaultNetworkMonitor.currentNetwork
         // Порядок важен: сначала штраф текущей сети, иначе перевыбор вернёт её же.
         DefaultNetworkMonitor.markCurrentNetworkBad()
         DefaultNetworkMonitor.requestCellularBackup()
@@ -845,7 +930,7 @@ object ConnectivityWatchdog {
             if (via != null) str(R.string.watchdog_log_switch_network_via, what, via)
             else str(R.string.watchdog_log_switch_network, what),
         )
-        scheduleRemeasure()
+        if (DefaultNetworkMonitor.currentNetwork != previous) onNetworkChanged() else scheduleRemeasure()
     }
 
     /**
@@ -858,19 +943,15 @@ object ConnectivityWatchdog {
      *      продолжают обход, исчерпание пула сбрасывает штрафы без выбора вслепую.
      * Штрафы сбрасываются при смене сети — там маршруты другие, старые вердикты не актуальны.
      */
-    private suspend fun switchToFastestServer() {
-        val selector = ProfileTags.selector ?: return
-        val expected = selectorSelected ?: return
-        val owner = scope ?: return
-        val networkAt = lastNetworkChangeAt
-        val profile = Settings.selectedProfile
+    private suspend fun switchToFastestServer(observation: WatchdogObservation, ticket: SoftSwitch.Ticket) {
+        if (!observationCurrent(observation, ticket)) return
+        val selector = observation.identity.selector ?: return
+        val expected = observation.identity.selection ?: return
         val choices = SoftSwitching.choices
-        val ticket = choices.automatic() ?: return // a manual request has priority
-        fun currentSession() = scope === owner && owner.isActive && Settings.selectedProfile == profile &&
-            ProfileTags.selector == selector && lastNetworkChangeAt == networkAt
+        fun currentSession() = sameSession(observation, ticket)
         try {
-            val current = expected.takeIf { it != ProfileTags.auto } ?: autoSelected
-            val settled = System.currentTimeMillis() - lastNetworkChangeAt >= BLAME_NODE_AFTER_NETWORK_MS
+            val current = observation.identity.node
+            val settled = now() - lastNetworkChangeAt >= BLAME_NODE_AFTER_NETWORK_MS
             if (current != null && settled) stuckNodes.add(current)
             val sites = NodeSites.current
             val penalized = stuckNodes.toList() + listOfNotNull(current)
@@ -886,28 +967,31 @@ object ConnectivityWatchdog {
             // History orders candidates; only a fresh successful request permits
             // selection. Reuse the bounded probe pool, always targeting LOCAL core.
             val probe = LibboxProbeTransport.createLocal()
+            data class Measurement(val tag: String, val delay: Int?, val completed: Boolean)
             val measured = coroutineScope {
                 order.map { tag -> async {
-                    val delay = try { withTimeoutOrNull(9000) { probe.measure(tag, 1) ?: probe.measure(tag, 2) } }
-                    catch (e: CancellationException) { throw e }
-                    catch (_: Exception) { null }
-                    tag to delay
+                    try {
+                        withTimeoutOrNull(9000) { Measurement(tag, probe.measure(tag, 1) ?: probe.measure(tag, 2), true) }
+                            ?: Measurement(tag, null, false)
+                    } catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { Measurement(tag, null, false) }
                 } }.awaitAll()
             }
-            if (!currentSession() || !choices.valid(ticket) || selectorSelected != expected) return
-            val alive = measured.mapNotNull { (tag, delay) -> delay?.let { tag to it } }
+            if (!observationCurrent(observation, ticket)) return
+            val alive = measured.mapNotNull { m -> m.delay?.let { m.tag to it } }
             val candidate = WatchdogRules.order(alive, sites, penalized).firstOrNull()
             if (candidate == null) {
-                stuckNodes.addAll(order) // next heal advances beyond this tested batch
+                // An unavailable local command is not evidence against any reserve.
+                stuckNodes.addAll(measured.filter { it.completed && it.delay == null }.map { it.tag })
                 if (current != null) stuckNodes.remove(current)
-                appendLog(str(R.string.soft_switch_no_reserve))
+                appendLog(str(if (measured.any { !it.completed }) R.string.soft_switch_probe_error else R.string.soft_switch_no_reserve))
                 return
             }
             val delay = alive.first { it.first == candidate }.second
             val command = LibboxSelectionTransport.create(null)
             val result = choices.select(ticket, candidate, expected, { selectorSelected }, ::currentSession,
                 probe = { delay }, commit = {
-                    command.select(selector, candidate) { currentSession() && choices.valid(ticket) && selectorSelected == expected }
+                    command.select(selector, candidate) { observationCurrent(observation, ticket) }
                 })
             if (result == SwitchOutcome.Switched) {
                 selectorSelected = candidate
@@ -948,7 +1032,7 @@ object ConnectivityWatchdog {
      * попробовать починить, чем молча ничего не делать.
      */
     private fun underlyingNetwork(): UnderlyingNetwork {
-        val network = DefaultNetworkMonitor.defaultNetwork ?: return UnderlyingNetwork.OK
+        val network = DefaultNetworkMonitor.currentNetwork ?: return UnderlyingNetwork.OK
         val caps = runCatching {
             Application.connectivity.getNetworkCapabilities(network)
         }.getOrNull() ?: return UnderlyingNetwork.OK
@@ -981,7 +1065,7 @@ object ConnectivityWatchdog {
      * «уйти на мобильную» тогда, когда она и нужна.
      */
     private fun underlyingReachable(resources: WatchdogProbeResources): Boolean {
-        val network = DefaultNetworkMonitor.defaultNetwork ?: return false
+        val network = DefaultNetworkMonitor.currentNetwork ?: return false
         // ★ Несколько целей, а не одна. Проверять только 1.1.1.1 нельзя: в РФ его у многих
         // провайдеров режут, и «сеть телефона мертва» получалось на живой сети — сторож писал
         // «нет интернета, перезапуск не поможет» и НЕ ЧИНИЛ (в журнале 30.07 — 14 раз против 3
