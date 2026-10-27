@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.Closeable
 import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -319,6 +320,7 @@ object ConnectivityWatchdog {
     // Проверки не должны накладываться: фоновый цикл, смена сети и событийные триггеры могут
     // прийтись на один момент, а каждая занимает до 20 секунд.
     private val checkMutex = Mutex()
+    private val probeRunner = WatchdogProbeRunner()
 
     fun start() {
         stop()
@@ -628,8 +630,11 @@ object ConnectivityWatchdog {
             return
         }
 
-        val tunnelOk = probe { tcpReachable() }
-        val domainOk = probe { domainReachable() }
+        val (tunnelOk, domainOk) = coroutineScope {
+            val tunnel = async { probe { tcpReachable(it) } }
+            val domain = async { probe { domainReachable(it) } }
+            tunnel.await() to domain.await()
+        }
 
         // ★ Успех определяет ТОЛЬКО domainOk. Это полный путь: резолв имени плюс живой
         // HTTPS-запрос НАСКВОЗЬ через туннель. Если он прошёл — туннель работает по
@@ -761,7 +766,7 @@ object ConnectivityWatchdog {
         // считал сеть телефона исправной и потому уходил в долгую паузу вместо смены сети.
         // Поэтому при мёртвом туннеле дополнительно проверяем САМУ сеть телефона, минуя туннель.
         val networkDead = state == UnderlyingNetwork.NO_INTERNET ||
-            (!tunnelOk && !probe { underlyingReachable() })
+            (!tunnelOk && !probe { underlyingReachable(it) })
         if (networkDead) {
             // Пока телефон держится за Wi-Fi, Android гасит модем — и уходить физически некуда.
             // Просим систему поднять мобильную заранее: к следующей проверке она уже поднимется.
@@ -959,10 +964,12 @@ object ConnectivityWatchdog {
     }
 
     /** Проба под таймаутом: зависшая сеть не должна подвесить сам сторож. */
-    private suspend fun probe(block: () -> Boolean): Boolean =
-        withTimeoutOrNull(PROBE_TIMEOUT_MS.toLong() + 2_000L) {
-            runCatching { block() }.getOrDefault(false)
-        } ?: false
+    private suspend fun probe(block: (WatchdogProbeResources) -> Boolean): Boolean =
+        when (probeRunner.run(PROBE_TIMEOUT_MS.toLong(), block)) {
+            WatchdogProbeResult.Reachable -> true
+            WatchdogProbeResult.NoResponse -> false
+            WatchdogProbeResult.Unavailable -> throw WatchdogProbeUnavailableException()
+        }
 
     /**
      * Работает ли САМА сеть телефона, минуя туннель. Сокет создаём фабрикой конкретной сети
@@ -973,7 +980,7 @@ object ConnectivityWatchdog {
      * таймауту. Своя проба отвечает на вопрос «а сеть-то живая прямо сейчас» и включает ступень
      * «уйти на мобильную» тогда, когда она и нужна.
      */
-    private fun underlyingReachable(): Boolean {
+    private fun underlyingReachable(resources: WatchdogProbeResources): Boolean {
         val network = DefaultNetworkMonitor.defaultNetwork ?: return false
         // ★ Несколько целей, а не одна. Проверять только 1.1.1.1 нельзя: в РФ его у многих
         // провайдеров режут, и «сеть телефона мертва» получалось на живой сети — сторож писал
@@ -981,7 +988,7 @@ object ConnectivityWatchdog {
         // до правки). Считаем сеть мёртвой, только если недоступны ВСЕ, включая российский DNS.
         for (host in UNDERLYING_PROBE_IPS) {
             val ok = runCatching {
-                network.socketFactory.createSocket().use { socket ->
+                resources.own(network.socketFactory.createSocket()).use { socket ->
                     socket.connect(
                         InetSocketAddress(InetAddress.getByName(host), PROBE_PORT),
                         UNDERLYING_PROBE_TIMEOUT_MS,
@@ -1004,12 +1011,12 @@ object ConnectivityWatchdog {
      * жив)» на мёртвом узле). Поэтому доводим до TLS-рукопожатия: оно требует ответа удалённой
      * стороны, локально его подделать нечем.
      */
-    private fun tcpReachable(): Boolean = Socket().use { socket ->
+    private fun tcpReachable(resources: WatchdogProbeResources): Boolean = resources.own(Socket()).use { socket ->
         socket.connect(InetSocketAddress(InetAddress.getByName(PROBE_IP), PROBE_PORT), PROBE_TIMEOUT_MS)
         socket.soTimeout = PROBE_TIMEOUT_MS
         // autoClose = false: внешний use() и так закроет сокет, двойное закрытие ни к чему.
-        val ssl = (SSLSocketFactory.getDefault() as SSLSocketFactory)
-            .createSocket(socket, PROBE_IP, PROBE_PORT, false) as SSLSocket
+        val ssl = resources.own((SSLSocketFactory.getDefault() as SSLSocketFactory)
+            .createSocket(socket, PROBE_IP, PROBE_PORT, false) as SSLSocket)
         ssl.use {
             it.startHandshake()
             true
@@ -1017,9 +1024,10 @@ object ConnectivityWatchdog {
     }
 
     /** Полный путь: резолв имени + реальный запрос. */
-    private fun domainReachable(): Boolean {
+    private fun domainReachable(resources: WatchdogProbeResources): Boolean {
         InetAddress.getByName(PROBE_HOST) ?: return false
         val connection = URL(PROBE_URL).openConnection() as HttpURLConnection
+        resources.own(Closeable { connection.disconnect() })
         return try {
             connection.connectTimeout = PROBE_TIMEOUT_MS
             connection.readTimeout = PROBE_TIMEOUT_MS
