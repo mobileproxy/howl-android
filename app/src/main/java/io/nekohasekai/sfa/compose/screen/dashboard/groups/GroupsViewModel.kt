@@ -272,8 +272,7 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
         val choice = SoftSwitching.choices
         val ticket = choice.manual()
         if (io.nekohasekai.sfa.utils.CommandTarget.remoteServer == null) {
-            io.nekohasekai.sfa.health.HealthRuntime.stop()
-            io.nekohasekai.sfa.health.AndroidLifecycleDiagnostics.invalidate()
+            io.nekohasekai.sfa.bg.ConnectivityWatchdog.onManualIntentChanged()
         }
         checks.stop()
         val sequence = ++switchSequence
@@ -295,11 +294,16 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                 val result = choice.select(ticket, itemTag, expected, ::selected, ::sessionCurrent,
                     probe = { tag -> probe.measure(tag, 1) ?: probe.measure(tag, 2) },
                     commit = { command.select(groupTag, itemTag) { sessionCurrent() && choice.valid(ticket) && selected() == expected } })
-                if (intent != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
+                val preferenceResult = if (intent != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
                     preferences.acknowledgeManual(intent, result in setOf(SwitchOutcome.Switched, SwitchOutcome.Unchanged)) {
                         choice.valid(ticket) && sessionCurrent() && selected() in setOf(expected, itemTag)
                     }
-                }
+                } else null
+                if (preferenceResult != null && preferenceResult !in setOf(io.nekohasekai.sfa.health.PreferenceWriteResult.Stored, io.nekohasekai.sfa.health.PreferenceWriteResult.Unchanged) &&
+                    result in setOf(SwitchOutcome.Switched, SwitchOutcome.Unchanged) && choice.valid(ticket) && sessionCurrent())
+                    switchError(R.string.health_preference_not_saved)
+                if (remote == null && result in setOf(SwitchOutcome.Switched, SwitchOutcome.Unchanged) && choice.valid(ticket) && sessionCurrent())
+                    io.nekohasekai.sfa.bg.ConnectivityWatchdog.onManualSelectionAcknowledged()
                 when (result) {
                     SwitchOutcome.Switched -> {
                         updateState { copy(groups = groups.map { if (it.tag == groupTag) it.copy(selected = itemTag) else it }, showSoftSwitchSnackbar = true) }

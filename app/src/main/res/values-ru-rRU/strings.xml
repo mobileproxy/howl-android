@@ -865,4 +865,7 @@
     <string name="health_system_https_hint">Системный HTTPS-запрос не прошёл. Результат выбранного сервера учитывается отдельно.</string>
     <string name="health_temporary_fallback_hint">Работает временный резерв; ваш ручной выбор сохранён.</string>
     <string name="health_remote_hint">На этом экране нет актуальной проверки удалённого соединения.</string>
+    <string name="health_preference_not_saved">Сервер выбран, но сохранить предпочтение для автовозврата не удалось.</string>
+    <string name="health_service_start_failed">Не удалось запустить службу VPN. Подробности доступны в диагностике.</string>
+    <string name="health_profile_storage_failed">Не удалось прочитать сохранённый профиль. Его содержимое не заменялось.</string>
 </resources>

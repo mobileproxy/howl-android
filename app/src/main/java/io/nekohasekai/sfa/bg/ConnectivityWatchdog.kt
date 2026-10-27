@@ -38,11 +38,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.Closeable
-import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.URL
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicBoolean
@@ -290,6 +288,7 @@ object ConnectivityWatchdog {
     private var counterIdentity: WatchdogIdentity? = null
     private var lastProbeDiagnosticAt = 0L
     private val preferredReturn = PreferredReturnPolicy()
+    private var routeRecheckJob: Job? = null
     private var activeHealth: Pair<WatchdogObservation, HealthObservation>? = null
     private val systemHttpProbe = SystemHttpProbe()
     private fun now() = SystemClock.elapsedRealtime()
@@ -398,6 +397,8 @@ object ConnectivityWatchdog {
         recoveryState = null
         networkJob = null
         remeasureJob = null
+        routeRecheckJob?.cancel()
+        routeRecheckJob = null
         scope?.cancel()
         scope = null
         consecutiveFailures = 0
@@ -455,13 +456,16 @@ object ConnectivityWatchdog {
      * переспрашивать автоподбор (он вернёт тот же залипший).
      */
     private fun startGroupsMonitor(currentScope: CoroutineScope) {
-        val client = CommandClient(currentScope, CommandClient.ConnectionType.Groups, GroupsHandler, localOnly = true)
+        val client = CommandClient(currentScope, CommandClient.ConnectionType.Groups, GroupsHandler(currentScope), localOnly = true)
         groupsClient = client
         runCatching { client.connect() }
     }
 
-    private object GroupsHandler : CommandClient.Handler {
+    private class GroupsHandler(private val owner: CoroutineScope) : CommandClient.Handler {
         override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
+            if (scope !== owner || !owner.isActive) return
+            val before = identity()
+            try {
             // ★ На что реально указывает СЕЛЕКТОР — это и есть узел, через который идёт трафик.
             // Раньше карусель считала текущим узлом выбор ГРУППЫ АВТОПОДБОРА, а это разные вещи:
             // после первого же принудительного увода селектор смотрит на конкретный узел, а
@@ -502,6 +506,46 @@ object ConnectivityWatchdog {
                 if (CheckTarget(item.tag, item.type).checkable) nodes.add(item.tag to item.urlTestDelay)
             }
             autoNodes = nodes
+            } finally {
+                val after = identity()
+                if (scope === owner && (before.selection != after.selection || before.node != after.node)) {
+                    // Revoke already-published evidence too, not only future late writes.
+                    HealthRuntime.stop()
+                    scheduleRouteRecheck()
+                }
+            }
+        }
+    }
+
+    /** Captured explicit LOCAL intent wins even when the selected tag did not change. */
+    fun onManualIntentChanged() {
+        observationGeneration.incrementAndGet()
+        recoveryState = null
+        counterIdentity = null
+        consecutiveFailures = 0
+        healAttempts = 0
+        preferredReturn.reset()
+        HealthRuntime.stop()
+        AndroidLifecycleDiagnostics.invalidate()
+    }
+    fun onManualSelectionAcknowledged() = scheduleRouteRecheck()
+
+    private fun scheduleRouteRecheck() {
+        val owner = scope ?: return
+        routeRecheckJob?.cancel()
+        routeRecheckJob = owner.launch {
+            delay(WatchdogRules.MIN_CHECK_SPACING_MS)
+            if (scope === owner && Settings.startedByUser && Settings.watchdogEnabled) checkGate?.request("route_changed")
+        }
+    }
+
+    /** Local setting applies to the running LOCAL service; never to a remote-control target. */
+    suspend fun setEnabled(enabled: Boolean) {
+        Settings.watchdogEnabled = enabled
+        kotlinx.coroutines.withContext(Dispatchers.Main) {
+            if (Settings.watchdogEnabled == enabled && BoxService.running) {
+                if (enabled) start() else stop()
+            }
         }
     }
 
@@ -751,7 +795,7 @@ object ConnectivityWatchdog {
                 // трафику или потому что не готов резолвер телефона. При разборе журнала это
                 // разные диагнозы, и без пометки они неотличимы.
                 val why = if (domainOk) "" else " · system_check=unconfirmed selected_exit=responding"
-                appendLog("всё в порядке · ${context(trigger)}$why")
+                appendLog("selected_exit=responding · ${context(trigger)}$why")
                 // ★ Замеры пишем ВМЕСТЕ С ПУЛЬСОМ, а не только при переключении. Иначе видно
                 // исключительно аварийную картину: за 16–17.08 строк с замерами набралось 14 штук,
                 // все — из моментов сбоя. По ним нельзя понять, как автоподбор выбирает в норме и
@@ -767,7 +811,7 @@ object ConnectivityWatchdog {
             recovery.poolCyclesWithoutSuccess = 0
             recovery.slowdownAnnounced = false
             if (consecutiveFailures > 0 || healAttempts > 0) {
-                appendLog(str(R.string.watchdog_log_recovered))
+                appendLog(str(R.string.health_available))
                 // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
                 // поднятый ради починки модем пора отпустить: он ест батарею и мобильный трафик.
                 DefaultNetworkMonitor.clearPenalties()
@@ -823,7 +867,7 @@ object ConnectivityWatchdog {
             if (!DefaultNetworkMonitor.hasAlternativeNetwork()) {
                 // Альтернативы нет — это честное «интернета нет», а не наша беда. Счётчик НЕ
                 // сбрасываем: проверки останутся частыми и подхватят сеть, как только она будет.
-                appendLog(str(R.string.watchdog_log_no_internet))
+                appendLog(str(R.string.health_no_internet_hint))
                 return
             }
         }
@@ -854,10 +898,7 @@ object ConnectivityWatchdog {
         }
         if (waitBeforeHeal == EXHAUSTED_HEAL_INTERVAL_MS && !recovery.slowdownAnnounced) {
             recovery.slowdownAnnounced = true
-            appendLog(
-                "весь парк перепробован без толку — перехожу на редкие проверки " +
-                    "(раз в ${EXHAUSTED_HEAL_INTERVAL_MS / 60_000} мин), похоже режут снаружи",
-            )
+            appendLog("${str(R.string.soft_switch_no_reserve)} · retryIntervalMs=$EXHAUSTED_HEAL_INTERVAL_MS cause=UNKNOWN")
         }
         if (now - recovery.lastHealAt < waitBeforeHeal) {
             appendLog(str(R.string.watchdog_log_wait, what))
@@ -930,7 +971,6 @@ object ConnectivityWatchdog {
             selectorSelected = preference.target
             preferredReturn.reset()
             HealthRuntime.stop()
-            AndroidLifecycleDiagnostics.invalidate()
             AppEventLog.log("reliability", "preferredReturn=ACKNOWLEDGED oldFlows=RETAINED")
         }
     }
@@ -945,7 +985,7 @@ object ConnectivityWatchdog {
         if (now() - recovery.lastHealAt < wait) return true
         markRecovering(observation, ticket)
         recovery.lastHealAt = now()
-        appendLog(str(R.string.watchdog_log_switch_server, str(R.string.watchdog_reason_tunnel)))
+        appendLog(str(R.string.watchdog_log_switch_server, str(R.string.soft_switch_no_response)))
         switchToFastestServer(observation, ticket)
         if (sameSession(observation, ticket)) {
             healAttempts++
@@ -1039,7 +1079,6 @@ object ConnectivityWatchdog {
             if (result == SwitchOutcome.Switched) {
                 selectorSelected = candidate
                 HealthRuntime.stop()
-                AndroidLifecycleDiagnostics.invalidate()
                 val preference = SelectionPreferenceRuntime.store.read(observation.identity.profile, selector)
                 HealthRuntime.monitor.setTemporaryFallback(preference != null && preference.target != candidate)
                 AppEventLog.log("узел", "новые соединения через «$candidate»; старые сохраняют прежний выход")
@@ -1155,27 +1194,6 @@ object ConnectivityWatchdog {
         }
     }
 
-    /** Полный путь: резолв имени + реальный запрос. */
-    private fun domainReachable(resources: WatchdogProbeResources): Boolean {
-        InetAddress.getByName(PROBE_HOST) ?: return false
-        val connection = URL(PROBE_URL).openConnection() as HttpURLConnection
-        resources.own(Closeable { connection.disconnect() })
-        return try {
-            connection.connectTimeout = PROBE_TIMEOUT_MS
-            connection.readTimeout = PROBE_TIMEOUT_MS
-            connection.instanceFollowRedirects = false
-            connection.requestMethod = "GET"
-            connection.responseCode in 200..399
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    /**
-     * Событие сторожа — в ЕДИНЫЙ журнал (Настройки → Логи), где оно ложится в общую хронологию
-     * с сообщениями ядра. Отдельный 30-строчный журнальчик в настройках убран: два журнала в
-     * интерфейсе только путали, а этот вдобавок обрезался и жил в SharedPreferences.
-     */
     private fun appendLog(message: String) {
         AppEventLog.log("сторож", message)
     }

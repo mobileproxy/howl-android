@@ -29,6 +29,12 @@ class HealthMonitor(private val scope: CoroutineScope, private val clock: () -> 
     }
     @Synchronized fun view(): HealthSnapshot = tracker.view(clock()).copy(temporaryFallback = temporaryFallback)
     @Synchronized fun refresh() = publish(clock())
+    @Synchronized fun profileProblem() {
+        current = null
+        temporaryFallback = false
+        tracker.profileProblem()
+        publish(clock())
+    }
     @Synchronized fun setTemporaryFallback(value: Boolean) {
         temporaryFallback = value
         updates.value = tracker.view(clock()).copy(temporaryFallback = value)

@@ -899,4 +899,7 @@
     <string name="health_system_https_hint">The system HTTPS request failed. The selected-server result is separate.</string>
     <string name="health_temporary_fallback_hint">Using a temporary fallback; your manual preference is saved.</string>
     <string name="health_remote_hint">This screen has no current check for the remote connection.</string>
+    <string name="health_preference_not_saved">The server is selected, but the preference for automatic return could not be saved.</string>
+    <string name="health_service_start_failed">The VPN service could not start. Open diagnostics for more information.</string>
+    <string name="health_profile_storage_failed">The saved profile could not be read. Its contents have not been replaced.</string>
 </resources>

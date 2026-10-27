@@ -148,7 +148,7 @@ fun SettingsScreen(navController: NavController) {
     val actions = HowlMenuActions(
         onWatchdog = { checked ->
             watchdog = checked
-            scope.launch(Dispatchers.IO) { Settings.watchdogEnabled = checked }
+            scope.launch(Dispatchers.IO) { io.nekohasekai.sfa.bg.ConnectivityWatchdog.setEnabled(checked) }
         },
         onKillSwitch = { navController.navigate("settings/kill_switch") },
         onAutostart = { checked ->

@@ -8,8 +8,16 @@ import android.os.SystemClock
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.utils.AppEventLog
+import io.nekohasekai.sfa.bg.WatchdogProbeRunner
+import io.nekohasekai.sfa.bg.WatchdogProbeResult
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
-/** Serial owner; only fixed codes/counters leave this adapter. Call start on the service IO queue. */
+/** Short serial state lock. OS history, Room writes and file logging never run under it. */
 object AndroidLifecycleDiagnostics {
     private var marker: ServiceSessionMarker? = null
     private var ledger: ServiceRecoveryLedger? = null
@@ -19,52 +27,87 @@ object AndroidLifecycleDiagnostics {
     private var networkTicket: RestorationTicket? = null
     private var context: HealthContext? = null
     private var revision = 0L
+    private var lifecycleRevision = 0L
     private val recent = ArrayDeque<RecoveryDiagnosticSummary>()
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val markerWrites = Channel<String>(Channel.CONFLATED)
+    private val logs = Channel<String>(64)
+    private var historyJob: Job? = null
+    // A hung Binder call retains the one real worker; a new session cannot queue another one.
+    private val historyRunner = WatchdogProbeRunner(workers = ThreadPoolExecutor(1, 1, 0,
+        TimeUnit.MILLISECONDS, SynchronousQueue(), { Thread(it, "Howl exit history").apply { isDaemon = true } }))
+    init {
+        ioScope.launch { for (value in markerWrites) runCatching { Settings.serviceSessionMarker = value } }
+        ioScope.launch { for (value in logs) runCatching { AppEventLog.log("reliability", value) } }
+    }
 
-    @Synchronized fun start(kind: SessionStartKind) {
+    /** Called on startup IO, never Main; only the initial private marker read precedes core startup. */
+    fun start(kind: SessionStartKind) {
+        val intentRevision = synchronized(this) { ++lifecycleRevision }
         val elapsed = SystemClock.elapsedRealtime()
         val wall = System.currentTimeMillis()
         val processName = if (Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName()
             else Application.application.packageName
-        val prior = ServiceSessionMarkerCodec.decode(Settings.serviceSessionMarker)
-        val records = if (Build.VERSION.SDK_INT >= 30) runCatching {
-            Application.application.getSystemService(ActivityManager::class.java)
-                .getHistoricalProcessExitReasons(null, prior?.pid ?: 0, 32).take(32).map {
-                    ProcessExitRecord(it.pid, it.processName, it.timestamp, when (it.reason) {
-                        ApplicationExitInfo.REASON_EXIT_SELF -> ExitReason.EXIT_SELF
-                        ApplicationExitInfo.REASON_SIGNALED -> ExitReason.SIGNALED
-                        ApplicationExitInfo.REASON_LOW_MEMORY -> ExitReason.LOW_MEMORY
-                        ApplicationExitInfo.REASON_CRASH -> ExitReason.CRASH
-                        ApplicationExitInfo.REASON_CRASH_NATIVE -> ExitReason.NATIVE_CRASH
-                        ApplicationExitInfo.REASON_ANR -> ExitReason.ANR
-                        ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> ExitReason.INITIALIZATION_FAILURE
-                        ApplicationExitInfo.REASON_PERMISSION_CHANGE -> ExitReason.PERMISSION_CHANGE
-                        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> ExitReason.EXCESSIVE_RESOURCE
-                        ApplicationExitInfo.REASON_USER_REQUESTED -> ExitReason.USER_REQUESTED
-                        ApplicationExitInfo.REASON_USER_STOPPED -> ExitReason.USER_STOPPED
-                        ApplicationExitInfo.REASON_DEPENDENCY_DIED -> ExitReason.DEPENDENCY_DIED
-                        ApplicationExitInfo.REASON_OTHER -> ExitReason.OTHER
-                        else -> ExitReason.UNKNOWN
-                    })
+        val prior = synchronized(this) { marker } ?: runCatching {
+            ServiceSessionMarkerCodec.decode(Settings.serviceSessionMarker)
+        }.getOrNull()
+        val created = ServiceSessionMarker.create(Process.myPid(), processName, wall, elapsed, kind)
+        synchronized(this) {
+            if (lifecycleRevision != intentRevision) return
+            historyJob?.cancel()
+            historyJob = null
+            marker = created
+            ledger = ServiceRecoveryLedger(created.sessionId, kind)
+            diagnostics = RecoveryDiagnostics(created.sessionId)
+            previous = ServiceRecoveryLedger.assessPrevious(prior, emptyList(), Process.myPid(), processName,
+                wall, elapsed, Build.VERSION.SDK_INT >= 30)
+            context = null
+            revision++
+            recent.clear()
+            serviceTicket = ledger?.beginServiceRestoration(elapsed)
+            networkTicket = ledger?.beginNetworkRestoration(elapsed)
+            persistMarker()
+            logs.trySend("startKind=${kind.name} previousExitKind=${previous.kind.name} previousExitReason=${previous.reason.name}")
+            if (Build.VERSION.SDK_INT >= 30 && previous.kind == ExitAssessmentKind.UNKNOWN && prior != null) {
+                historyJob = ioScope.launch {
+                    val records = AtomicReference<List<ProcessExitRecord>>(emptyList())
+                    val outcome = historyRunner.run(8_000) { records.set(readHistory(prior.pid)); true }
+                    if (outcome == WatchdogProbeResult.Reachable) {
+                        val assessment = ServiceRecoveryLedger.assessPrevious(prior, records.get(), Process.myPid(), processName,
+                            wall, elapsed, historySupported = true)
+                        synchronized(this@AndroidLifecycleDiagnostics) {
+                            if (marker?.sessionId == created.sessionId && marker?.plannedStop == PlannedStop.ACTIVE && isActive) {
+                                previous = assessment
+                                logs.trySend("previousExitKind=${assessment.kind.name} previousExitReason=${assessment.reason.name}")
+                            }
+                        }
+                    }
                 }
-        }.getOrDefault(emptyList()) else emptyList()
-        previous = ServiceRecoveryLedger.assessPrevious(prior, records, Process.myPid(), processName,
-            wall, elapsed, Build.VERSION.SDK_INT >= 30)
-        marker = ServiceSessionMarker.create(Process.myPid(), processName, wall, elapsed, kind)
-        persistMarker()
-        ledger = ServiceRecoveryLedger(marker!!.sessionId, kind)
-        diagnostics = RecoveryDiagnostics(marker!!.sessionId)
-        context = null
-        revision++
-        recent.clear()
-        serviceTicket = ledger?.beginServiceRestoration(elapsed)
-        networkTicket = ledger?.beginNetworkRestoration(elapsed)
-        AppEventLog.log("reliability", "startKind=${kind.name} previousExitKind=${previous.kind.name} previousExitReason=${previous.reason.name}")
-    }
-    private fun persistMarker() {
-        marker?.let { ServiceSessionMarkerCodec.encode(it) }?.let { encoded ->
-            runCatching { Settings.serviceSessionMarker = encoded }
+            }
         }
+    }
+    @androidx.annotation.RequiresApi(30)
+    private fun readHistory(pid: Int): List<ProcessExitRecord> = Application.application.getSystemService(ActivityManager::class.java)
+        .getHistoricalProcessExitReasons(null, pid, 32).take(32).map {
+            ProcessExitRecord(it.pid, it.processName, it.timestamp, when (it.reason) {
+                ApplicationExitInfo.REASON_EXIT_SELF -> ExitReason.EXIT_SELF
+                ApplicationExitInfo.REASON_SIGNALED -> ExitReason.SIGNALED
+                ApplicationExitInfo.REASON_LOW_MEMORY -> ExitReason.LOW_MEMORY
+                ApplicationExitInfo.REASON_CRASH -> ExitReason.CRASH
+                ApplicationExitInfo.REASON_CRASH_NATIVE -> ExitReason.NATIVE_CRASH
+                ApplicationExitInfo.REASON_ANR -> ExitReason.ANR
+                ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> ExitReason.INITIALIZATION_FAILURE
+                ApplicationExitInfo.REASON_PERMISSION_CHANGE -> ExitReason.PERMISSION_CHANGE
+                ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> ExitReason.EXCESSIVE_RESOURCE
+                ApplicationExitInfo.REASON_USER_REQUESTED -> ExitReason.USER_REQUESTED
+                ApplicationExitInfo.REASON_USER_STOPPED -> ExitReason.USER_STOPPED
+                ApplicationExitInfo.REASON_DEPENDENCY_DIED -> ExitReason.DEPENDENCY_DIED
+                ApplicationExitInfo.REASON_OTHER -> ExitReason.OTHER
+                else -> ExitReason.UNKNOWN
+            })
+        }
+    private fun persistMarker() {
+        marker?.let { ServiceSessionMarkerCodec.encode(it) }?.let { markerWrites.trySend(it) }
     }
     @Synchronized fun serviceRunning() {
         serviceTicket?.let { ledger?.serviceRunning(it, SystemClock.elapsedRealtime()) }
@@ -80,10 +123,19 @@ object AndroidLifecycleDiagnostics {
         persistMarker()
         invalidate()
     }
-    @Synchronized fun invalidate() { context = null; revision++ }
+    @Synchronized fun invalidate() {
+        record(diagnostics?.transition(revision, RecoveryCause.NONE, RecoveryResult.CANCELLED, SystemClock.elapsedRealtime()).orEmpty())
+        context = null
+        revision++
+    }
     @Synchronized fun observation(observation: HealthObservation, snapshot: HealthSnapshot, attempted: Boolean = false) {
         if (snapshot.context != observation.context) return
-        if (context != observation.context) { context = observation.context; revision++ }
+        if (context != observation.context) {
+            // Our automatic soft selection changes only selected; keep the active recovery episode.
+            // Network/profile/config/manual changes cancel the old scope rather than attributing it to the new one.
+            if (context?.copy(selected = observation.context.selected) != observation.context) invalidate()
+            context = observation.context
+        }
         val now = SystemClock.elapsedRealtime()
         val assessment = snapshot.assessment
         val available = assessment.state == HealthState.Available
@@ -113,25 +165,19 @@ object AndroidLifecycleDiagnostics {
         summaries.forEach {
             if (recent.size == 8) recent.removeFirst()
             recent.addLast(it)
-            AppEventLog.log("reliability", it.allowlistedFields().entries.joinToString(" ") { (key, value) -> "$key=$value" })
+            logs.trySend(it.allowlistedFields().entries.joinToString(" ") { (key, value) -> "$key=$value" })
         }
     }
     @Synchronized fun stop(reason: PlannedStop) {
+        lifecycleRevision++
+        historyJob?.cancel()
+        historyJob = null
         marker = marker?.copy(plannedStop = reason)
         persistMarker()
         ledger?.stop(reason, SystemClock.elapsedRealtime())
         record(diagnostics?.stop(SystemClock.elapsedRealtime()).orEmpty())
         context = null
         revision++
-    }
-    @Synchronized fun reportFields(): Map<String, String> {
-        val current = ledger?.snapshot() ?: return emptyMap()
-        return linkedMapOf("startKind" to current.startKind.name, "plannedStop" to current.plannedStop.name,
-            "previousExitKind" to previous.kind.name, "previousExitReason" to previous.reason.name,
-            "serviceAttempts" to current.service.attempts.toString(), "serviceSuccesses" to current.service.successes.toString(),
-            "serviceCancelled" to current.service.cancelled.toString(), "serviceLastDurationMs" to (current.service.lastDurationMs ?: 0).toString(),
-            "networkAttempts" to current.network.attempts.toString(), "networkSuccesses" to current.network.successes.toString(),
-            "networkCancelled" to current.network.cancelled.toString(), "networkLastDurationMs" to (current.network.lastDurationMs ?: 0).toString())
     }
     @Synchronized fun summaries(): List<RecoveryDiagnosticSummary> = recent.toList()
     @Synchronized fun report() = io.nekohasekai.sfa.diagnostics.ReliabilityReport(

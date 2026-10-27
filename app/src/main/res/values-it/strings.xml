@@ -791,4 +791,7 @@
     <string name="health_system_https_hint">La richiesta HTTPS del sistema è fallita. Il risultato del server scelto è indipendente.</string>
     <string name="health_temporary_fallback_hint">È in uso una riserva temporanea; la tua scelta manuale è salvata.</string>
     <string name="health_remote_hint">Questa schermata non dispone di una verifica attuale della connessione remota.</string>
+    <string name="health_preference_not_saved">Il server è selezionato, ma la preferenza per il ritorno automatico non è stata salvata.</string>
+    <string name="health_service_start_failed">Impossibile avviare il servizio VPN. Apri la diagnostica per maggiori informazioni.</string>
+    <string name="health_profile_storage_failed">Impossibile leggere il profilo salvato. Il suo contenuto non è stato sostituito.</string>
 </resources>

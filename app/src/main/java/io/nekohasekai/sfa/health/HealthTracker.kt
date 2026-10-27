@@ -54,4 +54,9 @@ class HealthTracker {
         current = null
         snapshot = HealthSnapshot(assessment = HealthAssessment(HealthState.Off))
     }
+    @Synchronized fun profileProblem() {
+        revision++
+        current = null
+        snapshot = HealthSnapshot(assessment = HealthAssessment(HealthState.ProfileProblem, HealthCause.ProfileInvalid))
+    }
 }

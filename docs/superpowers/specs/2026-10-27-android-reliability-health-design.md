@@ -63,3 +63,27 @@ Author return default: at least600000ms of continuously fresh successful preferr
 Deterministic tests cover H01–H24 touched cases: control-site failure versus DNS, stale success/expired health, captive/no network, manual priority, profile/reload/network changes, process reason matching and unknown fallback, explicit stop, native calls ignoring cancellation, admission saturation and preference migration, return stability/clock changes/Doze gaps. Compile the actual watchdog/adapters against inert boundaries locally; real Android build and Compose/Robolectric tests via read-only candidate CI when needed, no artifacts or publication. Local base184/184 already passed.
 
 Provide a ready per-device acceptance matrix and safe collection script (explicit serial/opt-in, no auto install/clear/force-stop/network changes) for cold start, soft failover with active download/call, Wi-Fi/mobile/captive, profile/import/subscription, manual choice, sleep, Always-on/lockdown, battery and a day of normal operation. No physical result, energy improvement or30s end-to-end SLA is claimed without that run. Keep all evidence and handoff draft; do not edit root handoff unless separately requested.
+
+## Reviewed integration rulings
+
+The single whole-branch review of61460c2 found seven important adapter/wiring issues.
+The author correction pass revokes published health on native effective-route changes,
+resets counters on every explicit local intent (including current-item clicks), and
+coalesces a fresh check after acknowledgment. Guard/sticky/boot/package-update intents
+require the persisted user desire; only USER creates new desire. Enabling/disabling
+monitoring applies to a running local service without starting a stopped VPN.
+
+State reduction is under a short lock. Historical OS lookup runs asynchronously with
+one zero-queue real worker and an8s deadline; a stuck call retains that worker, late
+sessions cannot apply it, and startup/Stop never wait for it. Marker persistence uses a
+conflated IO actor and file logs a bounded64-item IO channel. User Off remains
+immediately authoritative; optional diagnosis never delays disconnect to flush a log.
+Marker/log durability is best-effort on forced process death or storage failure, so a
+missing record can remain Unknown. This trade-off takes priority over speculative
+cause attribution. No profile content/schema/signing/permission changes implement it.
+
+Own soft selection changes only the effective exit and retains its recovery episode.
+Explicit manual/profile/config/network invalidation closes the old diagnostic episode
+as Cancelled; a later success in another context cannot recover that old episode.
+Only a positively validated startup configuration fault produces ProfileProblem;
+permission/native/storage failures are not guessed to be profile DNS or invalid config.

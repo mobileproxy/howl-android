@@ -3,7 +3,7 @@ package io.nekohasekai.sfa.health
 import java.util.UUID
 
 enum class PlannedStop { ACTIVE, USER, REVOKE, FAILURE, RELOAD }
-enum class SessionStartKind { USER, STICKY, GUARD_RESTART, CONFIG_RELOAD }
+enum class SessionStartKind { USER, STICKY, GUARD_RESTART, CONFIG_RELOAD, BOOT, PACKAGE_UPDATE }
 /** Fixed application codes. Android reason integers are mapped only by the Android adapter. */
 enum class ExitReason { UNKNOWN, EXIT_SELF, SIGNALED, LOW_MEMORY, CRASH, NATIVE_CRASH, ANR, INITIALIZATION_FAILURE, PERMISSION_CHANGE, EXCESSIVE_RESOURCE, USER_REQUESTED, USER_STOPPED, DEPENDENCY_DIED, OTHER, FREEZER, PACKAGE_STATE_CHANGE, PACKAGE_UPDATED }
 enum class ExitAssessmentKind { UNKNOWN, UNSUPPORTED, PLANNED, MATCHED }

@@ -29,7 +29,9 @@ class BootReceiver : BroadcastReceiver() {
                     return@launch
                 }
                 withContext(Dispatchers.Main) {
-                    BoxService.start()
+                    if (Settings.startedByUser && Settings.autoStartOnBoot) BoxService.start(
+                        if (intent.action == Intent.ACTION_BOOT_COMPLETED) io.nekohasekai.sfa.health.SessionStartKind.BOOT
+                        else io.nekohasekai.sfa.health.SessionStartKind.PACKAGE_UPDATE)
                 }
             }
         }

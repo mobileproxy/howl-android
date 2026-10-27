@@ -791,4 +791,7 @@
     <string name="health_system_https_hint">Die HTTPS-Systemanfrage scheiterte. Das Ergebnis des gewählten Servers ist unabhängig.</string>
     <string name="health_temporary_fallback_hint">Ein temporärer Ersatz wird genutzt; Ihre manuelle Auswahl bleibt gespeichert.</string>
     <string name="health_remote_hint">Für die entfernte Verbindung liegt auf diesem Bildschirm keine aktuelle Prüfung vor.</string>
+    <string name="health_preference_not_saved">Der Server ist ausgewählt, aber die Einstellung für die automatische Rückkehr konnte nicht gespeichert werden.</string>
+    <string name="health_service_start_failed">Der VPN-Dienst konnte nicht gestartet werden. Weitere Informationen finden Sie in der Diagnose.</string>
+    <string name="health_profile_storage_failed">Das gespeicherte Profil konnte nicht gelesen werden. Sein Inhalt wurde nicht ersetzt.</string>
 </resources>

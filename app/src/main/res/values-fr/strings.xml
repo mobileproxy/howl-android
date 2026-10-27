@@ -791,4 +791,7 @@
     <string name="health_system_https_hint">La requête HTTPS du système a échoué. Le résultat du serveur choisi est indépendant.</string>
     <string name="health_temporary_fallback_hint">Un secours temporaire est utilisé ; votre choix manuel reste enregistré.</string>
     <string name="health_remote_hint">Cet écran ne dispose d’aucun contrôle actuel de la connexion distante.</string>
+    <string name="health_preference_not_saved">Le serveur est sélectionné, mais la préférence de retour automatique n’a pas pu être enregistrée.</string>
+    <string name="health_service_start_failed">Le service VPN n’a pas pu démarrer. Consultez le diagnostic pour plus de détails.</string>
+    <string name="health_profile_storage_failed">Le profil enregistré n’a pas pu être lu. Son contenu n’a pas été remplacé.</string>
 </resources>

@@ -55,6 +55,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import io.nekohasekai.sfa.profile.ProfileSafety
 import io.nekohasekai.sfa.profile.SafeProfileStore
+import io.nekohasekai.sfa.profile.ProfileFailure
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.health.*
 import kotlinx.coroutines.sync.Mutex
@@ -167,7 +168,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             // Теги групп нужны сторожу для ступени «сменить сервер»: у чужого профиля они
             // называются иначе, чем у нашего, и зашивать их нельзя. scan внутри assembleConfig.
             val content = assembleConfig(rawContent)
-            Libbox.checkConfig(content)
+            try { Libbox.checkConfig(content) }
+            catch (e: Exception) {
+                stopAndAlert(Alert.StartService, ProfileSafety.message(e), profileProblem = true)
+                return
+            }
 
             // Старт-событие с контекстом — чтобы в журнале сразу было видно версию, телефон и
             // какой профиль запущен. Это первое, что нужно при разборе присланного лога.
@@ -192,7 +197,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             val launched = try {
                 launchProfile(profile, prepared, content)
             } catch (e: Exception) {
-                stopAndAlert(Alert.CreateService, ProfileSafety.message(e))
+                stopAndAlert(Alert.CreateService, startupMessage(e))
                 return
             }
 
@@ -232,7 +237,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 GlobalScope.launch(Dispatchers.IO) { runCatching { RussiaList.refresh() } }
             }
         } catch (e: Exception) {
-            stopAndAlert(Alert.StartService, ProfileSafety.message(e))
+            stopAndAlert(Alert.StartService, startupMessage(e), profileProblem = e is ProfileFailure && e.kind in setOf(ProfileFailure.Kind.INVALID, ProfileFailure.Kind.EMPTY))
             return
         }
     }
@@ -337,7 +342,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         val launched = try {
             launchProfile(profile, prepared, content)
         } catch (e: Exception) {
-            stopAndAlert(Alert.CreateService, ProfileSafety.message(e))
+            stopAndAlert(Alert.CreateService, startupMessage(e))
             return false
         }
         lastProfileName = profile.name
@@ -444,8 +449,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         if (status.value !in setOf(Status.Started, Status.Starting)) return
         // Fence before asynchronous cleanup: sticky/guard/start completion cannot revive explicit Off.
         startIntent.stop()
-        AndroidLifecycleDiagnostics.stop(reason)
         Settings.startedByUser = false
+        AndroidLifecycleDiagnostics.stop(reason)
         // ★ ШТАТНАЯ остановка — это ИМЕННО ЭТОТ путь: кнопка в приложении, действие в шторке,
         // отзыв разрешения VPN системой. Событие «[стоп]» писалось только в serviceStop(),
         // куда приходит запрос ОТ ЯДРА, — а он при обычном выключении не срабатывает. Из-за
@@ -495,7 +500,13 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         } finally { choices.resume() }
     }
 
-    private suspend fun stopAndAlert(type: Alert, message: String? = null) {
+    private fun startupMessage(error: Exception): String = when {
+        error is ProfileFailure && error.kind == ProfileFailure.Kind.STORAGE -> service.getString(R.string.health_profile_storage_failed)
+        error is ProfileFailure -> ProfileSafety.message(error)
+        else -> service.getString(R.string.health_service_start_failed)
+    }
+
+    private suspend fun stopAndAlert(type: Alert, message: String? = null, profileProblem: Boolean = type == Alert.EmptyConfiguration) {
         // ★ Этот путь останавливал службу МОЛЧА: ни строки в журнале, только всплывающее
         // предупреждение в приложении, которого человек не видит, если оно свёрнуто. Снаружи
         // это неотличимо от убийства системой — «VPN сам выключился». Сюда попадают неудачный
@@ -508,6 +519,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         ServiceGuard.cancel()
         Settings.startedByUser = false
         ConnectivityWatchdog.stop()
+        if (profileProblem) HealthRuntime.monitor.profileProblem()
         val pfd = fileDescriptor
         if (pfd != null) {
             pfd.close()
@@ -536,13 +548,19 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     @Suppress("SameReturnValue")
     internal fun onStartCommand(intent: Intent? = null): Int {
         if (status.value != Status.Stopped) return Service.START_STICKY
+        val kind = if (intent == null) SessionStartKind.STICKY else
+            SessionStartKind.entries.firstOrNull { it.name == intent.getStringExtra("howl_start_kind") } ?: SessionStartKind.USER
+        if (!ServiceStartPolicy.admitted(kind, Settings.startedByUser)) {
+            service.stopSelf()
+            return Service.START_NOT_STICKY
+        }
         status.value = Status.Starting
         // ★ Перезапуск после убийства системой: Android отдаёт intent == null. Отличать важно —
         // при таком старте нельзя слепо считать, что VPN хочет человек: он мог выключить его
         // раньше. Флаг startedByUser читаем ДО того, как перезапишем его ниже.
         val restartedBySystem = intent == null
         val ticket = startIntent.begin()
-        if (!restartedBySystem) Settings.startedByUser = true
+        if (kind == SessionStartKind.USER) Settings.startedByUser = true
 
         if (!receiverRegistered) {
             ContextCompat.registerReceiver(
@@ -577,8 +595,6 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 }
                 AppEventLog.log("reliability", "startTrigger=STICKY previousCause=UNCONFIRMED")
             }
-            val kind = if (restartedBySystem) SessionStartKind.STICKY else
-                SessionStartKind.entries.firstOrNull { it.name == intent?.getStringExtra("howl_start_kind") } ?: SessionStartKind.USER
             AndroidLifecycleDiagnostics.start(kind)
             if (!startIntent.current(ticket, Settings.startedByUser)) {
                 AndroidLifecycleDiagnostics.stop(PlannedStop.USER)
@@ -587,7 +603,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             try {
                 startCommandServer()
             } catch (e: Exception) {
-                stopAndAlert(Alert.StartCommandServer, e.message)
+                stopAndAlert(Alert.StartCommandServer, startupMessage(e))
                 return@withLock
             }
             startService(ticket)
