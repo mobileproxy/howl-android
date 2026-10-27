@@ -53,7 +53,9 @@
 
 **Files:** regression tests/documentation only if evidence identifies a gap; reports and lab classes live outside the repository in `tools/support/android-watchdog-20261027`.
 
-- [ ] Run all available JVM tests and repository Python checks; compile the actual changed watchdog against the isolated boundary harness. State explicitly if Android SDK/native AAR prevent a full APK build.
-- [ ] Freeze the complete branch diff/source SHA and obtain one fresh read-only review. Fix important findings in one TDD pass; record decisions and deferred minor findings.
-- [ ] Verify no version/dependency/workflow/signature/profile changes, tracked tree clean, remote dev/release untouched, and installed Windows files/processes not controlled.
-- [ ] Save REPORT, HANDOFF draft, exact commands/counts and untested physical scenarios. Keep the branch locally; do not publish/install or mark physical acceptance complete.
+- [x] Run all available JVM tests and repository Python checks; compile the actual changed watchdog against the isolated boundary harness. State explicitly if Android SDK/native AAR prevent a full APK build.
+- [x] Freeze the complete branch diff/source SHA and obtain one fresh read-only review. Fix important findings in one TDD pass; record decisions and deferred minor findings.
+- [x] Verify no version/dependency/workflow/signature/profile changes, tracked tree clean, remote dev/release untouched, and installed Windows files/processes not controlled.
+- [x] Save REPORT, HANDOFF draft, exact commands/counts and untested physical scenarios. Keep the branch locally; do not publish/install or mark physical acceptance complete.
+
+**Result:** 184 JVM tests, 34 repository Python tests, 69 resource keys in six locales. One read-only whole-branch review of d45e8c5 found Important singleton recovery history leaking across profiles/sessions. Corrected actual-code RED: 13 tests, 3 failures; fixed by context-owned RecoveryState, final full suite GREEN184/184. No second review. Source/evidence verification and handoff insertion draft are in the parent workspace proof directory. APK/device/30-second end-to-end acceptance remains NOT_RUN; no CI or external changes.

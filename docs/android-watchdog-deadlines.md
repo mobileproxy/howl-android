@@ -23,6 +23,8 @@ This confirms failure of the selected request path; it does not claim to identif
 
 Observations carry scope/session identity, profile, selector, selected/effective node, physical network and invalidation generation. The original soft-switch ticket is retained through the decision. Manual choices, disconnect, reload, profile changes, changed physical network and expired observations cannot authorize a delayed selection. Native acknowledgements may change the selection only within the same current session/ticket.
 
+Penalties, exhausted-pool counters and healing backoff belong to a separate recovery state keyed by session, profile, selector, generation, physical network and manual-ticket revision. A new context replaces that object; an old probe can only touch its old object. Stop/start and configuration reload discard it. Our acknowledged automatic selection preserves the same context/history, so normal node rotation does not silently forgive failed nodes.
+
 Network probes and capability checks use the physical `Network` passed to the core, which may differ from Android's system default after fallback. A successful physical-network change requests a new settled observation.
 
 Neither network probes nor reserve selection reload the working core/TUN or close application flows. Private command clients are disconnected after use. Background bulk remeasurement requests are coalesced and their caller/client lifetime is bounded; already accepted core background work has no new cancellation API.

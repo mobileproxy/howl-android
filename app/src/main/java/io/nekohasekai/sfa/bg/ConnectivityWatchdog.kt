@@ -210,19 +210,10 @@ object ConnectivityWatchdog {
 
     private var scope: CoroutineScope? = null
     private var consecutiveFailures = 0
-    private var lastHealAt = 0L
 
     /** Когда последний раз менялся интерфейс — см. BLAME_NODE_AFTER_NETWORK_MS. */
     @Volatile
     private var lastNetworkChangeAt = 0L
-
-    /** Сколько полных кругов по парку прошли без успеха — см. POOL_CYCLES_BEFORE_SLOWDOWN. */
-    @Volatile
-    private var poolCyclesWithoutSuccess = 0
-
-    /** Уже сообщили в журнал, что ушли в редкий режим: строку пишем один раз на аварию. */
-    @Volatile
-    private var slowdownAnnounced = false
 
     // Когда последний раз реально прогнали пробы — чтобы будильник и фоновый цикл, сойдясь в одну
     // секунду, не делали двойную работу.
@@ -313,11 +304,15 @@ object ConnectivityWatchdog {
     @Volatile
     private var selectorNodes: List<Pair<String, Int>> = emptyList()
 
-    // Узлы, на которых уже залипли в текущей сети. Сбрасывается при смене сети (маршруты меняются)
-    // и когда перепробованы все (тогда возвращаемся к автоподбору с чистого листа).
-    // synchronizedSet: пишется из проверок, чистится из onNetworkChanged/start/stop — разные
-    // потоки, нужна согласованная видимость. (newKeySet не годится — требует API 24, minSdk 23.)
-    private val stuckNodes: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+    // History belongs to a session/config/network and manual intention, never to the singleton.
+    // An old probe may still finish, but can only touch its old state object. Our acknowledged
+    // automatic selection keeps this history; profile/reload/network/manual changes replace it.
+    private class RecoveryState(val identity: WatchdogIdentity, val revision: Long, var lastHealAt: Long) {
+        val stuckNodes: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+        var poolCyclesWithoutSuccess = 0
+        var slowdownAnnounced = false
+    }
+    @Volatile private var recoveryState: RecoveryState? = null
 
     // One owner applies decisions; repeated alarm/network/presence events coalesce.
     private var checkGate: WatchdogCheckGate? = null
@@ -339,6 +334,13 @@ object ConnectivityWatchdog {
         scope?.isActive == true && Settings.watchdogEnabled && Settings.startedByUser &&
             SoftSwitching.choices.valid(ticket) && observation.sessionCurrent(identity(), now())
 
+    @Synchronized private fun recoveryFor(observation: WatchdogObservation, ticket: SoftSwitch.Ticket): RecoveryState? {
+        if (!observationCurrent(observation, ticket)) return null
+        val key = observation.identity.copy(selection = null, node = null)
+        return recoveryState?.takeIf { it.identity == key && it.revision == ticket.revision }
+            ?: RecoveryState(key, ticket.revision, now() - MIN_HEAL_INTERVAL_MS).also { recoveryState = it }
+    }
+
     private fun probeUnavailable(outcome: String, observation: WatchdogObservation) {
         if (now() - lastProbeDiagnosticAt < RARE_LOG_INTERVAL_MS) return
         lastProbeDiagnosticAt = now()
@@ -356,12 +358,11 @@ object ConnectivityWatchdog {
         // The gate keeps the initial 10-second stabilization period. Signals coalesce;
         // moving the throttle into the future would suppress useful checks after startup.
         lastTriggerAt = now() - MIN_TRIGGER_INTERVAL_MS
-        lastHealAt = now() - MIN_HEAL_INTERVAL_MS
         lastProbeDiagnosticAt = now() - RARE_LOG_INTERVAL_MS
         lastTrafficAt = 0L
         counterIdentity = null
         trafficStalledSince = 0L
-        stuckNodes.clear()
+        recoveryState = null
         autoNodes = emptyList()
         autoSelected = null
         selectorSelected = null
@@ -419,7 +420,7 @@ object ConnectivityWatchdog {
         statusClient = null
         groupsClient?.let { runCatching { it.disconnect() } }
         groupsClient = null
-        stuckNodes.clear()
+        recoveryState = null
         networkJob = null
         remeasureJob = null
         scope?.cancel()
@@ -555,7 +556,7 @@ object ConnectivityWatchdog {
         // Сеть сменилась — маршруты к узлам стали другими, прошлые «плохие узлы» больше не
         // приговор. Чистим штрафной ящик, чтобы карусель могла снова пробовать любой узел.
         observationGeneration.incrementAndGet()
-        stuckNodes.clear()
+        recoveryState = null
         lastNetworkChangeAt = now()
         networkJob?.cancel()
         networkJob = currentScope.launch {
@@ -613,16 +614,18 @@ object ConnectivityWatchdog {
 
     /**
      * Ядро начинает перезагрузку (BoxService.serviceReload0): проверки на паузу. Память сторожа
-     * не трогаем — это продолжение той же сессии, штрафы карусели остаются в силе.
+     * из старой конфигурации не переносим — новый профиль может использовать те же теги узлов.
      */
     fun pauseForReload() {
         observationGeneration.incrementAndGet()
+        recoveryState = null
         suspendedUntil = now() + RELOAD_MAX_PAUSE_MS
     }
 
     /** Перезагрузка закончилась: ещё немного тишины, пока поднимаются соединения. */
     fun resumeAfterReload() {
         observationGeneration.incrementAndGet()
+        recoveryState = null
         suspendedUntil = now() + SETTLE_AFTER_RELOAD_MS
     }
 
@@ -657,6 +660,7 @@ object ConnectivityWatchdog {
     }
 
     private suspend fun checkBody(trigger: String, observation: WatchdogObservation, ticket: SoftSwitch.Ticket) {
+        val recovery = recoveryFor(observation, ticket) ?: return
         // Нет сети вообще (самолётный режим, нет сигнала) — не наша беда, чинить нечего.
         if (DefaultNetworkMonitor.currentNetwork == null) {
             consecutiveFailures = 0
@@ -776,8 +780,8 @@ object ConnectivityWatchdog {
             }
             // Связь есть — значит парк не при чём: обнуляем счётчик кругов и разрешаем снова
             // сообщить о переходе в редкий режим, если авария повторится.
-            poolCyclesWithoutSuccess = 0
-            slowdownAnnounced = false
+            recovery.poolCyclesWithoutSuccess = 0
+            recovery.slowdownAnnounced = false
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog(str(R.string.watchdog_log_recovered))
                 // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
@@ -861,23 +865,23 @@ object ConnectivityWatchdog {
             // внешних обстоятельствах (ночь 14–15.08: мобильная сеть не пропускала НИЧЕГО девять
             // часов). Дальше долбиться раз в минуту бессмысленно и вредно: это только жжёт батарею
             // и вымывает журнал. Ждём и изредка проверяем — вернётся связь, счётчик обнулится.
-            poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN -> EXHAUSTED_HEAL_INTERVAL_MS
+            recovery.poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN -> EXHAUSTED_HEAL_INTERVAL_MS
             healAttempts > 2 && !networkDead && !tunnelDead -> BACKOFF_HEAL_INTERVAL_MS
             else -> MIN_HEAL_INTERVAL_MS
         }
-        if (waitBeforeHeal == EXHAUSTED_HEAL_INTERVAL_MS && !slowdownAnnounced) {
-            slowdownAnnounced = true
+        if (waitBeforeHeal == EXHAUSTED_HEAL_INTERVAL_MS && !recovery.slowdownAnnounced) {
+            recovery.slowdownAnnounced = true
             appendLog(
                 "весь парк перепробован без толку — перехожу на редкие проверки " +
                     "(раз в ${EXHAUSTED_HEAL_INTERVAL_MS / 60_000} мин), похоже режут снаружи",
             )
         }
-        if (now - lastHealAt < waitBeforeHeal) {
+        if (now - recovery.lastHealAt < waitBeforeHeal) {
             appendLog(str(R.string.watchdog_log_wait, what))
             return
         }
 
-        lastHealAt = now
+        recovery.lastHealAt = now
         consecutiveFailures = 0
 
         // Network probe failure is not evidence that every application flow is
@@ -900,9 +904,10 @@ object ConnectivityWatchdog {
         protocol: String?, selected: WatchdogProbeResult, physical: WatchdogProbeResult, restrictedNetwork: Boolean): Boolean {
         if (!WatchdogRecoveryPolicy.canProbeReserveEarly(protocol, selected, physical, restrictedNetwork,
                 now() - watchdogStartedAt, observationCurrent(observation, ticket))) return false
-        val wait = if (poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN) EXHAUSTED_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
-        if (now() - lastHealAt < wait) return true
-        lastHealAt = now()
+        val recovery = recoveryFor(observation, ticket) ?: return false
+        val wait = if (recovery.poolCyclesWithoutSuccess >= POOL_CYCLES_BEFORE_SLOWDOWN) EXHAUSTED_HEAL_INTERVAL_MS else MIN_HEAL_INTERVAL_MS
+        if (now() - recovery.lastHealAt < wait) return true
+        recovery.lastHealAt = now()
         appendLog(str(R.string.watchdog_log_switch_server, str(R.string.watchdog_reason_tunnel)))
         switchToFastestServer(observation, ticket)
         if (sameSession(observation, ticket)) {
@@ -944,7 +949,8 @@ object ConnectivityWatchdog {
      * Штрафы сбрасываются при смене сети — там маршруты другие, старые вердикты не актуальны.
      */
     private suspend fun switchToFastestServer(observation: WatchdogObservation, ticket: SoftSwitch.Ticket) {
-        if (!observationCurrent(observation, ticket)) return
+        val recovery = recoveryFor(observation, ticket) ?: return
+        val stuckNodes = recovery.stuckNodes
         val selector = observation.identity.selector ?: return
         val expected = observation.identity.selection ?: return
         val choices = SoftSwitching.choices
@@ -960,7 +966,7 @@ object ConnectivityWatchdog {
             val order = WatchdogRules.order(candidates, sites, penalized).take(6)
             if (order.isEmpty()) {
                 stuckNodes.clear()
-                poolCyclesWithoutSuccess++
+                recovery.poolCyclesWithoutSuccess++
                 appendLog(str(R.string.soft_switch_no_reserve))
                 return
             }
@@ -1012,6 +1018,7 @@ object ConnectivityWatchdog {
      * Ноль печатаем как «—»: это не «быстро», это «проба провалилась». Крест — штрафной ящик.
      */
     private fun measurementsLine(): String? {
+        val stuckNodes = recoveryState?.stuckNodes.orEmpty()
         val pool = (autoNodes + selectorNodes).distinctBy { it.first }
         if (pool.isEmpty()) return null
         return "замеры: " + pool.joinToString(" ") { (tag, delay) ->
