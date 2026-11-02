@@ -58,7 +58,7 @@ object DefaultNetworkMonitor {
 
     suspend fun stop() {
         recoveryHold.reset()
-        releaseCellularBackup()
+        releaseCellularBackup(force = true)
         badNetworks.clear()
         DefaultNetworkListener.stop(this)
     }
@@ -191,7 +191,15 @@ object DefaultNetworkMonitor {
         }.onFailure { cellularRequest = null }
     }
 
-    fun releaseCellularBackup() {
+    fun releaseCellularBackup(force: Boolean = false) {
+        // A requested mobile path can disappear when its request is released while
+        // Android still prefers broken Wi-Fi. Keep it until we leave it or stop VPN.
+        val current = currentNetwork
+        val cellular = current != null && runCatching {
+            Application.connectivity.getNetworkCapabilities(current)
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+        }.getOrDefault(false)
+        if (WatchdogNetworkHold.retainCellularBackup(cellular, current == defaultNetwork, force)) return
         val callback = cellularRequest ?: return
         cellularRequest = null
         runCatching { Application.connectivity.unregisterNetworkCallback(callback) }
@@ -273,6 +281,7 @@ object DefaultNetworkMonitor {
                 }
                 reportedInterface = linkProperties.interfaceName
                 reportedNetwork = target
+                releaseCellularBackup()
                 listener.updateDefaultInterface(linkProperties.interfaceName, interfaceIndex, false, false)
                 // Цикл — это ретраи на случай, если свойства сети ещё не готовы. Данные получены,
                 // повторять нечего: без выхода ядро дёргалось 10 раз подряд на каждое событие сети.

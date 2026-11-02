@@ -5,6 +5,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WatchdogRecoveryQueueTest {
+    @Test fun recoveredMobileBackupStaysRequestedUntilWeLeaveItOrStopVpn() {
+        assertTrue(WatchdogNetworkHold.retainCellularBackup(true, false, false))
+        assertFalse(WatchdogNetworkHold.retainCellularBackup(true, false, true))
+        assertFalse(WatchdogNetworkHold.retainCellularBackup(true, true, false))
+        assertFalse(WatchdogNetworkHold.retainCellularBackup(false, false, false))
+    }
     @Test fun everyReserveIsVisitedBeforeAnyRetryEvenWhenAllResultsAreUnknown() {
         val q = WatchdogRecoveryQueue(); val nodes = (1..17).map { "node$it" }
         assertEquals(nodes.take(6), q.next(nodes, 6))

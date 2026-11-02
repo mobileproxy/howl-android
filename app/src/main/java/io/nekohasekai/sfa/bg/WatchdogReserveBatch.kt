@@ -29,5 +29,9 @@ suspend fun probeReserveBatch(tags: List<String>, timeoutMs: Long, compareMs: Lo
             }
         }
         results.toList()
-    } finally { jobs.forEach { it.cancel() }; replies.close() }
+    } finally {
+        // The private channel is collected with the scope. Closing it before cancelled
+        // producers finish can turn a successful probe into ClosedSendChannelException.
+        jobs.forEach { it.cancel() }
+    }
 }
