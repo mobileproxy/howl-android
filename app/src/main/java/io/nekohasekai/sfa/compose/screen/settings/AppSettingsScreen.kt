@@ -408,24 +408,11 @@ fun AppSettingsScreen(
                             Vendor.downloadAndInstall(context, updateInfo!!.downloadUrl)
                         }
                         showDownloadDialog = false
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
-                        // Запасной путь: отдаём ссылку браузеру — он скачает, а тап по файлу
-                        // откроет тот же установщик. Так обновление остаётся возможным, даже
-                        // если что-то пошло не так со скачиванием внутри приложения.
-                        Log.e("AppSettingsScreen", "Error downloading update", e)
-                        showDownloadDialog = false
-                        val opened = runCatching {
-                            context.startActivity(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(updateInfo!!.downloadUrl),
-                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
-                        }.isSuccess
-                        if (!opened) {
-                            showDownloadDialog = true
-                            downloadError = e.message
-                        }
+                        Log.e("AppSettingsScreen", "Update failed: ${e.javaClass.simpleName}")
+                        downloadError = context.getString(R.string.error_generic)
                     }
                 }
             },

@@ -1,5 +1,7 @@
 package io.nekohasekai.sfa.vendor
 
+import kotlinx.coroutines.ensureActive
+
 import android.content.Context
 import android.util.Log
 import androidx.work.BackoffPolicy
@@ -76,6 +78,7 @@ class UpdateWorker(private val appContext: Context, params: WorkerParameters) : 
                 val apkFile = ApkDownloader().use { it.download(updateInfo.downloadUrl) }
 
                 Log.d(TAG, "Installing update...")
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 ApkInstaller.install(appContext, apkFile)
                 Log.d(TAG, "Update installed successfully")
             } else {
@@ -83,6 +86,8 @@ class UpdateWorker(private val appContext: Context, params: WorkerParameters) : 
             }
 
             Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Auto update failed", e)
             Result.retry()

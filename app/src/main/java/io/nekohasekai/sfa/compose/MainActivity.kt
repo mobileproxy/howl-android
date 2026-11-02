@@ -644,6 +644,8 @@ class MainActivity :
                                 )
                             }
                             showDownloadDialog = false
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             downloadError = e.message
                         }

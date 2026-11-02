@@ -279,6 +279,8 @@ object ConnectivityWatchdog {
         val stuckNodes: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
         var poolCyclesWithoutSuccess = 0
         var slowdownAnnounced = false
+        val queue = WatchdogRecoveryQueue()
+        var recovering = false
     }
     @Volatile private var recoveryState: RecoveryState? = null
 
@@ -810,6 +812,8 @@ object ConnectivityWatchdog {
             // сообщить о переходе в редкий режим, если авария повторится.
             recovery.poolCyclesWithoutSuccess = 0
             recovery.slowdownAnnounced = false
+            recovery.recovering = false
+            recovery.queue.reset()
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog(str(R.string.health_available))
                 // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
@@ -873,7 +877,7 @@ object ConnectivityWatchdog {
         }
 
         // Мёртвая сеть — приговор окончательный, второе мнение не нужно: чиним сразу.
-        if (consecutiveFailures < FAILURES_BEFORE_HEAL && !networkDead) {
+        if (consecutiveFailures < FAILURES_BEFORE_HEAL && !networkDead && !recovery.recovering) {
             appendLog(str(R.string.watchdog_log_recheck, what))
             return
         }
@@ -907,12 +911,13 @@ object ConnectivityWatchdog {
 
         markRecovering(observation, ticket)
         recovery.lastHealAt = now
+        recovery.recovering = true
         consecutiveFailures = 0
 
         // Network probe failure is not evidence that every application flow is
         // dead. Keep the running core/TUN; only replace the route of NEW flows.
         if (networkDead) {
-            if (observationCurrent(observation, ticket)) switchPhoneNetwork(what)
+            if (observationCurrent(observation, ticket)) switchPhoneNetwork(what) { observationCurrent(observation, ticket) }
         } else {
             appendLog(str(R.string.watchdog_log_switch_server, what))
             switchToFastestServer(observation, ticket)
@@ -985,6 +990,7 @@ object ConnectivityWatchdog {
         if (now() - recovery.lastHealAt < wait) return true
         markRecovering(observation, ticket)
         recovery.lastHealAt = now()
+        recovery.recovering = true
         appendLog(str(R.string.watchdog_log_switch_server, str(R.string.soft_switch_no_response)))
         switchToFastestServer(observation, ticket)
         if (sameSession(observation, ticket)) {
@@ -1001,12 +1007,19 @@ object ConnectivityWatchdog {
         runCatching { Application.application.getString(id, *args) }.getOrDefault("")
 
     /** Ступень «уйти на другую сеть телефона» — вынесена, т.к. зовётся из двух веток лестницы. */
-    private suspend fun switchPhoneNetwork(what: String) {
+    private suspend fun switchPhoneNetwork(what: String, current: () -> Boolean) {
         val previous = DefaultNetworkMonitor.currentNetwork
-        // Порядок важен: сначала штраф текущей сети, иначе перевыбор вернёт её же.
-        DefaultNetworkMonitor.markCurrentNetworkBad()
         DefaultNetworkMonitor.requestCellularBackup()
-        DefaultNetworkMonitor.reevaluate(preferAlternative = true)
+        val alternative = DefaultNetworkMonitor.recoveryAlternative() ?: run {
+            appendLog("networkRecovery=WAIT_COOLDOWN_OR_PATH")
+            return
+        }
+        val result = probeRunner.run(PROBE_TIMEOUT_MS.toLong()) { underlyingReachable(it, alternative) }
+        if (!current() || result != WatchdogProbeResult.Reachable) {
+            appendLog("networkRecovery=NOT_COMMITTED probe=$result")
+            return
+        }
+        if (!DefaultNetworkMonitor.commitRecoveryNetwork(previous, alternative)) return
         val via = DefaultNetworkMonitor.reportedInterface
         appendLog(
             if (via != null) str(R.string.watchdog_log_switch_network_via, what, via)
@@ -1039,8 +1052,9 @@ object ConnectivityWatchdog {
             val sites = NodeSites.current
             val penalized = stuckNodes.toList() + listOfNotNull(current)
             val pool = (autoNodes + selectorNodes).distinctBy { it.first }
-            val candidates = pool.filter { it.first != current && it.first !in stuckNodes && it.first != ProfileTags.auto }
-            val order = WatchdogRules.order(candidates, sites, penalized).take(6)
+            val candidates = pool.filter { it.first != current && it.first != ProfileTags.auto }
+            val order = recovery.queue.next(WatchdogRules.order(candidates, sites, penalized), 6)
+            recovery.poolCyclesWithoutSuccess = maxOf(recovery.poolCyclesWithoutSuccess, recovery.queue.pass / 2)
             if (order.isEmpty()) {
                 stuckNodes.clear()
                 recovery.poolCyclesWithoutSuccess++
@@ -1050,16 +1064,9 @@ object ConnectivityWatchdog {
             // History orders candidates; only a fresh successful request permits
             // selection. Reuse the bounded probe pool, always targeting LOCAL core.
             val probe = LibboxProbeTransport.createLocal(ProbePriority.Recovery, ProbeTransport.HEALTH_URLS)
-            data class Measurement(val tag: String, val delay: Int?, val completed: Boolean)
-            val measured = coroutineScope {
-                order.map { tag -> async {
-                    try {
-                        withTimeoutOrNull(9000) { Measurement(tag, probe.measure(tag, 1) ?: probe.measure(tag, 2), true) }
-                            ?: Measurement(tag, null, false)
-                    } catch (e: CancellationException) { throw e }
-                    catch (_: Exception) { Measurement(tag, null, false) }
-                } }.awaitAll()
-            }
+            val attempt = if (recovery.queue.pass % 2 == 0) 1 else 2
+            val measured = probeReserveBatch(order, if (attempt == 1) 4500 else 9000) { probe.measure(it, attempt) }
+            appendLog("reserveBatch pass=${recovery.queue.pass + 1} attempt=$attempt scheduled=${order.size} completed=${measured.count { it.completed }} alive=${measured.count { it.delay != null }}")
             if (!observationCurrent(observation, ticket)) return
             val alive = measured.mapNotNull { m -> m.delay?.let { m.tag to it } }
             val candidate = WatchdogRules.order(alive, sites, penalized).firstOrNull()
@@ -1151,8 +1158,8 @@ object ConnectivityWatchdog {
      * таймауту. Своя проба отвечает на вопрос «а сеть-то живая прямо сейчас» и включает ступень
      * «уйти на мобильную» тогда, когда она и нужна.
      */
-    private fun underlyingReachable(resources: WatchdogProbeResources): Boolean {
-        val network = DefaultNetworkMonitor.currentNetwork ?: return false
+    private fun underlyingReachable(resources: WatchdogProbeResources, target: android.net.Network? = DefaultNetworkMonitor.currentNetwork): Boolean {
+        val network = target ?: return false
         // ★ Несколько целей, а не одна. Проверять только 1.1.1.1 нельзя: в РФ его у многих
         // провайдеров режут, и «сеть телефона мертва» получалось на живой сети — сторож писал
         // «нет интернета, перезапуск не поможет» и НЕ ЧИНИЛ (в журнале 30.07 — 14 раз против 3

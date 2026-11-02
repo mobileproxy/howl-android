@@ -1,5 +1,7 @@
 package io.nekohasekai.sfa.vendor
 
+import kotlinx.coroutines.ensureActive
+
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -139,6 +141,7 @@ object Vendor : VendorInterface {
         } else {
             ApkDownloader().use { it.download(downloadUrl) }
         }
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
         ApkInstaller.install(context, apkFile)
     }
 }

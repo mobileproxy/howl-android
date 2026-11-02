@@ -216,6 +216,8 @@ fun SettingsScreen(navController: NavController) {
                     try {
                         withContext(Dispatchers.IO) { Vendor.downloadAndInstall(context, url) }
                         showDownloadDialog = false
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         downloadError = e.message
                     }

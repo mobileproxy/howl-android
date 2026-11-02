@@ -27,6 +27,7 @@ object DefaultNetworkMonitor {
 
     /** Сети, через которые только что не пошёл трафик, и когда мы это заметили. */
     private val badNetworks = ConcurrentHashMap<Network, Long>()
+    private val recoveryHold = WatchdogNetworkHold()
 
     /** Заявка на мобильную сеть — держим, только пока чиним. См. [requestCellularBackup]. */
     @Volatile
@@ -56,6 +57,7 @@ object DefaultNetworkMonitor {
     }
 
     suspend fun stop() {
+        recoveryHold.reset()
         releaseCellularBackup()
         badNetworks.clear()
         DefaultNetworkListener.stop(this)
@@ -143,6 +145,26 @@ object DefaultNetworkMonitor {
         return usableNetworks().any { it != current }
     }
 
+    fun recoveryAlternative(): Network? {
+        val usable = usableNetworks()
+        val current = currentNetwork
+        if (!recoveryHold.allowed(android.os.SystemClock.elapsedRealtime(), current in usable)) return null
+        return usable.firstOrNull { it != current && !isPenalized(it) }
+            ?: usable.firstOrNull { it != current }
+    }
+
+    /** Commit only the freshly probed network, never silently substitute another one. */
+    @Synchronized fun commitRecoveryNetwork(expected: Network?, target: Network): Boolean {
+        val usable = usableNetworks()
+        if (currentNetwork != expected || target !in usable || target == expected ||
+            !recoveryHold.allowed(android.os.SystemClock.elapsedRealtime(), expected in usable)) return false
+        markCurrentNetworkBad()
+        checkDefaultInterfaceUpdate(target, exact = true)
+        if (reportedNetwork != target) return false
+        recoveryHold.changed(android.os.SystemClock.elapsedRealtime())
+        return true
+    }
+
     /**
      * Попросить систему поднять мобильную сеть.
      *
@@ -191,6 +213,9 @@ object DefaultNetworkMonitor {
         val cm = Application.connectivity
         val usable = usableNetworks()
         if (usable.isEmpty()) return preferred
+        val current = reportedNetwork
+        if (current != null && current in usable &&
+            !recoveryHold.allowed(android.os.SystemClock.elapsedRealtime(), true)) return current
 
         if (preferAlternative) {
             usable.firstOrNull { it != preferred }?.let { return it }
@@ -221,9 +246,10 @@ object DefaultNetworkMonitor {
         checkDefaultInterfaceUpdate(from, preferAlternative)
     }
 
-    private fun checkDefaultInterfaceUpdate(newNetwork: Network?, preferAlternative: Boolean = false) {
+    @Synchronized
+    private fun checkDefaultInterfaceUpdate(newNetwork: Network?, preferAlternative: Boolean = false, exact: Boolean = false) {
         val listener = listener ?: return
-        val target = pickNetwork(newNetwork, preferAlternative)
+        val target = if (exact) newNetwork else pickNetwork(newNetwork, preferAlternative)
         if (target != null) {
             for (times in 0 until 10) {
                 val linkProperties = Application.connectivity.getLinkProperties(target)
