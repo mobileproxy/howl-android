@@ -60,4 +60,3 @@ class WatchdogRecoveryQueueTest {
         yield(); job.cancelAndJoin(); assertFalse(returned)
     }
 }
-

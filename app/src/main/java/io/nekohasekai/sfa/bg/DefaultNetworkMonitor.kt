@@ -113,7 +113,7 @@ object DefaultNetworkMonitor {
     /** Сеть в штрафном ящике? Просроченные записи заодно убираем. */
     private fun isPenalized(network: Network): Boolean {
         val since = badNetworks[network] ?: return false
-        if (System.currentTimeMillis() - since > BAD_NETWORK_PENALTY_MS) {
+        if (android.os.SystemClock.elapsedRealtime() - since > BAD_NETWORK_PENALTY_MS) {
             badNetworks.remove(network)
             return false
         }
@@ -127,7 +127,7 @@ object DefaultNetworkMonitor {
      */
     fun markCurrentNetworkBad() {
         val network = reportedNetwork ?: defaultNetwork ?: return
-        badNetworks[network] = System.currentTimeMillis()
+        badNetworks[network] = android.os.SystemClock.elapsedRealtime()
     }
 
     /** Забыть все штрафы — связь восстановилась, прошлые вердикты больше не актуальны. */

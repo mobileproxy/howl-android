@@ -816,9 +816,8 @@ object ConnectivityWatchdog {
             recovery.queue.reset()
             if (consecutiveFailures > 0 || healAttempts > 0) {
                 appendLog(str(R.string.health_available))
-                // Связь есть — прошлые вердикты о «плохих» сетях больше не актуальны, а
-                // поднятый ради починки модем пора отпустить: он ест батарею и мобильный трафик.
-                DefaultNetworkMonitor.clearPenalties()
+                // Success through the new path does not prove the old Wi-Fi recovered.
+                // Keep its penalty until expiry; retain cellular if it still carries VPN.
                 DefaultNetworkMonitor.releaseCellularBackup()
                 // Возвращаемся к обычному выбору сети: если во время сбоя ушли на мобильную,
                 // а Wi-Fi ожил — надо вернуться на него, иначе будем зря жечь мобильный трафик.
