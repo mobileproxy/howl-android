@@ -1,6 +1,7 @@
 package io.nekohasekai.sfa.bg
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -11,23 +12,72 @@ class WatchdogRecoveryQueueTest {
         assertFalse(WatchdogNetworkHold.retainCellularBackup(true, true, false))
         assertFalse(WatchdogNetworkHold.retainCellularBackup(false, false, false))
     }
-    @Test fun everyReserveIsVisitedBeforeAnyRetryEvenWhenAllResultsAreUnknown() {
-        val q = WatchdogRecoveryQueue(); val nodes = (1..17).map { "node$it" }
-        assertEquals(nodes.take(6), q.next(nodes, 6))
-        assertEquals(nodes.reversed().take(6), q.next(nodes.reversed(), 6))
+    @Test fun emptyGroupAdvancesAndFailedConfirmationContinuesWithinSameSearch() = runTest {
+        val nodes = (1..13).map(Int::toString)
+        val batches = mutableListOf<List<String>>()
+        val applied = mutableListOf<String>()
+        val outcome = searchWatchdogReserves(nodes, emptySet(), current = { true },
+            measure = { group, _ ->
+                batches.add(group)
+                group.map { ReserveMeasurement(it, if (it.toInt() > 6) 30 else null, true) }
+            },
+            apply = {
+                applied.add(it.tag)
+                if (it.tag == "13") WatchdogProbeResult.Reachable else WatchdogProbeResult.NoResponse
+            })
+        assertEquals(nodes.chunked(6), batches)
+        assertEquals(nodes.drop(6), applied)
+        assertEquals(ReserveSearchOutcome.Recovered, outcome)
     }
-    @Test fun fullPassAndRetryAreSeparateAndResetStartsFresh() {
-        val q = WatchdogRecoveryQueue(); val nodes = (1..17).map { "node$it" }
-        val first = q.next(nodes, 6) + q.next(nodes, 6) + q.next(nodes, 6)
-        assertEquals(nodes, first); assertEquals(0, q.pass)
-        assertEquals(nodes.take(6), q.next(nodes, 6)); assertEquals(1, q.pass)
-        q.reset(); assertEquals(0, q.pass); assertEquals(nodes.take(6), q.next(nodes, 6))
+
+    @Test fun abandonedProbesFollowUntouchedCandidatesAndNeverRetryAnAppliedRoute() = runTest {
+        val batches = mutableListOf<List<String>>()
+        val outcome = searchWatchdogReserves((1..8).map(Int::toString), emptySet(), current = { true },
+            measure = { group, _ ->
+                batches.add(group)
+                if (batches.size == 1) listOf(ReserveMeasurement("1", 20, true))
+                else group.map { ReserveMeasurement(it, null, false) }
+            },
+            apply = { WatchdogProbeResult.NoResponse })
+        assertEquals(listOf((1..6).map(Int::toString), listOf("7", "8"), (2..6).map(Int::toString)), batches)
+        assertEquals(ReserveSearchOutcome.Exhausted, outcome)
     }
-    @Test fun reorderedPoolDoesNotRevisitAndNewNodesJoinTheCurrentPass() {
-        val q = WatchdogRecoveryQueue()
-        assertEquals(listOf("a", "b"), q.next(listOf("a", "b", "c"), 2))
-        assertEquals(listOf("d", "c"), q.next(listOf("b", "d", "c", "a"), 2))
-        assertEquals(emptyList<String>(), q.next(emptyList(), 2))
+
+    @Test fun sameCityGetsOnlyShortHeadStartAndLosesWhenLatencyGapIsTooLarge() = runTest {
+        suspend fun chosen(cityDelay: Long, cityLatency: Int): String {
+            val preferred = setOf("city")
+            val measured = probeReserveBatch(listOf("remote", "city"), 9400, preferred = preferred) {
+                if (it == "city") { delay(cityDelay); cityLatency } else 100
+            }
+            return rankReserves(measured, preferred).first().tag
+        }
+        assertEquals("city", chosen(749, 350))
+        assertEquals("remote", chosen(749, 351))
+        assertEquals("remote", chosen(751, 101))
+    }
+
+    @Test fun workFromSupersededContextCannotApplyCandidate() = runTest {
+        var current = true
+        val outcome = searchWatchdogReserves(listOf("a"), emptySet(), current = { current },
+            measure = { _, _ -> current = false; listOf(ReserveMeasurement("a", 20, true)) },
+            apply = { error("A stale measurement authorized a switch") })
+        assertEquals(ReserveSearchOutcome.Superseded, outcome)
+    }
+
+    @Test fun sharedDeadlineRetainsProgressAndCancelsUnfinishedGroup() = runTest {
+        val nodes = (1..8).map(Int::toString)
+        val consumed = mutableListOf<String>()
+        var cancelled = false
+        val outcome = searchWatchdogReserves(nodes, emptySet(), current = { true },
+            measure = { group, _ ->
+                if (group.first() == "7") try { awaitCancellation() } finally { cancelled = true }
+                group.map { ReserveMeasurement(it, null, true) }
+            },
+            apply = { error("No candidate answered") },
+            consumed = { consumed.add(it) }, budgetMs = 500)
+        assertEquals(ReserveSearchOutcome.Deadline, outcome)
+        assertTrue(cancelled)
+        assertEquals(nodes.take(6), consumed)
     }
     @Test fun ownNetworkCallbacksCannotBounceWithinHoldButLossBypassesIt() {
         val h = WatchdogNetworkHold()

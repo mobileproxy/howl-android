@@ -28,12 +28,35 @@ class SoftSwitch(private val probeBudgetMs: Long = 9000) {
     @Synchronized fun valid(ticket: Ticket): Boolean = pauseDepth == 0 && ticket.revision == revision &&
         if (ticket.manual) manualRevision == ticket.revision else manualRevision == null
 
+    suspend fun recoverCore(ticket: Ticket, action: suspend () -> Unit) = commitGate.withLock {
+        if (!ticket.manual && valid(ticket)) action()
+    }
+
     suspend fun select(ticket: Ticket, target: String, expected: String, current: () -> String?,
-        stillCurrent: () -> Boolean = { true }, probe: suspend (String) -> Int?, commit: suspend () -> Unit): SwitchOutcome {
-        fun active() = valid(ticket) && stillCurrent() && current() == expected
+        stillCurrent: () -> Boolean = { true }, followLocalManualIntent: Boolean = false,
+        probe: suspend (String) -> Int?, commit: suspend () -> Unit): SwitchOutcome {
+        val followSelection = ticket.manual && followLocalManualIntent
+        fun active() = valid(ticket) && stillCurrent() &&
+            (if (followSelection) current() != null else current() == expected)
+        suspend fun commitSelection(success: SwitchOutcome) = try {
+            commit()
+            if (valid(ticket) && stillCurrent()) success else SwitchOutcome.Stale
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { if (active()) SwitchOutcome.CommitError else SwitchOutcome.Stale }
         currentCoroutineContext().ensureActive()
         if (!active()) return SwitchOutcome.Stale
-        if (target == expected) return SwitchOutcome.Unchanged
+        if (followSelection) {
+            val settled = commitGate.withLock {
+                when {
+                    !active() -> SwitchOutcome.Stale
+                    // Reassert explicit intent even if a preceding core operation has not
+                    // published its updated group selection to the UI yet.
+                    target == current() -> commitSelection(SwitchOutcome.Unchanged)
+                    else -> null
+                }
+            }
+            if (settled != null) return settled
+        } else if (target == expected) return SwitchOutcome.Unchanged
         val delay = try { withTimeoutOrNull(probeBudgetMs) { probe(target) } }
         catch (e: CancellationException) { throw e }
         catch (_: Exception) { return if (active()) SwitchOutcome.ProbeError else SwitchOutcome.Stale }
@@ -43,11 +66,7 @@ class SoftSwitch(private val probeBudgetMs: Long = 9000) {
         return commitGate.withLock {
             currentCoroutineContext().ensureActive()
             if (!active()) return@withLock SwitchOutcome.Stale
-            try {
-                commit()
-                if (valid(ticket) && stillCurrent()) SwitchOutcome.Switched else SwitchOutcome.Stale
-            } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { if (active()) SwitchOutcome.CommitError else SwitchOutcome.Stale }
+            commitSelection(if (followSelection && target == current()) SwitchOutcome.Unchanged else SwitchOutcome.Switched)
         }
     }
 }

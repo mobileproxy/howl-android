@@ -7,9 +7,12 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProbeCoordinatorTest {
-    @Test fun sixManualOwnersLeaveTwoRealSlotsForActiveRequests() = runTest {
+    @Test fun fourScanOwnersLeaveTwoRecoveryAndTwoActiveSlots() = runTest {
         val coordinator = ProbeCoordinator()
-        val manual = List(6) { coordinator.acquire(ProbePriority.ManualScan) }
+        val manual = List(4) { coordinator.acquire(ProbePriority.ManualScan) }
+        val fifthScan = async { coordinator.acquire(ProbePriority.ManualScan) }; runCurrent()
+        assertFalse(fifthScan.isCompleted)
+        val recovery = List(2) { coordinator.acquire(ProbePriority.Recovery) }
         val blocked = async { coordinator.acquire(ProbePriority.Recovery) }; runCurrent()
         assertFalse(blocked.isCompleted)
         val active = List(2) { coordinator.acquire(ProbePriority.Active) }
@@ -18,11 +21,11 @@ class ProbeCoordinatorTest {
         active[0].close(); runCurrent(); assertTrue(ninth.isCompleted)
         assertFalse(blocked.isCompleted)
         ninth.await().close(); active[1].close(); manual.forEach { it.close() }
-        runCurrent(); blocked.await().close()
+        runCurrent(); blocked.await().close(); fifthScan.await().close(); recovery.forEach { it.close() }
     }
     @Test fun recoveryManualAndBackgroundCannotBorrowActiveReservation() = runTest {
         val coordinator = ProbeCoordinator()
-        val owners = List(6) { coordinator.acquire(ProbePriority.Background) }
+        val owners = List(6) { coordinator.acquire(ProbePriority.Recovery) }
         val waiting = listOf(ProbePriority.Recovery, ProbePriority.ManualScan, ProbePriority.Background).map { priority ->
             async { coordinator.acquire(priority) }
         }
@@ -82,10 +85,27 @@ class ProbeCoordinatorTest {
     }
     @Test fun fullBackgroundWaitingListCannotBlockFreeReservedActiveCapacity() = runTest {
         val coordinator = ProbeCoordinator(maximumWaiters = 1)
-        val manual = List(6) { coordinator.acquire(ProbePriority.ManualScan) }
+        val manual = List(4) { coordinator.acquire(ProbePriority.ManualScan) }
         val background = async { coordinator.acquire(ProbePriority.Background) }; runCurrent()
         val active = runCatching { coordinator.acquire(ProbePriority.Active) }.getOrNull()
         try { assertNotNull("Reserved real capacity must remain usable under waiter pressure", active) }
         finally { active?.close(); background.cancelAndJoin(); manual.forEach { it.close() } }
+    }
+
+    @Test fun saturatedScanQueueStillAdmitsWaitingRecovery() = runTest {
+        val coordinator = ProbeCoordinator(maximumWaiters = 1)
+        val scans = List(4) { coordinator.acquire(ProbePriority.ManualScan) }
+        val owners = List(2) { coordinator.acquire(ProbePriority.Recovery) }
+        val scan = async { coordinator.acquire(ProbePriority.Background) }
+        val recovery = async { coordinator.acquire(ProbePriority.Recovery) }
+        runCurrent()
+        assertFalse(scan.isCompleted)
+        assertFalse(recovery.isCompleted)
+        owners.first().close()
+        runCurrent()
+        assertTrue(recovery.isCompleted)
+        assertFalse(scan.isCompleted)
+        recovery.await().close(); owners.last().close()
+        scan.cancelAndJoin(); scans.forEach { it.close() }
     }
 }

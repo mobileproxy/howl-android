@@ -118,7 +118,8 @@ class ProbeTransportTest {
     }
 
     @Test fun admissionWaitHappensBeforeWorkerSubmissionAndCancellationCreatesNoClient() = runBlocking {
-        val coordinator = ProbeCoordinator(); val owners = List(6) { coordinator.acquire(ProbePriority.ManualScan) }
+        val coordinator = ProbeCoordinator()
+        val owners = withTimeout(5000) { List(4) { coordinator.acquire(ProbePriority.ManualScan) } }
         val submissions = AtomicInteger(); val factories = AtomicInteger()
         val transport = ProbeTransport(factory = { factories.incrementAndGet(); error("must not create") },
             workers = java.util.concurrent.Executor { submissions.incrementAndGet(); it.run() }, coordinator = coordinator)

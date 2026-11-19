@@ -1,6 +1,7 @@
 package io.nekohasekai.sfa.connections
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.test.runTest
@@ -8,6 +9,40 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SoftSwitchTest {
+    @Test fun localManualChoiceWaitsForStartedReloadAndWinsOverItsRouteChange() = runTest {
+        val switch = SoftSwitch()
+        val automatic = switch.automatic()!!
+        val entered = CompletableDeferred<Unit>()
+        val finishReload = CompletableDeferred<Unit>()
+        var selected = "A"
+        val reload = launch {
+            switch.recoverCore(automatic) {
+                entered.complete(Unit)
+                finishReload.await()
+                selected = "B"
+            }
+        }
+        entered.await()
+        val manual = switch.manual()
+        val selection = async {
+            switch.select(manual, "A", "A", { selected }, followLocalManualIntent = true,
+                probe = { 20 }, commit = { selected = "A" })
+        }
+        assertFalse(selection.isCompleted)
+        finishReload.complete(Unit)
+        reload.join()
+        assertEquals(SwitchOutcome.Switched, selection.await())
+        assertEquals("A", selected)
+    }
+
+    @Test fun manualIntentPreventsQueuedAutomaticReload() = runTest {
+        val switch = SoftSwitch()
+        val automatic = switch.automatic()!!
+        val manual = switch.manual()
+        switch.recoverCore(automatic) { error("Stale recovery ticket entered core reload") }
+        switch.finish(manual)
+    }
+
     @Test fun repeatingTheCurrentManualChoiceSupersedesAnOlderAutomaticDecision() {
         val switch = SoftSwitch(); val automatic = switch.automatic()!!
         val manual = switch.manual(); switch.finish(manual)

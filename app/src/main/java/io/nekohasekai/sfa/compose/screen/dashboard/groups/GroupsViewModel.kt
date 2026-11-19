@@ -292,11 +292,15 @@ class GroupsViewModel(private val sharedCommandClient: CommandClient? = null) :
                 val probe = LibboxProbeTransport.createFor(remote, io.nekohasekai.sfa.connections.ProbePriority.Active)
                 val command = LibboxSelectionTransport.create(remote)
                 val result = choice.select(ticket, itemTag, expected, ::selected, ::sessionCurrent,
+                    followLocalManualIntent = remote == null,
                     probe = { tag -> probe.measure(tag, 1) ?: probe.measure(tag, 2) },
-                    commit = { command.select(groupTag, itemTag) { sessionCurrent() && choice.valid(ticket) && selected() == expected } })
+                    commit = { command.select(groupTag, itemTag) {
+                        sessionCurrent() && choice.valid(ticket) &&
+                            (if (remote == null) selected() != null else selected() == expected)
+                    } })
                 val preferenceResult = if (intent != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
                     preferences.acknowledgeManual(intent, result in setOf(SwitchOutcome.Switched, SwitchOutcome.Unchanged)) {
-                        choice.valid(ticket) && sessionCurrent() && selected() in setOf(expected, itemTag)
+                        choice.valid(ticket) && sessionCurrent() && selected() != null
                     }
                 } else null
                 if (preferenceResult != null && preferenceResult !in setOf(io.nekohasekai.sfa.health.PreferenceWriteResult.Stored, io.nekohasekai.sfa.health.PreferenceWriteResult.Unchanged) &&

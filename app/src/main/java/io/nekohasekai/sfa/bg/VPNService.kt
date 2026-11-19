@@ -181,8 +181,13 @@ class VPNService :
             systemProxyEnabled = false
         }
 
+        check(Settings.startedByUser) { "android: VPN start was cancelled" }
         val pfd =
             builder.establish() ?: error("android: the application is not prepared or is revoked")
+        if (!Settings.startedByUser) {
+            pfd.close()
+            error("android: VPN start was cancelled")
+        }
         service.fileDescriptor = pfd
         return pfd.fd
     }

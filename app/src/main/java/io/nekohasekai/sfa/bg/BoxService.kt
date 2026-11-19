@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
@@ -30,6 +31,8 @@ import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.MainActivity
+import io.nekohasekai.sfa.connections.SoftSwitch
+import io.nekohasekai.sfa.connections.SoftSwitching
 import io.nekohasekai.sfa.constant.Action
 import io.nekohasekai.sfa.constant.Alert
 import io.nekohasekai.sfa.constant.Status
@@ -49,6 +52,7 @@ import io.nekohasekai.sfa.vendor.Vendor
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -64,6 +68,11 @@ import kotlinx.coroutines.sync.withLock
 class BoxService(private val service: Service, private val platformInterface: PlatformInterface) : CommandServerHandler {
     private val serviceMutex = Mutex()
     private val startIntent = ServiceStartIntent()
+    private class AppliedCore(val profile: Long, val content: String, val options: () -> OverrideOptions)
+    private var appliedCore: AppliedCore? = null
+    @Volatile
+    internal var coreRecoveryFailed = false
+        private set
     companion object {
         private const val PROFILE_UPDATE_INTERVAL = 15L * 60 * 1000 // 15 minutes in milliseconds
         private const val TAG = "BoxService"
@@ -75,6 +84,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
          */
         @Volatile
         var running = false
+        @Volatile
+        internal var activeInstance: BoxService? = null
+            private set
 
         @Volatile private var diagnosticProtocols: Map<String, String> = emptyMap()
         fun diagnosticProtocol(tag: String?): String? = tag?.let { diagnosticProtocols[it] }
@@ -218,6 +230,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             val published = withContext(Dispatchers.Main) {
                 if (!startIntent.current(ticket, Settings.startedByUser)) return@withContext false
                 status.value = Status.Started
+                activeInstance = this@BoxService
                 running = true
                 AndroidLifecycleDiagnostics.serviceRunning()
                 ServiceGuard.schedule()
@@ -294,24 +307,66 @@ class BoxService(private val service: Service, private val platformInterface: Pl
      */
     suspend fun serviceReload0() {
         serviceMutex.withLock {
-        if (!Settings.startedByUser) return@withLock
-        val choices = io.nekohasekai.sfa.connections.SoftSwitching.choices
-        choices.pause()
-        val startedAt = System.currentTimeMillis()
-        ConnectivityWatchdog.pauseForReload()
-        AndroidLifecycleDiagnostics.plannedReload()
-        var applied = false
-        try {
-            applied = reloadCore()
-        } finally {
-            choices.resume()
-            ConnectivityWatchdog.resumeAfterReload()
-            if (Settings.startedByUser) AndroidLifecycleDiagnostics.reloaded()
-            val took = (System.currentTimeMillis() - startedAt) / 100 / 10.0
-            AppEventLog.log("ядро", if (applied) "конфигурация перезагружена за $took с" else "перезагрузка не подтверждена; рабочий резерв сохранён")
-        }
+            if (!Settings.startedByUser) return@withLock
+            val choices = SoftSwitching.choices
+            choices.pause()
+            val startedAt = SystemClock.elapsedRealtime()
+            ConnectivityWatchdog.pauseForReload()
+            AndroidLifecycleDiagnostics.plannedReload()
+            var applied = false
+            try {
+                applied = reloadCore()
+            } finally {
+                choices.resume()
+                ConnectivityWatchdog.resumeAfterReload()
+                if (Settings.startedByUser) AndroidLifecycleDiagnostics.reloaded()
+                AppEventLog.log("ядро", "reloadApplied=$applied elapsedMs=${SystemClock.elapsedRealtime() - startedAt}")
+            }
         }
     }
+
+    internal suspend fun recoverCore(ticket: SoftSwitch.Ticket,
+        current: () -> Boolean, onStart: () -> Unit) {
+        serviceMutex.withLock {
+            val choices = SoftSwitching.choices
+            choices.recoverCore(ticket) reload@ {
+                val applied = appliedCore ?: return@reload
+                val network = DefaultNetworkMonitor.currentNetwork
+                fun canRestart() = activeInstance === this && Settings.startedByUser && Settings.watchdogEnabled &&
+                    choices.valid(ticket) && Settings.selectedProfile == applied.profile && network != null &&
+                    DefaultNetworkMonitor.currentNetwork == network &&
+                    (!usesVpn || android.net.VpnService.prepare(service) == null)
+                if (!current() || !canRestart()) return@reload
+                withContext(NonCancellable) {
+                    if (!current() || !canRestart()) return@withContext
+                    ConnectivityWatchdog.pauseForReload(watchdog = true)
+                    AndroidLifecycleDiagnostics.plannedReload()
+                    try {
+                        if (canRestart()) {
+                            onStart()
+                            val startedAt = SystemClock.elapsedRealtime()
+                            coreRecoveryFailed = try {
+                                commandServer.startOrReloadService(applied.content, applied.options())
+                                false
+                            } catch (_: Exception) { true }
+                            AppEventLog.log("reliability",
+                                "coreRecoveryApplied=${!coreRecoveryFailed} elapsedMs=${SystemClock.elapsedRealtime() - startedAt}")
+                        }
+                    } finally {
+                        if (activeInstance === this@BoxService && Settings.startedByUser) {
+                            AndroidLifecycleDiagnostics.reloaded()
+                            ConnectivityWatchdog.resumeAfterReload(watchdog = true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    internal fun protectRecoverySocket(socket: java.net.Socket): Boolean =
+        (service as? android.net.VpnService)?.protect(socket) ?: true
+
+    internal val usesVpn: Boolean get() = service is android.net.VpnService
 
     private suspend fun reloadCore(): Boolean {
         val selectedProfileId = Settings.selectedProfile
@@ -366,23 +421,26 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private suspend fun launchProfile(profile: Profile, prepared: SafeProfileStore.Prepared, content: String): SafeProfileStore.Prepared {
         val current = ProfileManager.get(profile.id) ?: error("profile changed")
         check(Settings.selectedProfile == profile.id && current.typed.remoteURL == profile.typed.remoteURL)
-        val options = OverrideOptions().apply {
-            autoRedirect = Settings.autoRedirect
-            if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
-                val apps = Settings.getEffectivePerAppProxyList()
-                if (Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE) {
-                    includePackage = PlatformInterfaceWrapper.StringArray((apps + Application.application.packageName).iterator())
-                } else {
-                    excludePackage = PlatformInterfaceWrapper.StringArray((apps - Application.application.packageName).iterator())
-                }
-            }
+        val redirect = Settings.autoRedirect
+        val perApp = Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled
+        val include = Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE
+        val apps = if (perApp) Settings.getEffectivePerAppProxyList().toList() else emptyList()
+        val ownPackage = Application.application.packageName
+        fun options() = OverrideOptions().apply {
+            autoRedirect = redirect
+            if (perApp && include)
+                includePackage = PlatformInterfaceWrapper.StringArray((apps + ownPackage).distinct().iterator())
+            if (perApp && !include)
+                excludePackage = PlatformInterfaceWrapper.StringArray((apps - ownPackage).iterator())
         }
         val accepted = io.nekohasekai.sfa.profile.ProfileLauncher.launch(
             prepared, content,
             { ProfileSafety.backup(profile) }, ::assembleConfig,
-            { Libbox.checkConfig(it) }, { commandServer.startOrReloadService(it, options) },
+            { Libbox.checkConfig(it) }, { commandServer.startOrReloadService(it, options()) },
         )
         val acceptedContent = accepted.assembled
+        appliedCore = AppliedCore(profile.id, acceptedContent, ::options)
+        coreRecoveryFailed = false
         if (accepted.prepared.backup) {
             AppEventLog.log("профиль", Application.application.getString(R.string.profile_safe_backup))
         }
@@ -461,6 +519,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         AppEventLog.log("reliability", "plannedStop=${reason.name}")
         // Осознанная остановка: воскрешать не надо, будильник сторожа службы снимаем.
         running = false
+        if (activeInstance === this) activeInstance = null
         ServiceGuard.cancel()
         status.value = Status.Stopping
         if (receiverRegistered) {
@@ -514,6 +573,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         // разбирать по журналу, а не гадать.
         AppEventLog.log("стоп", "остановлено из-за ошибки: $type${message?.let { " — $it" } ?: ""}")
         running = false
+        if (activeInstance === this) activeInstance = null
         AndroidLifecycleDiagnostics.stop(if (Settings.startedByUser) PlannedStop.FAILURE else PlannedStop.USER)
         startIntent.stop()
         ServiceGuard.cancel()
@@ -619,6 +679,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     internal fun onBind(): IBinder = binder
 
     internal fun onDestroy() {
+        if (activeInstance === this) {
+            activeInstance = null
+            running = false
+            ConnectivityWatchdog.stop()
+        }
         binder.close()
     }
 

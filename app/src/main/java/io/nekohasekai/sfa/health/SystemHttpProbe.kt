@@ -12,6 +12,13 @@ import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.SSLHandshakeException
 
 data class SystemHttpFinding(val outcome: WatchdogProbeResult, val dns: DnsFinding, val http: HttpFinding)
+
+internal fun List<SystemHttpFinding>.bestRouteFinding(): SystemHttpFinding? =
+    firstOrNull { it.outcome == WatchdogProbeResult.Reachable }
+        ?: firstOrNull { it.outcome == WatchdogProbeResult.Unavailable }
+        ?: firstOrNull { it.http != HttpFinding.Unknown }
+        ?: firstOrNull()
+
 class SystemHttpProbe(private val runner: WatchdogProbeRunner = WatchdogProbeRunner(),
     private val resolve: (String) -> Unit = { InetAddress.getByName(it); Unit },
     private val open: (URL) -> HttpURLConnection = { it.openConnection() as HttpURLConnection },
@@ -30,6 +37,9 @@ class SystemHttpProbe(private val runner: WatchdogProbeRunner = WatchdogProbeRun
                 connection.connectTimeout = timeoutMs.toInt()
                 connection.readTimeout = timeoutMs.toInt()
                 connection.instanceFollowRedirects = false
+                connection.useCaches = false
+                connection.setRequestProperty("Cache-Control", "no-cache, no-store")
+                connection.setRequestProperty("Connection", "close")
                 connection.requestMethod = "GET"
                 val expected = connection.responseCode == 204
                 http.set(if (expected) HttpFinding.Expected else HttpFinding.UnexpectedStatus)

@@ -16,12 +16,53 @@ data class WatchdogIdentity(val owner: Any, val profile: Long, val selector: Str
     val node: String?, val generation: Long, val network: Any? = null)
 
 class WatchdogObservation(val identity: WatchdogIdentity, val startedAt: Long) {
-    fun current(other: WatchdogIdentity, now: Long): Boolean = identity == other && now - startedAt in 0..30_000
+    companion object { const val DEADLINE_MS = 80_000L }
+    fun current(other: WatchdogIdentity, now: Long): Boolean = identity == other && now - startedAt in 0..DEADLINE_MS
     // Selection may change as a result of OUR acknowledged commit. Everything else still matches.
     fun belongsToSession(other: WatchdogIdentity): Boolean = identity.copy(selection = other.selection, node = other.node) == other
     fun sessionCurrent(other: WatchdogIdentity, now: Long): Boolean =
-        belongsToSession(other) && now - startedAt in 0..30_000
+        belongsToSession(other) && now - startedAt in 0..DEADLINE_MS
 }
+
+/** Three exhausted searches before the first reload. A reload keeps the backoff until verified recovery. */
+class WatchdogRestartBackoff {
+    private var exhausted = 0
+    private var reloads = 0
+    private var dueAt: Long? = null
+
+    @Synchronized fun exhausted(now: Long) {
+        if (++exhausted >= 3) scheduleIfIdle(now)
+    }
+
+    @Synchronized fun scheduleIfIdle(now: Long) {
+        if (dueAt == null) dueAt = now + delayMs()
+    }
+
+    @Synchronized fun pending() = dueAt != null
+    @Synchronized fun due(now: Long) = dueAt?.let { now >= it } == true
+
+    @Synchronized fun started() {
+        reloads++
+        exhausted = 0
+        dueAt = null
+    }
+
+    @Synchronized fun reset() {
+        exhausted = 0
+        reloads = 0
+        dueAt = null
+    }
+
+    private fun delayMs() = 30_000L shl reloads.coerceAtMost(2)
+}
+
+/** The selector proof rules out a bypass-only success. HTTPS exercises the Android VPN path. */
+internal fun combineRouteProbes(selected: WatchdogProbeResult, https: WatchdogProbeResult): WatchdogProbeResult =
+    when {
+        selected == WatchdogProbeResult.NoResponse -> WatchdogProbeResult.NoResponse
+        selected == WatchdogProbeResult.Unavailable -> WatchdogProbeResult.Unavailable
+        else -> https
+    }
 
 class WatchdogSelectedPathProbe(private val transport: ProbeTransport, private val timeoutMs: Long = 9400) {
     private data class Reply(val delay: Int?)

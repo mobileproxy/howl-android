@@ -50,7 +50,18 @@ class SystemHttpProbeTest {
         assertEquals(WatchdogProbeResult.Reachable, result.outcome)
         assertEquals(DnsFinding.Resolved, result.dns)
         assertEquals(HttpFinding.Expected, result.http)
+        assertFalse(reply.useCaches)
+        assertEquals("no-cache, no-store", reply.getRequestProperty("Cache-Control"))
+        assertEquals("close", reply.getRequestProperty("Connection"))
         assertTrue(reply.closed.await(1, TimeUnit.SECONDS))
+    }
+    @Test fun oneIndependentControlRespondingKeepsRouteHealthy() {
+        val success = SystemHttpFinding(WatchdogProbeResult.Reachable, DnsFinding.Resolved, HttpFinding.Expected)
+        val failure = SystemHttpFinding(WatchdogProbeResult.NoResponse, DnsFinding.Failed, HttpFinding.Unknown)
+        val unavailable = SystemHttpFinding(WatchdogProbeResult.Unavailable, DnsFinding.Unknown, HttpFinding.Unknown)
+        assertEquals(success, listOf(failure, success).bestRouteFinding())
+        assertEquals(success, listOf(unavailable, success).bestRouteFinding())
+        assertEquals(unavailable, listOf(failure, unavailable).bestRouteFinding())
     }
     @Test fun handshakeAndTransportFailuresDoNotBecomeDnsFailures() = runBlocking {
         val handshake = SystemHttpProbe(resolve = {}, open = { Reply(error = SSLHandshakeException("fixture secret")) }).run()

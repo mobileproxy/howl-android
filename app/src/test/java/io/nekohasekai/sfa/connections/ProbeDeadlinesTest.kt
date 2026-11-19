@@ -117,14 +117,16 @@ class ProbeDeadlinesTest {
     }
 
     @Test fun actualBlockingCallsStayBoundedAcrossCancellationAndNewRuns() = runBlocking {
-        val release = CountDownLatch(1); val started = CountDownLatch(8); val manualStarted = CountDownLatch(6)
+        val release = CountDownLatch(1); val started = CountDownLatch(8); val manualStarted = CountDownLatch(4)
+        val recoveryStarted = CountDownLatch(2)
         val calls = AtomicInteger(); val active = AtomicInteger(); val maximum = AtomicInteger()
         fun transport(priority: ProbePriority = ProbePriority.ManualScan) = ProbeTransport(factory = { object : OwnedProbeClient {
             override fun test(tag: String, url: String, timeoutMs: Int): ProbeReply {
                 calls.incrementAndGet()
                 val current = active.incrementAndGet(); maximum.accumulateAndGet(current, ::maxOf)
                 started.countDown()
-                manualStarted.countDown()
+                if (priority == ProbePriority.ManualScan) manualStarted.countDown()
+                if (priority == ProbePriority.Recovery) recoveryStarted.countDown()
                 try { check(release.await(10, TimeUnit.SECONDS)); return ProbeReply(120, false) }
                 finally { active.decrementAndGet() }
             }
@@ -136,7 +138,9 @@ class ProbeDeadlinesTest {
         val activeJobs = mutableListOf<Job>()
         try {
             assertTrue(withContext(Dispatchers.IO) { manualStarted.await(5, TimeUnit.SECONDS) })
-            assertEquals(6, calls.get())
+            assertEquals(4, calls.get())
+            repeat(2) { activeJobs.add(launch { transport(ProbePriority.Recovery).measure("reserve-$it", 1) }) }
+            assertTrue(withContext(Dispatchers.IO) { recoveryStarted.await(5, TimeUnit.SECONDS) })
             repeat(2) { activeJobs.add(launch { transport(ProbePriority.Active).measure("current-$it", 1) }) }
             assertTrue(withContext(Dispatchers.IO) { started.await(5, TimeUnit.SECONDS) })
             job.cancelAndJoin(); activeJobs.forEach { it.cancelAndJoin() }
